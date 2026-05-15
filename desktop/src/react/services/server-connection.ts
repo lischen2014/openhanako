@@ -3,8 +3,14 @@ export type ServerTrustState = 'local' | 'lan' | 'tunnel' | 'cloud';
 export type ServerAuthState = 'anonymous' | 'paired' | 'user' | 'expired';
 export type ConnectionCredentialKind = 'none' | 'loopback_token' | 'device_credential' | 'user_session';
 export type OfficialServiceKind = 'relay' | 'cloud_space' | 'inference' | 'billing';
+export type ServerConnectionRegistry = Record<string, ServerConnection>;
+export type SpaceConnection = ServerConnection;
+export type SpaceConnectionRegistry = ServerConnectionRegistry;
+
+export const LOCAL_CONNECTION_ID = 'local';
 
 export interface ServerConnection {
+  connectionId: string;
   kind: SpaceConnectionKind;
   serverId: string;
   userId?: string;
@@ -42,6 +48,8 @@ export interface ServerIdentity {
 }
 
 export interface ServerConnectionSource {
+  serverConnections?: ServerConnectionRegistry | null;
+  activeServerConnectionId?: string | null;
   activeServerConnection?: ServerConnection | null;
   serverPort?: string | number | null;
   serverToken?: string | null;
@@ -110,6 +118,7 @@ export function createLocalServerConnection({
   if (!port) return null;
 
   return {
+    connectionId: LOCAL_CONNECTION_ID,
     kind: 'local',
     serverId: 'local',
     spaceId: 'local',
@@ -141,6 +150,7 @@ export function refreshLocalServerConnection({
 
   return {
     ...existingConnection,
+    connectionId: LOCAL_CONNECTION_ID,
     kind: 'local',
     baseUrl: nextTransport.baseUrl,
     wsUrl: nextTransport.wsUrl,
@@ -157,6 +167,10 @@ export function refreshLocalServerConnection({
 }
 
 export function resolveServerConnection(source: ServerConnectionSource): ServerConnection | null {
+  if (source.activeServerConnectionId) {
+    const registryConnection = source.serverConnections?.[source.activeServerConnectionId];
+    if (registryConnection) return registryConnection;
+  }
   if (source.activeServerConnection) return source.activeServerConnection;
   return createLocalServerConnection({
     serverPort: source.serverPort,
@@ -175,6 +189,19 @@ export function requireServerConnection(
 
 export function hasServerConnection(source: ServerConnectionSource): boolean {
   return !!resolveServerConnection(source);
+}
+
+export function upsertServerConnection(
+  registry: ServerConnectionRegistry | null | undefined,
+  connection: ServerConnection,
+): ServerConnectionRegistry {
+  if (!connection.connectionId) {
+    throw new Error('server connection requires connectionId');
+  }
+  return {
+    ...(registry ?? {}),
+    [connection.connectionId]: connection,
+  };
 }
 
 export function mergeServerIdentity(

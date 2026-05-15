@@ -4,6 +4,7 @@ import type { ServerConnection } from '../../services/server-connection';
 import type { FileRef } from '../../types/file-ref';
 
 const localConnection: ServerConnection = {
+  connectionId: 'local',
   kind: 'local',
   serverId: 'server_local',
   userId: 'user_local',
@@ -22,6 +23,7 @@ const localConnection: ServerConnection = {
 
 const remoteConnection: ServerConnection = {
   ...localConnection,
+  connectionId: 'custom:remote',
   kind: 'custom_remote',
   serverId: 'server_remote',
   spaceId: 'space_remote',

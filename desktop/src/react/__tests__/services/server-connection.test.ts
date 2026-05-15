@@ -9,6 +9,7 @@ import {
   mergeServerIdentity,
   refreshLocalServerConnection,
   resolveServerConnection,
+  upsertServerConnection,
 } from '../../services/server-connection';
 
 describe('server connection helpers', () => {
@@ -17,6 +18,7 @@ describe('server connection helpers', () => {
       serverPort: 3210,
       serverToken: 'test-token-123',
     })).toEqual({
+      connectionId: 'local',
       kind: 'local',
       serverId: 'local',
       spaceId: 'local',
@@ -62,6 +64,55 @@ describe('server connection helpers', () => {
       serverPort: 3210,
       serverToken: 'legacy-token',
     })).toBe(active);
+  });
+
+  it('resolves the active connection from the SpaceConnection registry before legacy mirror fields', () => {
+    const registryConnection = mergeServerIdentity(createLocalServerConnection({
+      serverPort: 4242,
+      serverToken: 'registry-token',
+    })!, {
+      serverId: 'server_registry',
+      userId: 'user_registry',
+      spaceId: 'space_registry',
+      label: 'Registry Space',
+    });
+    const staleMirror = createLocalServerConnection({
+      serverPort: 3210,
+      serverToken: 'stale-token',
+    });
+
+    expect(resolveServerConnection({
+      activeServerConnectionId: 'local',
+      serverConnections: { local: registryConnection },
+      activeServerConnection: staleMirror,
+      serverPort: 3210,
+      serverToken: 'legacy-token',
+    })).toBe(registryConnection);
+  });
+
+  it('upserts connections by connectionId without mutating the previous registry', () => {
+    const local = createLocalServerConnection({
+      serverPort: 3210,
+      serverToken: 'local-token',
+    })!;
+    const remote = {
+      ...local,
+      connectionId: 'custom:remote',
+      kind: 'custom_remote' as const,
+      label: 'Remote Space',
+      baseUrl: 'https://hana.example',
+      wsUrl: 'wss://hana.example',
+      token: 'remote-token',
+      trustState: 'tunnel' as const,
+      credentialKind: 'device_credential' as const,
+    };
+    const previousRegistry = { local };
+    const registry = upsertServerConnection(previousRegistry, remote);
+
+    expect(Object.keys(registry)).toEqual(['local', 'custom:remote']);
+    expect(registry['custom:remote']).toBe(remote);
+    expect(registry).not.toBe(previousRegistry);
+    expect(previousRegistry).toEqual({ local });
   });
 
   it('builds browser-loadable URLs with query token while preserving existing query params', () => {
@@ -130,6 +181,7 @@ describe('server connection helpers', () => {
       capabilities: ['chat', 'resources', 'tools', 'identity'],
       version: '1.2.3',
     })).toEqual({
+      connectionId: 'local',
       serverId: 'server_stable',
       userId: 'user_stable',
       spaceId: 'space_stable',
@@ -170,6 +222,7 @@ describe('server connection helpers', () => {
       serverToken: 'new-token',
     })).toEqual({
       ...connection,
+      connectionId: 'local',
       baseUrl: 'http://127.0.0.1:4222',
       wsUrl: 'ws://127.0.0.1:4222',
       token: 'new-token',

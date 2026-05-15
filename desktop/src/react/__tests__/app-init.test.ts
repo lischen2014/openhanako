@@ -190,6 +190,7 @@ describe('initApp bridge indicator', () => {
     await initApp();
 
     expect(mockState.activeServerConnection).toEqual({
+      connectionId: 'local',
       kind: 'local',
       serverId: 'server_test',
       userId: 'user_test',
@@ -207,6 +208,10 @@ describe('initApp bridge indicator', () => {
       platformAccountId: null,
       officialServiceKind: null,
       capabilities: ['chat', 'resources', 'tools'],
+    });
+    expect(mockState.activeServerConnectionId).toBe('local');
+    expect(mockState.serverConnections).toEqual({
+      local: mockState.activeServerConnection,
     });
     expect(mockState.bridgeDotConnected).toBe(true);
   });

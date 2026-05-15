@@ -22,7 +22,7 @@ import { openSettingsModal } from './stores/settings-modal-actions';
 import { configureAppEventActions, handleAppEvent, readConfigCwdHistory, readConfigHomeFolder, readConfigMemoryMasterEnabled } from './services/app-event-actions';
 import { configureWsMessageHandler } from './services/ws-message-handler';
 import { applyEditorTypography } from './editor/typography';
-import { createLocalServerConnection, hasServerConnection, mergeServerIdentity } from './services/server-connection';
+import { createLocalServerConnection, hasServerConnection, mergeServerIdentity, upsertServerConnection } from './services/server-connection';
 // @ts-expect-error — shared JS module
 import { errorBus as _errorBus } from '../../../shared/error-bus.js';
 // @ts-expect-error — shared JS module
@@ -75,7 +75,13 @@ export async function initApp(): Promise<void> {
   const serverPort = await platform.getServerPort();
   const serverToken = await platform.getServerToken();
   const activeServerConnection = createLocalServerConnection({ serverPort, serverToken });
-  useStore.setState({ serverPort, serverToken, activeServerConnection });
+  useStore.setState({
+    serverPort,
+    serverToken,
+    serverConnections: activeServerConnection ? upsertServerConnection({}, activeServerConnection) : {},
+    activeServerConnectionId: activeServerConnection?.connectionId ?? null,
+    activeServerConnection,
+  });
 
   if (!activeServerConnection) {
     setStatus('status.serverNotReady', false);
@@ -86,8 +92,11 @@ export async function initApp(): Promise<void> {
   try {
     const identityRes = await hanaFetch('/api/server/identity');
     const identityData = await identityRes.json();
+    const mergedConnection = mergeServerIdentity(activeServerConnection, identityData);
     useStore.setState({
-      activeServerConnection: mergeServerIdentity(activeServerConnection, identityData),
+      serverConnections: upsertServerConnection(useStore.getState().serverConnections, mergedConnection),
+      activeServerConnectionId: mergedConnection.connectionId,
+      activeServerConnection: mergedConnection,
     });
   } catch (err) {
     console.error('[init] server identity failed:', err);
