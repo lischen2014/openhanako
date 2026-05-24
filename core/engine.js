@@ -32,6 +32,7 @@ import { PluginManager } from "./plugin-manager.js";
 import { PluginDevService } from "./plugin-dev-service.js";
 import { createPluginDevTools } from "./plugin-dev-tools.js";
 import { DefaultResourceLoader, SettingsManager } from "../lib/pi-sdk/index.js";
+import { compactSessionWithCachePreservation } from "./session-compactor.js";
 import { DeferredResultCoordinator } from "../lib/deferred-result-coordinator.js";
 import { getToolSessionPath, normalizeToolRuntimeContext } from "../lib/tools/tool-session.js";
 import { loadLocale } from "../server/i18n.js";
@@ -873,7 +874,7 @@ export class HanaEngine {
     if (!session) throw new Error("compactDesktopSession: session not found");
     if (session.isCompacting) throw new Error("compactDesktopSession: already compacting");
     const before = session.getContextUsage?.() ?? null;
-    await session.compact();
+    await compactSessionWithCachePreservation(session);
     const after = session.getContextUsage?.() ?? null;
     return {
       tokensBefore: before?.tokens ?? null,

@@ -142,7 +142,7 @@ export const bridgeCommands = [
     permission: "owner",
     source: "core",
     handler: async (ctx) => {
-      // Phase 7：bridge /compact 做真实压缩（session.compact()），并给用户发"进行中"+"完成/失败"两条消息
+      // Phase 7：bridge /compact 做真实压缩（Hana cache-preserving compaction），并给用户发"进行中"+"完成/失败"两条消息
       // 让对方在社交平台看到"她在干活"的反馈，不用盯着一个沉默通道
       // 失败路径也要发一条给用户，否则压缩出错用户只会看到什么都没发生
       // Phase 2-E：接管态下 compact 的目标是桌面 session 的 context，不是 bridge 的

@@ -42,7 +42,7 @@ export function createSessionOps({ engine }) {
 
     async compact(ref) {
       if (ref.kind === "bridge") {
-        // Phase 7：真正开 owner-mode session + session.compact()，不再注入 [上下文已压缩] 占位
+        // Phase 7：真正开 owner-mode session + Hana cache-preserving compaction，不再注入 [上下文已压缩] 占位
         // 返回 { tokensBefore, tokensAfter, contextWindow }，由上层 /compact handler 组文案
         if (typeof engine.compactBridgeSession !== "function") {
           throw new Error("compact: engine.compactBridgeSession not available");
@@ -53,12 +53,7 @@ export function createSessionOps({ engine }) {
       if (typeof engine.compactDesktopSession === "function") {
         return await engine.compactDesktopSession(ref.sessionPath);
       }
-      // Legacy fallback（极老引擎版本无 compactDesktopSession）
-      const session = engine.getSessionByPath?.(ref.sessionPath);
-      if (!session) throw new Error("session not found");
-      if (session.isCompacting) throw new Error("Already compacting");
-      await session.compact();
-      return null;
+      throw new Error("compact: engine.compactDesktopSession not available");
     },
 
     async freshCompact(ref) {

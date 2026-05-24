@@ -12,6 +12,7 @@ import { wsSend, wsParse, wsSendSerialized } from "../ws-protocol.js";
 import { debugLog, createModuleLogger } from "../../lib/debug-log.js";
 import { t } from "../i18n.js";
 import { getLastAssistantUsage } from "../../lib/pi-sdk/index.js";
+import { compactSessionWithCachePreservation } from "../../core/session-compactor.js";
 import { logLlmUsage } from "../../lib/llm/usage-observer.js";
 import { BrowserManager } from "../../lib/browser/browser-manager.js";
 import {
@@ -955,7 +956,7 @@ export function createChatRoute(engine, hub, { upgradeWebSocket }) {
                 return;
               }
               try {
-                await session.compact();
+                await compactSessionWithCachePreservation(session);
               } catch (err) {
                 const errMsg = err.message || "";
                 if (!errMsg.includes("Already compacted") && !errMsg.includes("Nothing to compact")) {

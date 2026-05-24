@@ -503,7 +503,7 @@ hub.eventBus.handle("session:get-titles", async ({ paths }) => {
 
 // Register Pi SDK extension factory
 await engine.registerExtensionFactory(createDeferredResultExtension(deferredResultStore));
-// Compaction guard — 防 session 因上下文超限死锁（issue#437）
+// Cache-preserving compaction — 接管 Pi auto/manual compact，避免原生 summarizer 冷读上下文
 await engine.registerExtensionFactory(createCompactionGuardExtension());
 
 // ── 启动默认 session ──

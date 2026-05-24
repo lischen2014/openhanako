@@ -13,6 +13,7 @@ import { createAgentSession, SessionManager } from "../lib/pi-sdk/index.js";
 import { debugLog } from "../lib/debug-log.js";
 import { t } from "../server/i18n.js";
 import { createDefaultSettings } from "../core/session-defaults.js";
+import { compactSessionWithCachePreservation } from "../core/session-compactor.js";
 import { SESSION_PERMISSION_MODES } from "../core/session-permission-mode.js";
 import { teardownSessionResources } from "../core/session-teardown.js";
 import {
@@ -228,7 +229,7 @@ async function maybeCompactPhoneSession(session, { isActive = false, onActivity 
       contextWindow: usage?.contextWindow ?? null,
     },
   );
-  await session.compact();
+  await compactSessionWithCachePreservation(session);
   const after = session.getContextUsage?.() ?? null;
   await onActivity?.(
     "idle",
@@ -274,7 +275,7 @@ async function maybeFreshCompactPhoneSession(session, {
       contextWindow: before?.contextWindow ?? null,
     },
   );
-  await session.compact();
+  await compactSessionWithCachePreservation(session);
   const after = session.getContextUsage?.() ?? null;
   const usage = {
     tokensBefore: before?.tokens ?? null,

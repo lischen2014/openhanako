@@ -8,9 +8,10 @@
 import fs from "fs";
 import fsp from "fs/promises";
 import path from "path";
-import { createAgentSession, SessionManager, estimateTokens, findCutPoint, generateSummary, refreshSessionModelFromRegistry } from "../lib/pi-sdk/index.js";
+import { createAgentSession, SessionManager, estimateTokens, refreshSessionModelFromRegistry } from "../lib/pi-sdk/index.js";
 import { createDefaultSettings } from "./session-defaults.js";
 import { computeHardTruncation } from "./compaction-utils.js";
+import { runCachePreservingCompactionForSession } from "./session-compactor.js";
 import { teardownSessionResources } from "./session-teardown.js";
 import { evaluateSessionHealth } from "./session-health.js";
 import { createModuleLogger } from "../lib/debug-log.js";
@@ -1263,93 +1264,18 @@ export class SessionCoordinator {
   }
 
   /**
-   * 用 LLM 生成摘要来压缩对话历史（为 model switch 准备窗口）。
+   * 用主模型同前缀摘要来压缩对话历史（为 model switch 准备窗口）。
    * @private
    */
   async _compactWithModel(session, effectiveWindow, model) {
-    const sm = session.sessionManager;
-    const pathEntries = sm.getBranch();
-
-    // keepRecentTokens = effectiveWindow：保留尽可能多的近期上下文
-    const keepRecentTokens = effectiveWindow;
-
-    // 找到有 message 的 entry 的范围
-    const messageEntries = pathEntries.filter(e => e.type === "message");
-    if (messageEntries.length < 2) {
-      throw new Error("Not enough messages to compact");
-    }
-
-    // findCutPoint 操作的是 JSONL path entries
-    const startIndex = 0;
-    const endIndex = pathEntries.length;
-    const cutResult = findCutPoint(pathEntries, startIndex, endIndex, keepRecentTokens);
-
-    const { firstKeptEntryIndex, turnStartIndex, isSplitTurn } = cutResult;
-
-    // split-turn 时使用 turnStartIndex 避免 assistant 与 user prompt 分离
-    const effectiveCutIndex = isSplitTurn ? turnStartIndex : firstKeptEntryIndex;
-
-    if (effectiveCutIndex <= 0) {
-      throw new Error("Cut point at beginning — nothing to compact");
-    }
-
-    // 收集要摘要的消息（从 pathEntries[i].message，非 agent.state.messages）
-    const messagesToSummarize = [];
-    for (let i = 0; i < effectiveCutIndex; i++) {
-      if (pathEntries[i].type === "message" && pathEntries[i].message) {
-        messagesToSummarize.push(pathEntries[i].message);
-      }
-    }
-
-    if (messagesToSummarize.length === 0) {
-      throw new Error("No messages to summarize before cut point");
-    }
-
-    // 链接之前的 compaction summary
-    let previousSummary;
-    for (const entry of pathEntries) {
-      if (entry.type === "compaction" && entry.summary) {
-        previousSummary = entry.summary;
-      }
-    }
-
-    // 获取 API key
-    const models = this._d.getModels();
-    const auth = await models.modelRegistry.getApiKeyAndHeaders(model);
-    if (!auth.ok) {
-      throw new Error(`Auth failed for model ${model.id}: ${auth.error}`);
-    }
-    if (!auth.apiKey) {
-      throw new Error(`No API key for provider ${model.provider}`);
-    }
-
-    // 计算压缩前 token 数
-    const tokensBefore = messagesToSummarize.reduce((sum, m) => sum + estimateTokens(m), 0);
-
-    // 保留 token 数给摘要本身
-    const reserveTokens = 4000;
-
-    // 生成摘要
-    const summary = await generateSummary(
-      messagesToSummarize,
+    await runCachePreservingCompactionForSession(session, {
       model,
-      reserveTokens,
-      auth.apiKey,
-      auth.headers,
-      undefined,        // signal
-      undefined,        // customInstructions
-      previousSummary,
-    );
-
-    // firstKeptEntryId 是要保留的第一个 entry 的 id
-    const firstKeptEntryId = pathEntries[effectiveCutIndex].id;
-
-    // 持久化
-    sm.appendCompaction(summary, firstKeptEntryId, tokensBefore, {});
-
-    // 重建上下文
-    const ctx = sm.buildSessionContext();
-    session.agent.replaceMessages(ctx.messages);
+      settings: {
+        enabled: true,
+        reserveTokens: 4000,
+        keepRecentTokens: effectiveWindow,
+      },
+    });
   }
 
   /**

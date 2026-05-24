@@ -8,6 +8,7 @@ import fs from "fs";
 import path from "path";
 import { createAgentSession, SessionManager } from "../lib/pi-sdk/index.js";
 import { createDefaultSettings } from "./session-defaults.js";
+import { compactSessionWithCachePreservation } from "./session-compactor.js";
 import { debugLog, createModuleLogger } from "../lib/debug-log.js";
 import { t, getLocale } from "../server/i18n.js";
 import { atomicWriteSync, safeReadJSON } from "../shared/safe-fs.js";
@@ -873,7 +874,7 @@ export class BridgeSessionManager {
    *   1. 从 index 定位 jsonl 文件
    *   2. 若当前正 streaming → 抛错（禁止并发压缩+生成）
    *   3. SessionManager.open + createAgentSession 组装临时 owner session
-   *   4. 读取压缩前 token 占用 → session.compact() → 读取压缩后
+   *   4. 读取压缩前 token 占用 → Hana cache-preserving compaction → 读取压缩后
    *   5. 不把临时 session 写入 _activeSessions（它不承担 LLM 生成，isStreaming 语义无关）
    *
    * 返回值为结构化对象，上层 /compact handler 负责消息文案。
@@ -932,7 +933,7 @@ export class BridgeSessionManager {
       if (session.isCompacting) {
         throw new Error("bridge compact: already compacting");
       }
-      await session.compact();
+      await compactSessionWithCachePreservation(session);
       const after = session.getContextUsage?.() ?? null;
 
       const result = {

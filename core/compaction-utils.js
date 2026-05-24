@@ -3,7 +3,7 @@
  *
  * 两个消费点：
  *   1. session-coordinator._hardTruncate（模型切换时的硬截断降级）
- *   2. compaction-guard-ext（自动压缩时的硬截断兜底）
+ *   2. compaction-guard-ext（摘要输入已必然超窗时的硬截断出口）
  *
  * 纪律：
  *   - 纯函数，不碰 session/agent 状态
@@ -65,16 +65,11 @@ export function estimateMessagesTokens(messages) {
 }
 
 /**
- * 估算"LLM 摘要调用的最坏情况输入 token 数"。
+ * 估算"摘要候选历史的最坏情况输入 token 数"。
  *
- * 背景：pi SDK 的 compact() 在 split-turn 时会并行跑两次 LLM：
- *   1. generateSummary(messagesToSummarize)
- *   2. generateTurnPrefixSummary(turnPrefixMessages)
- * 见 node_modules/@mariozechner/pi-coding-agent/dist/core/compaction/compaction.js:557-568
- *
- * 两个调用互相独立，任一输入超窗都会让整个 compact() 抛错，
- * 导致 issue#437 的死锁场景。所以 guard 判断必须取两者最大值，
- * 不能只看 messagesToSummarize。
+ * Hana 的压缩请求会保留原会话前缀再追加内部指令。这里仍按 Pi
+ * preparation 的 history / split-turn prefix 两个候选区域估算风险，
+ * 任何一侧已经接近窗口时都直接硬截断，避免压缩请求反复超窗。
  *
  * @param {object} preparation - pi SDK prepareCompaction 的返回
  * @returns {number} 最坏情况下单次 LLM 调用的输入 token 数

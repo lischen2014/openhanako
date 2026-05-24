@@ -473,7 +473,7 @@ describe("runAgentSession teardown", () => {
         sessionManager: options.sessionManager,
         getContextUsage,
         compact,
-        extensionRunner: { hasHandlers: vi.fn(() => false) },
+        extensionRunner: { hasHandlers: vi.fn(() => true), emit: vi.fn(async () => {}) },
       },
     }));
 

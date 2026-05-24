@@ -306,7 +306,7 @@ describe("BridgeSessionManager teardown", () => {
       dispose: vi.fn(),
       sessionManager: { getSessionFile: () => sessionFile },
       getContextUsage: usage,
-      extensionRunner: { hasHandlers: vi.fn(() => false) },
+      extensionRunner: { hasHandlers: vi.fn(() => true), emit: vi.fn(async () => {}) },
     };
     createAgentSessionMock.mockImplementation(async (options) => {
       expect(options.resourceLoader.getSystemPrompt()).toBe("system prompt v2");
@@ -367,7 +367,7 @@ describe("BridgeSessionManager teardown", () => {
       getContextUsage: vi.fn()
         .mockReturnValueOnce({ tokens: 9000, contextWindow: 128000 })
         .mockReturnValueOnce({ tokens: 3600, contextWindow: 128000 }),
-      extensionRunner: { hasHandlers: vi.fn(() => false) },
+      extensionRunner: { hasHandlers: vi.fn(() => true), emit: vi.fn(async () => {}) },
     };
     createAgentSessionMock
       .mockResolvedValueOnce({ session: liveSession })
@@ -407,7 +407,7 @@ describe("BridgeSessionManager teardown", () => {
       getContextUsage: vi.fn()
         .mockReturnValueOnce({ tokens: 7000, contextWindow: 128000 })
         .mockReturnValueOnce({ tokens: 3000, contextWindow: 128000 }),
-      extensionRunner: { hasHandlers: vi.fn(() => false) },
+      extensionRunner: { hasHandlers: vi.fn(() => true), emit: vi.fn(async () => {}) },
     };
     createAgentSessionMock.mockResolvedValue({ session: compactSession });
 
