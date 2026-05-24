@@ -1695,37 +1695,44 @@ export class SessionCoordinator {
 
   // ── Session 关闭 ──
 
-  async closeSession(sessionPath) {
+  async discardSessionRuntime(sessionPath, reason = "discard") {
+    if (!sessionPath) return false;
     this._clearRuntimePressureTimer(sessionPath);
-    this._hibernatedSessionMeta.delete(sessionPath);
+    const hadHibernated = this._hibernatedSessionMeta.delete(sessionPath);
     const entry = this._sessions.get(sessionPath);
     if (entry) {
       const agent = this._d.getAgentById(entry.agentId) || this._d.getAgent();
       agent?._memoryTicker?.notifySessionEnd(sessionPath).catch((err) =>
-        log.warn(`closeSession ${path.basename(sessionPath)}: notifySessionEnd failed: ${err.message}`),
+        log.warn(`discardSessionRuntime ${path.basename(sessionPath)}: notifySessionEnd failed: ${err.message}`),
       );
       if (entry.session.isStreaming) {
-        this._forceReleaseStreamingSession(entry, sessionPath, "close");
+        this._forceReleaseStreamingSession(entry, sessionPath, reason);
       } else {
-        await this._teardownSessionEntry(entry, sessionPath, "close");
+        await this._teardownSessionEntry(entry, sessionPath, reason);
         this._sessions.delete(sessionPath);
       }
-
-      // 清理该 session 的 pending confirmation
-      this._d.getConfirmStore?.()?.abortBySession(sessionPath);
-      this._d.getDeferredResultStore?.()?.clearBySession(sessionPath);
     }
+
+    // 清理该 session 的 pending confirmation / deferred result
+    this._d.getConfirmStore?.()?.abortBySession(sessionPath);
+    this._d.getDeferredResultStore?.()?.clearBySession(sessionPath);
     if (sessionPath) {
       try {
         this._d.closeTerminalsForSession?.(sessionPath);
       } catch (err) {
-        log.warn(`closeSession ${path.basename(sessionPath)}: close terminals failed: ${err.message}`);
+        log.warn(`discardSessionRuntime ${path.basename(sessionPath)}: close terminals failed: ${err.message}`);
       }
     }
     if (sessionPath === this.currentSessionPath) {
       this._session = null;
       this._currentSessionPath = null;
+      this._sessionStarted = false;
     }
+    return !!entry || hadHibernated;
+  }
+
+  async closeSession(sessionPath) {
+    return this.discardSessionRuntime(sessionPath, "close");
   }
 
   async closeAllSessions() {

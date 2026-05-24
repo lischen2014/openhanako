@@ -2666,4 +2666,70 @@ describe("SessionCoordinator", () => {
     const sessions = await coordinator.listSessions();
     expect(sessions.find((s) => s.path === subagentPath)).toBeUndefined();
   });
+
+  it("discardSessionRuntime clears live and hibernated entries plus focus state", async () => {
+    const agent = {
+      id: "hana",
+      agentName: "小花",
+      sessionDir: path.join(tempDir, "agents", "hana", "sessions"),
+      _memoryTicker: { notifySessionEnd: vi.fn(async () => undefined) },
+    };
+    const livePath = path.join(agent.sessionDir, "live.jsonl");
+    const hibernatedPath = path.join(agent.sessionDir, "hibernated.jsonl");
+    fs.mkdirSync(agent.sessionDir, { recursive: true });
+
+    const session = {
+      isStreaming: false,
+      dispose: vi.fn(),
+      sessionManager: { getSessionFile: () => livePath },
+    };
+    const unsub = vi.fn();
+    const confirmStore = { abortBySession: vi.fn() };
+    const deferredStore = { clearBySession: vi.fn() };
+    const closeTerminalsForSession = vi.fn();
+    const coordinator = new SessionCoordinator({
+      agentsDir: path.join(tempDir, "agents"),
+      getAgent: () => agent,
+      getActiveAgentId: () => "hana",
+      getModels: () => ({ authStorage: {}, modelRegistry: {}, resolveThinkingLevel: () => "medium" }),
+      getResourceLoader: () => ({ getSystemPrompt: () => "BASE" }),
+      getSkills: () => null,
+      buildTools: () => ({ tools: [], customTools: [] }),
+      emitEvent: () => {},
+      getHomeCwd: () => "/tmp/home",
+      agentIdFromSessionPath: () => "hana",
+      switchAgentOnly: async () => {},
+      getConfig: () => ({}),
+      getPrefs: () => ({ getThinkingLevel: () => "medium" }),
+      getAgents: () => new Map(),
+      getActivityStore: () => null,
+      getAgentById: () => agent,
+      listAgents: () => [{ id: "hana", name: "小花" }],
+      getConfirmStore: () => confirmStore,
+      getDeferredResultStore: () => deferredStore,
+      closeTerminalsForSession,
+    });
+
+    coordinator._sessions.set(livePath, { session, agentId: "hana", unsub });
+    coordinator._hibernatedSessionMeta.set(hibernatedPath, { agentId: "hana" });
+    coordinator._session = session;
+    coordinator._currentSessionPath = livePath;
+    coordinator._sessionStarted = true;
+
+    await expect(coordinator.discardSessionRuntime(livePath, "archive")).resolves.toBe(true);
+    await expect(coordinator.discardSessionRuntime(hibernatedPath, "archive")).resolves.toBe(true);
+
+    expect(coordinator._sessions.has(livePath)).toBe(false);
+    expect(coordinator._hibernatedSessionMeta.has(hibernatedPath)).toBe(false);
+    expect(coordinator.currentSessionPath).toBe(null);
+    expect(coordinator._sessionStarted).toBe(false);
+    expect(unsub).toHaveBeenCalledTimes(1);
+    expect(session.dispose).toHaveBeenCalledTimes(1);
+    expect(confirmStore.abortBySession).toHaveBeenCalledWith(livePath);
+    expect(confirmStore.abortBySession).toHaveBeenCalledWith(hibernatedPath);
+    expect(deferredStore.clearBySession).toHaveBeenCalledWith(livePath);
+    expect(deferredStore.clearBySession).toHaveBeenCalledWith(hibernatedPath);
+    expect(closeTerminalsForSession).toHaveBeenCalledWith(livePath);
+    expect(closeTerminalsForSession).toHaveBeenCalledWith(hibernatedPath);
+  });
 });

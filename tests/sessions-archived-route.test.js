@@ -49,6 +49,7 @@ function makeEngine(tmpDir) {
     listArchivedSessions: vi.fn(async () => []),
     emitEvent: vi.fn(),
     rcState: new RcStateStore(),
+    discardSessionRuntime: vi.fn(async () => false),
     switchSession: vi.fn(async () => {}),
     getSessionByPath: vi.fn(() => ({ messages: [] })),
     currentSessionPath: null,
@@ -114,6 +115,21 @@ describe("archive route: mtime semantics", () => {
     expect(res.status).toBe(200);
     expect(fs.existsSync(sidecar)).toBe(false);
     expect(fs.existsSync(`${dest}.files.json`)).toBe(true);
+  });
+
+  it("discards active and future archived runtime state before moving the session", async () => {
+    const src = path.join(tmpDir, "agents", "a", "sessions", "s1.jsonl");
+    const dest = path.join(tmpDir, "agents", "a", "sessions", "archived", "s1.jsonl");
+
+    const res = await app.request("/api/sessions/archive", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ path: src }),
+    });
+
+    expect(res.status).toBe(200);
+    expect(engine.discardSessionRuntime).toHaveBeenCalledWith(src, "parent session archived");
+    expect(engine.discardSessionRuntime).toHaveBeenCalledWith(dest, "parent session archived");
   });
 
   it("invalidates rc attachment and pending that point at the archived session", async () => {
@@ -373,6 +389,18 @@ describe("POST /api/sessions/archived/delete", () => {
     expect(fs.existsSync(archPath)).toBe(false);
     expect(fs.existsSync(`${archPath}.files.json`)).toBe(false);
     expect(engine.clearSessionTitle).toHaveBeenCalledWith(activeKey);
+  });
+
+  it("discards active and archived runtime state before permanent delete", async () => {
+    const res = await app.request("/api/sessions/archived/delete", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ path: archPath }),
+    });
+
+    expect(res.status).toBe(200);
+    expect(engine.discardSessionRuntime).toHaveBeenCalledWith(activeKey, "parent session deleted");
+    expect(engine.discardSessionRuntime).toHaveBeenCalledWith(archPath, "parent session deleted");
   });
 
   it("removes the session skill snapshot directory for the deleted archived session", async () => {

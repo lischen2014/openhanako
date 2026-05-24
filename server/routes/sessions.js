@@ -338,9 +338,13 @@ export function createSessionsRoute(engine, hub = null) {
         lifecycleLog.warn(`confirm cleanup failed for ${sessionPath}: ${err.message}`);
       }
       try {
-        await engine.abortSessionByPath?.(sessionPath);
+        if (typeof engine.discardSessionRuntime === "function") {
+          await engine.discardSessionRuntime(sessionPath, reason);
+        } else {
+          await engine.abortSessionByPath?.(sessionPath);
+        }
       } catch (err) {
-        lifecycleLog.warn(`session abort failed for ${sessionPath}: ${err.message}`);
+        lifecycleLog.warn(`session runtime cleanup failed for ${sessionPath}: ${err.message}`);
       }
       try {
         await bm.closeBrowserForSession(sessionPath);
