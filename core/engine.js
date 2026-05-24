@@ -271,6 +271,7 @@ export class HanaEngine {
       getAgents: () => this._agentMgr.agents,
       getModelManager: () => this._models,
       getResourceLoader: () => this._resourceLoader,
+      getSkills: () => this._skills,
       getPreferences: () => this._readPreferences(),
       buildTools: (cwd, customTools, opts) => this.buildTools(cwd, customTools, opts),
       getHomeCwd: (agentId) => this.getHomeCwd(agentId),

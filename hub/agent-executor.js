@@ -22,7 +22,6 @@ import {
   getAgentPhonePermissionMode,
   getAgentPhoneSessionDir,
   getAgentPhoneRefreshDate,
-  shouldCompactAgentPhoneSession,
 } from "../lib/conversations/agent-phone-session.js";
 import {
   ensureAgentPhoneProjection,
@@ -35,6 +34,11 @@ import {
   buildFreshCompactSnapshot,
   shouldRunFreshCompact,
 } from "../lib/fresh-compact/policy.js";
+import {
+  buildSessionPromptSnapshot,
+  createPromptSnapshotResourceLoader,
+  normalizeSessionPromptSnapshot,
+} from "../core/session-prompt-snapshot.js";
 
 function resolveAgentPhoneModel(engine, ctx, agentConfig, modelOverride) {
   if (!modelOverride) return ctx.resolveModel(agentConfig);
@@ -44,6 +48,19 @@ function resolveAgentPhoneModel(engine, ctx, agentConfig, modelOverride) {
     throw new Error(`Agent phone model override not available: ${ref.provider}/${ref.id}`);
   }
   return found;
+}
+
+function buildAgentPhonePromptSnapshot(agent, ctx, systemPrompt) {
+  return buildSessionPromptSnapshot({
+    systemPrompt,
+    appendSystemPrompt: ctx.resourceLoader?.getAppendSystemPrompt?.() || [],
+    skillsResult: ctx.getSkillsForAgent?.(agent),
+    agentsFilesResult: ctx.resourceLoader?.getAgentsFiles?.(),
+  });
+}
+
+function normalizeToolNames(value) {
+  return Array.isArray(value) ? value.filter((name) => typeof name === "string" && name.length > 0) : null;
 }
 
 function isAgentPhoneEnabled(engine) {
@@ -211,39 +228,6 @@ function resolveStoredSessionPath(agentDir, stored) {
   return resolved;
 }
 
-async function maybeCompactPhoneSession(session, { isActive = false, onActivity } = {}) {
-  const usage = session.getContextUsage?.() ?? null;
-  const reason = shouldCompactAgentPhoneSession({
-    tokens: usage?.tokens,
-    isActive,
-  });
-  if (!reason) return null;
-  if (session.isCompacting) return null;
-
-  await onActivity?.(
-    "compacting",
-    reason === "hard" ? "正在压缩手机会话（180K 硬上限）" : "正在空闲压缩手机会话",
-    {
-      reason,
-      tokensBefore: usage?.tokens ?? null,
-      contextWindow: usage?.contextWindow ?? null,
-    },
-  );
-  await compactSessionWithCachePreservation(session);
-  const after = session.getContextUsage?.() ?? null;
-  await onActivity?.(
-    "idle",
-    "手机会话压缩完成",
-    {
-      reason,
-      tokensBefore: usage?.tokens ?? null,
-      tokensAfter: after?.tokens ?? null,
-      contextWindow: after?.contextWindow ?? usage?.contextWindow ?? null,
-    },
-  );
-  return { reason, before: usage, after };
-}
-
 async function maybeFreshCompactPhoneSession(session, {
   agentDir,
   agentId,
@@ -251,6 +235,7 @@ async function maybeFreshCompactPhoneSession(session, {
   conversationType,
   projectionMeta = {},
   snapshot,
+  metaPatch = {},
   now = new Date(),
   reason: explicitReason = null,
   onActivity,
@@ -293,7 +278,10 @@ async function maybeFreshCompactPhoneSession(session, {
     agentId,
     conversationId,
     conversationType,
-    patch,
+    patch: {
+      ...metaPatch,
+      ...patch,
+    },
   });
   await onActivity?.(
     "idle",
@@ -334,10 +322,8 @@ export async function freshCompactAgentPhoneSession(agentId, {
   }
 
   const ctx = engine.createSessionContext();
-  const tempResourceLoader = Object.create(ctx.resourceLoader);
-  const basePrompt = agent.systemPrompt;
-  tempResourceLoader.getSystemPrompt = () => basePrompt;
-  tempResourceLoader.getSkills = () => ctx.getSkillsForAgent(agent);
+  const promptSnapshot = buildAgentPhonePromptSnapshot(agent, ctx, agent.systemPrompt);
+  const tempResourceLoader = createPromptSnapshotResourceLoader(ctx.resourceLoader, promptSnapshot);
 
   const cwd = engine.getHomeCwd(agentId) || process.cwd();
   const sessionDir = getAgentPhoneSessionDir(agentDir, conversationId);
@@ -360,6 +346,7 @@ export async function freshCompactAgentPhoneSession(agentId, {
     getPermissionMode: () => phonePermissionMode,
   });
   const { tools, customTools } = filterAgentPhoneTools(built);
+  const activeToolNames = getAgentPhoneActiveToolNames({ tools, customTools });
   const model = resolveAgentPhoneModel(engine, ctx, agent.config, modelOverride);
   const { session } = await createAgentSession({
     cwd,
@@ -373,7 +360,7 @@ export async function freshCompactAgentPhoneSession(agentId, {
     tools,
     customTools,
   });
-  session.setActiveToolsByName?.(getAgentPhoneActiveToolNames({ tools, customTools }));
+  session.setActiveToolsByName?.(activeToolNames);
   const unregisterPhoneAbort = engine.registerAgentPhoneAbortHandler?.(
     () => {
       try { session.abort?.(); } catch {}
@@ -382,7 +369,7 @@ export async function freshCompactAgentPhoneSession(agentId, {
   ) || (() => {});
 
   const snapshot = buildFreshCompactSnapshot({
-    systemPrompt: basePrompt,
+    systemPrompt: promptSnapshot.systemPrompt,
     state: {
       conversationType,
       memoryEnabled: agent.memoryMasterEnabled !== false,
@@ -399,6 +386,10 @@ export async function freshCompactAgentPhoneSession(agentId, {
       conversationType,
       projectionMeta: projection.meta,
       snapshot,
+      metaPatch: {
+        promptSnapshot,
+        toolNames: activeToolNames,
+      },
       now,
       reason,
       onActivity,
@@ -446,11 +437,8 @@ export async function runAgentPhoneSession(agentId, rounds, {
   });
 
   const ctx = engine.createSessionContext();
-  const tempResourceLoader = Object.create(ctx.resourceLoader);
   const basePrompt = noMemory ? agent.personality : agent.systemPrompt;
-  tempResourceLoader.getSystemPrompt = () =>
-    systemAppend ? `${basePrompt}\n\n${systemAppend}` : basePrompt;
-  tempResourceLoader.getSkills = () => ctx.getSkillsForAgent(agent);
+  const currentSystemPrompt = systemAppend ? `${basePrompt}\n\n${systemAppend}` : basePrompt;
 
   const cwd = engine.getHomeCwd(agentId) || process.cwd();
   const sessionDir = getAgentPhoneSessionDir(agentDir, conversationId);
@@ -463,6 +451,9 @@ export async function runAgentPhoneSession(agentId, rounds, {
     conversationType,
   });
   const projection = readAgentPhoneProjection(projectionPath);
+  const promptSnapshot = normalizeSessionPromptSnapshot(projection.meta.promptSnapshot)
+    || buildAgentPhonePromptSnapshot(agent, ctx, currentSystemPrompt);
+  const tempResourceLoader = createPromptSnapshotResourceLoader(ctx.resourceLoader, promptSnapshot);
   const existingSessionPath = resolveStoredSessionPath(agentDir, projection.meta.phoneSessionFile);
   const refreshNow = new Date();
   const refreshDate = getAgentPhoneRefreshDate(refreshNow);
@@ -491,6 +482,11 @@ export async function runAgentPhoneSession(agentId, rounds, {
     ...customTools,
     ...(Array.isArray(extraCustomTools) ? extraCustomTools : []),
   ];
+  const activeToolNames = normalizeToolNames(projection.meta.toolNames)
+    || getAgentPhoneActiveToolNames({
+      tools,
+      customTools: sessionCustomTools,
+    });
   const model = resolveAgentPhoneModel(engine, ctx, agent.config, modelOverride);
   const { session } = await createAgentSession({
     cwd,
@@ -504,10 +500,7 @@ export async function runAgentPhoneSession(agentId, rounds, {
     tools,
     customTools: sessionCustomTools,
   });
-  session.setActiveToolsByName?.(getAgentPhoneActiveToolNames({
-    tools,
-    customTools: sessionCustomTools,
-  }));
+  session.setActiveToolsByName?.(activeToolNames);
 
   const sessionPath = session.sessionManager?.getSessionFile?.();
   const unregisterPhoneAbort = engine.registerAgentPhoneAbortHandler?.(
@@ -526,6 +519,8 @@ export async function runAgentPhoneSession(agentId, rounds, {
         phoneSessionFile: storedRelativePath(agentDir, sessionPath),
         lastRefreshedDate: refreshDate,
         toolMode,
+        promptSnapshot,
+        toolNames: activeToolNames,
       },
     });
     try { await onSessionReady?.(sessionPath); } catch {}
@@ -571,7 +566,6 @@ export async function runAgentPhoneSession(agentId, rounds, {
   debugLog()?.log("agent-executor", `${agentId} phone session started (${conversationType}:${conversationId}, ${rounds.length} rounds)`);
 
   try {
-    await maybeCompactPhoneSession(session, { isActive: false, onActivity });
     for (const round of rounds) {
       if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
       isCapturing = !!round.capture;
@@ -581,7 +575,6 @@ export async function runAgentPhoneSession(agentId, rounds, {
       }
       await session.prompt(round.text);
     }
-    await maybeCompactPhoneSession(session, { isActive: false, onActivity });
   } finally {
     if (signal && onAbort) signal.removeEventListener("abort", onAbort);
     try { unregisterPhoneAbort(); } catch {}

@@ -57,6 +57,13 @@ import {
   diffCachePrefixContracts,
   summarizeCachePrefixContract,
 } from "../lib/llm/cache-prefix-contract.js";
+import {
+  SESSION_PROMPT_SNAPSHOT_VERSION,
+  freezeAgentsFilesResult,
+  freezeSkillsResult,
+  normalizeSessionPromptSnapshot,
+  normalizeStringArray,
+} from "./session-prompt-snapshot.js";
 
 const log = createModuleLogger("session");
 
@@ -147,7 +154,6 @@ function isolatedCompletionError(stopReason, errorMessage) {
 }
 
 const MAX_CACHED_SESSIONS = 20;
-const SESSION_PROMPT_SNAPSHOT_VERSION = 1;
 const MiB = 1024 * 1024;
 const DEFAULT_RUNTIME_PRESSURE_THRESHOLDS = Object.freeze({
   checkDelayMs: 1500,
@@ -156,33 +162,6 @@ const DEFAULT_RUNTIME_PRESSURE_THRESHOLDS = Object.freeze({
   highRssBytes: 1536 * MiB,
   highExternalBytes: 512 * MiB,
 });
-
-function jsonClone(value, fallback) {
-  try {
-    return JSON.parse(JSON.stringify(value));
-  } catch {
-    return fallback;
-  }
-}
-
-function normalizeStringArray(value) {
-  return Array.isArray(value) ? value.filter((item) => typeof item === "string") : [];
-}
-
-function freezeSkillsResult(value) {
-  const next = {
-    skills: Array.isArray(value?.skills) ? value.skills : [],
-    diagnostics: Array.isArray(value?.diagnostics) ? value.diagnostics : [],
-  };
-  return jsonClone(next, { skills: [], diagnostics: [] });
-}
-
-function freezeAgentsFilesResult(value) {
-  const next = {
-    agentsFiles: Array.isArray(value?.agentsFiles) ? value.agentsFiles : [],
-  };
-  return jsonClone(next, { agentsFiles: [] });
-}
 
 function normalizeMemoryPressureOptions(raw) {
   if (raw === false || raw?.enabled === false) {
@@ -246,22 +225,6 @@ function estimateRetainedValueBytes(value, seen, budget, depth = 0) {
     total += estimateRetainedValueBytes(child, seen, budget, depth + 1);
   }
   return total;
-}
-
-function normalizePromptSnapshot(value) {
-  if (!value || typeof value !== "object") return null;
-  if (value.version !== SESSION_PROMPT_SNAPSHOT_VERSION) return null;
-  if (typeof value.systemPrompt !== "string") return null;
-  return {
-    version: SESSION_PROMPT_SNAPSHOT_VERSION,
-    systemPrompt: value.systemPrompt,
-    appendSystemPrompt: normalizeStringArray(value.appendSystemPrompt),
-    skillsResult: freezeSkillsResult(value.skillsResult),
-    agentsFilesResult: freezeAgentsFilesResult(value.agentsFilesResult),
-    ...(typeof value.finalSystemPrompt === "string"
-      ? { finalSystemPrompt: value.finalSystemPrompt }
-      : {}),
-  };
 }
 
 function makeBackgroundTaskPrompt(locale) {
@@ -2164,7 +2127,7 @@ export class SessionCoordinator {
     try {
       const metaPath = path.join(agent.sessionDir, "session-meta.json");
       const meta = await this._readMetaCached(metaPath);
-      return normalizePromptSnapshot(meta[path.basename(sessionPath)]?.promptSnapshot);
+      return normalizeSessionPromptSnapshot(meta[path.basename(sessionPath)]?.promptSnapshot);
     } catch {
       return null;
     }

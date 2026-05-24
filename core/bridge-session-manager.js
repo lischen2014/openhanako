@@ -18,6 +18,7 @@ import { isAbortLikeError, prepareVisionInputForTextOnlyModel } from "./vision-p
 import { prepareModelImageInputsForPrompt } from "./model-image-preprocess.js";
 import { withVisionContextInjectionExtension } from "./vision-context-injector.js";
 import { SESSION_PERMISSION_MODES } from "./session-permission-mode.js";
+import { uniqueToolNames } from "../shared/tool-categories.js";
 import { collectMediaItems } from "../lib/tools/media-details.js";
 import { formatSettingsUpdateText } from "../lib/tools/settings-update-result.js";
 import { materializeBridgeInboundFiles } from "../lib/session-files/bridge-inbound-files.js";
@@ -32,6 +33,11 @@ import {
   buildFreshCompactSnapshot,
   shouldRunFreshCompact,
 } from "../lib/fresh-compact/policy.js";
+import {
+  buildSessionPromptSnapshot,
+  createPromptSnapshotResourceLoader,
+  normalizeSessionPromptSnapshot,
+} from "./session-prompt-snapshot.js";
 
 const log = createModuleLogger("bridge-session");
 
@@ -295,6 +301,62 @@ export class BridgeSessionManager {
     return bridgeContextIndexMeta(context, meta || {});
   }
 
+  _normalizeToolNames(value) {
+    return uniqueToolNames(Array.isArray(value) ? value : []);
+  }
+
+  _buildPromptSnapshot(agent, systemPrompt, {
+    appendSystemPrompt = null,
+    skillsResult = null,
+    agentsFilesResult = null,
+  } = {}) {
+    const baseResourceLoader = this._deps.getResourceLoader?.() || {};
+    const skillsManager = this._deps.getSkills?.();
+    return buildSessionPromptSnapshot({
+      systemPrompt,
+      appendSystemPrompt: appendSystemPrompt ?? baseResourceLoader.getAppendSystemPrompt?.() ?? [],
+      skillsResult: skillsResult ?? (
+        skillsManager?.getSkillsForAgent
+          ? skillsManager.getSkillsForAgent(agent)
+          : baseResourceLoader.getSkills?.()
+      ),
+      agentsFilesResult: agentsFilesResult ?? baseResourceLoader.getAgentsFiles?.(),
+    });
+  }
+
+  _buildOwnerPromptSnapshot(agent, homeCwd, bridgeContext) {
+    const ownerPromptBase = agent.buildSystemPrompt({
+      cwdOverride: homeCwd,
+      forceMemoryEnabled: agent.memoryMasterEnabled,
+      ...(typeof agent.experienceEnabled === "boolean"
+        ? { forceExperienceEnabled: agent.experienceEnabled === true }
+        : {}),
+    });
+    const systemPrompt = appendBridgePromptLine(ownerPromptBase, bridgeContext, getLocale());
+    return this._buildPromptSnapshot(agent, systemPrompt);
+  }
+
+  _buildGuestPromptSnapshot(agent, bridgeContext, opts = {}) {
+    const bridgePromptLine = appendBridgePromptLine("", bridgeContext, getLocale()).trim();
+    const parts = [agent.yuanPrompt, agent.publicIshiki, opts.contextTag, bridgePromptLine].filter(Boolean);
+    return this._buildPromptSnapshot(agent, parts.join("\n\n"), {
+      appendSystemPrompt: [],
+      skillsResult: { skills: [], diagnostics: [] },
+      agentsFilesResult: { agentsFiles: [] },
+    });
+  }
+
+  _writeIndexEntryPatch(agent, sessionKey, patch) {
+    const index = this.readIndex(agent);
+    const raw = index[sessionKey];
+    const entry = this._normalizeIndexEntry(raw);
+    if (!entry.file) return false;
+    Object.assign(entry, patch);
+    index[sessionKey] = this._serializeIndexEntry(raw, entry);
+    this.writeIndex(index, agent);
+    return true;
+  }
+
   _rememberBridgeContext(sessionPath, context) {
     if (!sessionPath || context?.isBridgeSession !== true) return;
     const raw = { ...context };
@@ -357,15 +419,10 @@ export class BridgeSessionManager {
     return { ok: true, mode: "bridge-file" };
   }
 
-  _buildOwnerFreshCompactContext(agent, homeCwd) {
+  _buildOwnerFreshCompactContext(agent, homeCwd, opts = {}) {
     const prefs = this._deps.getPreferences();
-    const systemPrompt = agent.buildSystemPrompt({
-      cwdOverride: homeCwd,
-      forceMemoryEnabled: agent.memoryMasterEnabled,
-      ...(typeof agent.experienceEnabled === "boolean"
-        ? { forceExperienceEnabled: agent.experienceEnabled === true }
-        : {}),
-    });
+    const bridgeContext = opts.bridgeContext || null;
+    const promptSnapshot = this._buildOwnerPromptSnapshot(agent, homeCwd, bridgeContext);
     const state = {
       bridgeReadOnly: prefs?.bridge?.readOnly === true,
       experienceEnabled: agent.experienceEnabled === true,
@@ -374,20 +431,10 @@ export class BridgeSessionManager {
       thinkingLevel: prefs?.thinking_level || "auto",
     };
     return {
-      systemPrompt,
-      snapshot: buildFreshCompactSnapshot({ systemPrompt, state }),
+      promptSnapshot,
+      systemPrompt: promptSnapshot.systemPrompt,
+      snapshot: buildFreshCompactSnapshot({ systemPrompt: promptSnapshot.systemPrompt, state }),
     };
-  }
-
-  _writeFreshCompactIndexMeta(agent, sessionKey, patch) {
-    const index = this.readIndex(agent);
-    const raw = index[sessionKey];
-    const entry = this._normalizeIndexEntry(raw);
-    if (!entry.file) return false;
-    entry.freshCompact = patch;
-    index[sessionKey] = this._serializeIndexEntry(raw, entry);
-    this.writeIndex(index, agent);
-    return true;
   }
 
   listDailyFreshCompactTargets(agent, { now = new Date() } = {}) {
@@ -434,6 +481,8 @@ export class BridgeSessionManager {
       // 查找已有 session（兼容旧格式字符串和新格式对象）
       const index = this.readIndex(agent);
       const raw = index[sessionKey];
+      const entry = this._normalizeIndexEntry(raw);
+      let promptSnapshot = normalizeSessionPromptSnapshot(entry.promptSnapshot);
       const existingFile = typeof raw === "string" ? raw : raw?.file || null;
       const existingPath = existingFile ? path.join(bridgeDir, existingFile) : null;
 
@@ -462,15 +511,12 @@ export class BridgeSessionManager {
 
       if (isGuest) {
         // guest 模式：yuan + public-ishiki + contextTag，主模型，无工具
-        const yuanBase = agent.yuanPrompt;
-        const pubIshiki = agent.publicIshiki;
-        const bridgePromptLine = appendBridgePromptLine("", bridgeContext, getLocale()).trim();
-        const parts = [yuanBase, pubIshiki, opts.contextTag, bridgePromptLine].filter(Boolean);
-        const guestPrompt = parts.join("\n\n");
-        const tempResourceLoader = Object.create(this._deps.getResourceLoader());
-        tempResourceLoader.getSystemPrompt = () => guestPrompt;
-        tempResourceLoader.getSkills = () => ({ skills: [], diagnostics: [] });
-        const guestResourceLoader = withVisionContextInjectionExtension(tempResourceLoader, {
+        promptSnapshot ||= this._buildGuestPromptSnapshot(agent, bridgeContext, opts);
+        const guestResourceLoaderBase = createPromptSnapshotResourceLoader(
+          this._deps.getResourceLoader?.(),
+          promptSnapshot,
+        );
+        const guestResourceLoader = withVisionContextInjectionExtension(guestResourceLoaderBase, {
           path: "hana-vision-context-injection",
           sessionPathRef,
           targetModelRef,
@@ -508,8 +554,15 @@ export class BridgeSessionManager {
         };
       } else {
         // owner 模式：完整 agent。抽出 _buildOwnerSessionOpts 后，compactSession 也能复用同一构造逻辑
-        sessionOpts = this._buildOwnerSessionOpts(agent, mm, homeCwd, sessionPathRef, targetModelRef, { bridgeContext });
+        promptSnapshot ||= this._buildOwnerPromptSnapshot(agent, homeCwd, bridgeContext);
+        sessionOpts = this._buildOwnerSessionOpts(agent, mm, homeCwd, sessionPathRef, targetModelRef, {
+          bridgeContext,
+          promptSnapshot,
+          toolNames: entry.toolNames,
+        });
       }
+      const activeToolNames = this._normalizeToolNames(sessionOpts.activeToolNames);
+      delete sessionOpts.activeToolNames;
 
       const { session } = await createAgentSession({
         cwd: homeCwd,
@@ -522,6 +575,9 @@ export class BridgeSessionManager {
       const activeSessionPath = session.sessionManager?.getSessionFile?.() || null;
       sessionPathRef.current = activeSessionPath;
       targetModelRef.current = session.model || sessionOpts.model || targetModelRef.current || null;
+      if (activeToolNames.length) {
+        session.setActiveToolsByName?.(activeToolNames);
+      }
       this._rememberBridgeContext(activeSessionPath, bridgeContext);
       this._activeSessions.set(sessionKey, session);
 
@@ -636,7 +692,11 @@ export class BridgeSessionManager {
         const { changed, file } = this._syncIndexEntry(index, sessionKey, raw, {
           bridgeDir,
           sessionPath,
-          meta: this._bridgeContextMeta(bridgeContext, meta),
+          meta: {
+            ...this._bridgeContextMeta(bridgeContext, meta),
+            promptSnapshot,
+            ...(activeToolNames.length ? { toolNames: activeToolNames } : {}),
+          },
         });
         if (changed) {
           if (existingFile && existingFile !== file) {
@@ -829,19 +889,14 @@ export class BridgeSessionManager {
     targetModelRef.current = ownerModel;
 
     // 快照 prompt，隔离于其他 session 的 prompt 变更（与 SessionCoordinator.createSession 一致）。
-    // 显式按 master 开关构建：bridge owner 是独立链路，不应受桌面端某个 session
-    // 的 per-session 开关污染。用户在桌面关掉某个 session 的记忆，不影响这里。
-    const ownerPromptBase = opts.ownerPromptSnapshot || agent.buildSystemPrompt({
-      cwdOverride: homeCwd,
-      forceMemoryEnabled: agent.memoryMasterEnabled,
-      ...(typeof agent.experienceEnabled === "boolean"
-        ? { forceExperienceEnabled: agent.experienceEnabled === true }
-        : {}),
-    });
-    const ownerPromptSnapshot = appendBridgePromptLine(ownerPromptBase, opts.bridgeContext, getLocale());
-    const ownerResourceLoader = Object.create(this._deps.getResourceLoader(), {
-      getSystemPrompt: { value: () => ownerPromptSnapshot },
-    });
+    // Bridge owner 是独立长期 session：普通消息复用它自己的持久 snapshot；
+    // fresh compact 才刷新 snapshot。
+    const promptSnapshot = normalizeSessionPromptSnapshot(opts.promptSnapshot)
+      || this._buildOwnerPromptSnapshot(agent, homeCwd, opts.bridgeContext || null);
+    const ownerResourceLoader = createPromptSnapshotResourceLoader(
+      this._deps.getResourceLoader?.(),
+      promptSnapshot,
+    );
     const visionResourceLoader = withVisionContextInjectionExtension(ownerResourceLoader, {
       path: "hana-vision-context-injection",
       sessionPathRef,
@@ -864,6 +919,12 @@ export class BridgeSessionManager {
       tools: baseTools,
       customTools: baseCustomTools,
       settingsManager: this._createSettings(ownerModel),
+      activeToolNames: this._normalizeToolNames(opts.toolNames).length
+        ? this._normalizeToolNames(opts.toolNames)
+        : uniqueToolNames([
+          ...(baseTools || []).map((tool) => tool?.name),
+          ...(baseCustomTools || []).map((tool) => tool?.name),
+        ]),
     };
   }
 
@@ -898,7 +959,8 @@ export class BridgeSessionManager {
     const bridgeDir = path.join(agent.sessionDir, "bridge");
     const index = this.readIndex(agent);
     const raw = index[sessionKey];
-    const existingFile = typeof raw === "string" ? raw : raw?.file || null;
+    const entry = this._normalizeIndexEntry(raw);
+    const existingFile = entry.file || null;
     if (!existingFile) {
       throw new Error(`bridge compact: session "${sessionKey}" not found or has no history`);
     }
@@ -912,12 +974,22 @@ export class BridgeSessionManager {
     const homeCwd = this._deps.getHomeCwd(agent.id) || process.cwd();
     const sessionDir = path.dirname(sessionFilePath);
     const mgr = SessionManager.open(sessionFilePath, sessionDir);
+    const bridgeContext = this.getBridgeContextForSessionPath(sessionFilePath, { agentId: agent.id })
+      || this._buildBridgeContext(sessionKey, entry, { guest: false }, agent);
     const freshContext = opts.fresh === true
-      ? this._buildOwnerFreshCompactContext(agent, homeCwd)
+      ? this._buildOwnerFreshCompactContext(agent, homeCwd, { bridgeContext })
       : null;
+    const restoredPromptSnapshot = normalizeSessionPromptSnapshot(entry.promptSnapshot);
+    const promptSnapshot = freshContext?.promptSnapshot
+      || restoredPromptSnapshot
+      || this._buildOwnerPromptSnapshot(agent, homeCwd, bridgeContext);
     const sessionOpts = this._buildOwnerSessionOpts(agent, mm, homeCwd, { current: sessionFilePath }, { current: null }, {
-      ownerPromptSnapshot: freshContext?.systemPrompt,
+      bridgeContext,
+      promptSnapshot,
+      toolNames: entry.toolNames,
     });
+    const activeToolNames = this._normalizeToolNames(sessionOpts.activeToolNames);
+    delete sessionOpts.activeToolNames;
 
     const { session } = await createAgentSession({
       cwd: homeCwd,
@@ -926,6 +998,9 @@ export class BridgeSessionManager {
       modelRegistry: mm.modelRegistry,
       ...sessionOpts,
     });
+    if (activeToolNames.length) {
+      session.setActiveToolsByName?.(activeToolNames);
+    }
 
     try {
       // 5. 读 usage → compact → 读 usage
@@ -950,8 +1025,19 @@ export class BridgeSessionManager {
           now: opts.now || new Date(),
           usage: result,
         });
-        this._writeFreshCompactIndexMeta(agent, sessionKey, patch);
+        this._writeIndexEntryPatch(agent, sessionKey, {
+          freshCompact: patch,
+          promptSnapshot,
+          ...(activeToolNames.length ? { toolNames: activeToolNames } : {}),
+        });
         return { ...result, fresh: true, reason };
+      }
+
+      if (!restoredPromptSnapshot) {
+        this._writeIndexEntryPatch(agent, sessionKey, {
+          promptSnapshot,
+          ...(activeToolNames.length ? { toolNames: activeToolNames } : {}),
+        });
       }
 
       return result;

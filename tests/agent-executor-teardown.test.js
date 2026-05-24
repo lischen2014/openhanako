@@ -431,6 +431,82 @@ describe("runAgentSession teardown", () => {
     expect(resolveModel).not.toHaveBeenCalled();
   });
 
+  it("phone sessions persist and reuse their prompt snapshot", async () => {
+    const cwd = path.join(rootDir, "cwd");
+    fs.mkdirSync(cwd, { recursive: true });
+    const agent = makeAgent(rootDir);
+    const engine = makeEngine(agent, cwd);
+    const sessionFile = path.join(agent.agentDir, "phone", "sessions", "ch_crew", "phone-snapshot.jsonl");
+    fs.mkdirSync(path.dirname(sessionFile), { recursive: true });
+    fs.writeFileSync(sessionFile, "", "utf-8");
+    sessionManagerCreateMock.mockReturnValue({ getSessionFile: () => sessionFile });
+    sessionManagerOpenMock.mockReturnValue({ getSessionFile: () => sessionFile });
+
+    const makeSession = () => ({
+      prompt: vi.fn(async () => {}),
+      subscribe: vi.fn(() => () => {}),
+      dispose: vi.fn(),
+      sessionManager: { getSessionFile: () => sessionFile },
+      getContextUsage: vi.fn(() => ({ tokens: 10, contextWindow: 200000 })),
+      extensionRunner: { hasHandlers: vi.fn(() => false) },
+    });
+    createAgentSessionMock
+      .mockResolvedValueOnce({ session: makeSession() })
+      .mockResolvedValueOnce({ session: makeSession() });
+
+    await runAgentPhoneSession("agent-a", [{ text: "hello", capture: true }], {
+      engine,
+      conversationId: "ch_crew",
+      conversationType: "channel",
+    });
+    const projectionPath = getAgentPhoneProjectionPath(agent.agentDir, "ch_crew");
+    let projection = readAgentPhoneProjection(projectionPath);
+    const snapshot = projection.meta.promptSnapshot;
+    expect(snapshot?.systemPrompt).toBe("system prompt");
+
+    agent.systemPrompt = "system prompt v2";
+    await runAgentPhoneSession("agent-a", [{ text: "hello again", capture: true }], {
+      engine,
+      conversationId: "ch_crew",
+      conversationType: "channel",
+    });
+    const secondCreateArgs = createAgentSessionMock.mock.calls.at(-1)[0];
+    expect(secondCreateArgs.resourceLoader.getSystemPrompt()).toBe("system prompt");
+    projection = readAgentPhoneProjection(projectionPath);
+    expect(projection.meta.promptSnapshot.systemPrompt).toBe("system prompt");
+  });
+
+  it("phone replies leave regular compaction to the SDK auto-compaction path", async () => {
+    const cwd = path.join(rootDir, "cwd");
+    fs.mkdirSync(cwd, { recursive: true });
+    const agent = makeAgent(rootDir);
+    const engine = makeEngine(agent, cwd);
+    const sessionFile = path.join(agent.agentDir, "phone", "sessions", "ch_crew", "phone-auto-compact.jsonl");
+    fs.mkdirSync(path.dirname(sessionFile), { recursive: true });
+    fs.writeFileSync(sessionFile, "", "utf-8");
+    sessionManagerCreateMock.mockReturnValue({ getSessionFile: () => sessionFile });
+    const compact = vi.fn(async () => {});
+    createAgentSessionMock.mockResolvedValue({
+      session: {
+        prompt: vi.fn(async () => {}),
+        subscribe: vi.fn(() => () => {}),
+        dispose: vi.fn(),
+        sessionManager: { getSessionFile: () => sessionFile },
+        getContextUsage: vi.fn(() => ({ tokens: 200000, contextWindow: 272000 })),
+        compact,
+        extensionRunner: { hasHandlers: vi.fn(() => false) },
+      },
+    });
+
+    await runAgentPhoneSession("agent-a", [{ text: "hello", capture: true }], {
+      engine,
+      conversationId: "ch_crew",
+      conversationType: "channel",
+    });
+
+    expect(compact).not.toHaveBeenCalled();
+  });
+
   it("keeps phone replies non-blocking and leaves daily fresh-compact to the background path", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-05-12T10:00:00"));
@@ -460,8 +536,6 @@ describe("runAgentSession teardown", () => {
     sessionManagerCreateMock.mockReturnValue({ getSessionFile: () => newSessionFile });
     const compact = vi.fn(async () => {});
     const getContextUsage = vi.fn()
-      .mockReturnValueOnce({ tokens: 10, contextWindow: 200000 })
-      .mockReturnValueOnce({ tokens: 10, contextWindow: 200000 })
       .mockReturnValueOnce({ tokens: 130000, contextWindow: 200000 })
       .mockReturnValueOnce({ tokens: 48000, contextWindow: 200000 })
       .mockReturnValue({ tokens: 10, contextWindow: 200000 });
