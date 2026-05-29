@@ -114,6 +114,7 @@
       "save": "Save",
       "cancel": "Cancel",
       "showMore": "Show more",
+      "loading": "Loading projects…",
       "empty": "No projects yet"
     }
   },

@@ -280,4 +280,41 @@ describe('buildSessionProjectView', () => {
       }),
     ]);
   });
+
+  it('does not demote catalog-assigned sessions to a cwd project while the catalog is still loading', () => {
+    // Regression: when the project catalog has not finished loading, a session that
+    // belongs to a real (custom) project must NOT be silently re-bucketed into a
+    // cwd-derived project. Doing so makes custom projects vanish and dumps their
+    // sessions into the auto "Hana"-style group until the user toggles sort order.
+    const view = buildSessionProjectView([
+      makeSession({
+        path: '/sessions/lili.jsonl',
+        cwd: '/Users/test/Hana',
+        projectId: 'project-e61c751e',
+      }),
+    ], { projects: [] }, { catalogLoaded: false });
+
+    const groupedPaths = [
+      ...view.rootProjects.flatMap(project => project.items),
+      ...view.folders.flatMap(folder => folder.projects.flatMap(project => project.items)),
+    ].map(session => session.path);
+
+    expect(view.pending).toBe(true);
+    expect(groupedPaths).not.toContain('/sessions/lili.jsonl');
+  });
+
+  it('still groups cwd-only sessions while the catalog is loading', () => {
+    // Holding back catalog-assigned sessions must not punish sessions that derive
+    // their group purely from cwd: those do not depend on the catalog at all.
+    const view = buildSessionProjectView([
+      makeSession({
+        path: '/sessions/plain.jsonl',
+        cwd: '/Users/test/Hana',
+      }),
+    ], { projects: [] }, { catalogLoaded: false });
+
+    const cwdGroup = view.rootProjects.find(project => project.source === 'cwd');
+    expect(cwdGroup?.items.map(session => session.path)).toEqual(['/sessions/plain.jsonl']);
+    expect(view.pending).toBe(true);
+  });
 });

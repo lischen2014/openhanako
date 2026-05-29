@@ -52,6 +52,27 @@ export async function loadSessionProjectCatalog(): Promise<SessionProjectCatalog
   return catalog;
 }
 
+/**
+ * Reliable initial load for app startup. Retries a few times so a single transient
+ * failure (e.g. the server not being ready for the very first request) does not leave
+ * the catalog empty for the whole session. Until the catalog loads, the project
+ * sidebar holds back custom-project sessions instead of demoting them to cwd groups.
+ */
+export async function initSessionProjectCatalog(attempts = 3): Promise<void> {
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    try {
+      await loadSessionProjectCatalog();
+      return;
+    } catch (err) {
+      if (attempt >= attempts) {
+        console.warn('[init] session project catalog load failed after retries:', err);
+        return;
+      }
+      await new Promise(resolve => setTimeout(resolve, 300 * attempt));
+    }
+  }
+}
+
 export async function createSessionProjectInCatalog(input: { name: string; folderId?: string | null }): Promise<SessionProject | null> {
   const res = await hanaFetch('/api/session-projects/projects', {
     method: 'POST',

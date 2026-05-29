@@ -11,6 +11,7 @@ import { useStore } from './stores';
 import { hanaFetch } from './hooks/use-hana-fetch';
 import { applyAgentIdentity, loadAgents, loadAvatars } from './stores/agent-actions';
 import { loadSessions } from './stores/session-actions';
+import { initSessionProjectCatalog } from './stores/session-project-actions';
 import { connectWebSocket, getWebSocket } from './services/websocket';
 import { setStatus, loadModels } from './utils/ui-helpers';
 import { initJian } from './stores/desk-actions';
@@ -208,6 +209,11 @@ export async function initApp(): Promise<void> {
   useStore.setState({ pendingNewSession: true });
   await loadAgents();
   await loadSessions();
+
+  // 10b. 加载项目目录（带重试）。放在 sessions 之后：此时 server 已确认可用，
+  // 避免项目目录像过去那样只靠 SessionList 挂载时一次性拉取、失败即长期空白，
+  // 导致自定义项目消失、其会话被错误并入 cwd 推导分组。
+  await initSessionProjectCatalog();
 
   // 11. 初始化书桌
   initJian();

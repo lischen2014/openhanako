@@ -225,6 +225,7 @@ function SessionListInner() {
   const streamingSessions = useStore(s => s.streamingSessions);
   const browserBySession = useStore(s => s.browserBySession);
   const projectCatalog = useStore(s => s.sessionProjectCatalog);
+  const projectCatalogLoaded = useStore(s => s.sessionProjectCatalogLoaded);
 
   const [browserSessions, setBrowserSessions] = useState<Record<string, BrowserSessionState>>({});
   const [viewMode, setViewModeState] = useState<SessionViewMode>(readInitialSessionViewMode);
@@ -615,7 +616,7 @@ function SessionListInner() {
   );
 
   const sections = buildSessionSections(sessions, { mode: 'time' });
-  const projectView = buildSessionProjectView(sessions, projectCatalog);
+  const projectView = buildSessionProjectView(sessions, projectCatalog, { catalogLoaded: projectCatalogLoaded });
   const titleResultPaths = new Set(titleResults.map(result => result.path));
   const visibleContentResults = contentResults.filter(result => !titleResultPaths.has(result.path));
   const hasSearchResults = titleResults.length > 0 || visibleContentResults.length > 0;
@@ -1027,9 +1028,11 @@ function ProjectSessionView({
           />
         ))}
       </div>
-      {view.rootProjects.length === 0 && view.folders.length === 0 && (
+      {view.pending ? (
+        <div className={styles.sessionEmpty}>{t('sidebar.projects.loading')}</div>
+      ) : view.rootProjects.length === 0 && view.folders.length === 0 ? (
         <div className={styles.sessionEmpty}>{t('sidebar.projects.empty')}</div>
-      )}
+      ) : null}
     </>
   );
 }

@@ -28,6 +28,10 @@ export interface SessionProjectView {
   pinned: Session[];
   rootProjects: SessionProjectGroup[];
   folders: SessionProjectFolderGroup[];
+  // True while the project catalog has not finished loading. Consumers should show a
+  // loading affordance instead of trusting the (intentionally incomplete) grouping,
+  // because catalog-assigned sessions are held back rather than demoted to cwd.
+  pending: boolean;
 }
 
 export type SessionSection =
@@ -137,10 +141,19 @@ export function buildSessionSections(
   return sections;
 }
 
+interface BuildSessionProjectViewOptions {
+  // Whether the catalog has finished loading. Defaults to true so existing callers
+  // and tests keep the "project missing -> fall back to cwd" semantics. When false,
+  // catalog-assigned sessions whose project has not arrived yet are held back.
+  catalogLoaded?: boolean;
+}
+
 export function buildSessionProjectView(
   sessions: Session[],
   catalog: SessionProjectCatalog = { projects: [] },
+  options: BuildSessionProjectViewOptions = {},
 ): SessionProjectView {
+  const catalogLoaded = options.catalogLoaded ?? true;
   const pinned = sessions
     .filter(isPinnedSession)
     .sort((a, b) => pinnedTime(b) - pinnedTime(a) || compareByPath(a, b));
@@ -164,6 +177,14 @@ export function buildSessionProjectView(
 
   for (const session of regular) {
     const explicitProjectId = typeof session.projectId === 'string' ? session.projectId.trim() : '';
+    const catalogAssigned = !!explicitProjectId && !isAutoProjectId(explicitProjectId);
+    // Catalog still loading: a session pointing at a custom project we have not
+    // received yet is held back, never demoted into a cwd-derived project. Demoting
+    // here is exactly what made custom projects vanish (their sessions dumped into the
+    // auto cwd group) until the user toggled the sort order and triggered a reload.
+    if (!catalogLoaded && catalogAssigned && !projectById.has(explicitProjectId)) {
+      continue;
+    }
     const targetId = explicitProjectId && (projectById.has(explicitProjectId) || isAutoProjectId(explicitProjectId))
       ? explicitProjectId
       : autoProjectIdForCwd(session.cwd);
@@ -188,7 +209,7 @@ export function buildSessionProjectView(
     }))
     .sort(compareFolders);
 
-  return { pinned, rootProjects, folders };
+  return { pinned, rootProjects, folders, pending: !catalogLoaded };
 }
 
 function ensureProjectGroup(

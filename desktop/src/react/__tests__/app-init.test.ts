@@ -26,6 +26,7 @@ const mockInitViewerEvents = vi.fn();
 const mockUpdateLayout = vi.fn();
 const mockInitErrorBusBridge = vi.fn();
 const mockRefreshPluginUI = vi.fn();
+const mockInitSessionProjectCatalog = vi.fn(async () => {});
 
 vi.mock('../stores', () => ({
   useStore: {
@@ -51,6 +52,10 @@ vi.mock('../stores/agent-actions', () => ({
 vi.mock('../stores/session-actions', () => ({
   loadSessions: mockLoadSessions,
   switchSession: mockSwitchSession,
+}));
+
+vi.mock('../stores/session-project-actions', () => ({
+  initSessionProjectCatalog: mockInitSessionProjectCatalog,
 }));
 
 vi.mock('../services/websocket', () => ({
@@ -172,6 +177,7 @@ describe('initApp bridge indicator', () => {
     mockUpdateLayout.mockReset();
     mockInitErrorBusBridge.mockReset();
     mockRefreshPluginUI.mockReset();
+    mockInitSessionProjectCatalog.mockReset();
     vi.resetModules();
   });
 
