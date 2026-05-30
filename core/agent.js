@@ -481,6 +481,7 @@ export class Agent {
       resolveUtilityModel: () => this._cb?.getCurrentModelId?.() || null,
       getDeferredStore: () => this._cb?.getDeferredResults?.(),
       getSubagentRunStore: () => this._cb?.getSubagentRunStore?.(),
+      getActivityHub: () => this._cb?.getActivityHub?.(),
       getTaskRegistry: () => this._cb?.getTaskRegistry?.(),
       setSubagentController: (id, ctrl) => this._cb?.setSubagentController?.(id, ctrl),
       removeSubagentController: (id) => this._cb?.removeSubagentController?.(id),
@@ -514,6 +515,7 @@ export class Agent {
       // 完成后由 DeferredResultCoordinator 回灌主对话。
       getDeferredStore: () => this._cb?.getDeferredResults?.(),
       getSubagentRunStore: () => this._cb?.getSubagentRunStore?.(),
+      getActivityHub: () => this._cb?.getActivityHub?.(),
     });
 
     // 12. 组装 system prompt（按 master 构建，与 per-session 开关解耦）

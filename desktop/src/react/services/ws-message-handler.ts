@@ -449,6 +449,13 @@ export function handleServerMessage(msg: any): void {
       }
       break;
 
+    case 'agent_activity':
+      // 统一 Agent Activity 真相源（ActivityHub 广播）：subagent / workflow / 巡检
+      if (msg.entry?.id) {
+        useStore.getState().upsertAgentActivity(msg.entry);
+      }
+      break;
+
     case 'notification':
       if (window.hana?.showNotification) {
         // agentId 标识触发通知的助手，主进程据此读取该 agent 头像作为通知 icon。

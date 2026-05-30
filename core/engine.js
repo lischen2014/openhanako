@@ -458,6 +458,14 @@ export class HanaEngine {
     return this._subagentRunStore || null;
   }
 
+  setActivityHub(hub) {
+    this._activityHub = hub || null;
+  }
+
+  get activityHub() {
+    return this._activityHub || null;
+  }
+
   get taskRegistry() {
     return this._taskRegistry;
   }

@@ -836,6 +836,7 @@ export class AgentManager {
       emitSessionEvent:     (event) => getEngine()?.emitSessionEvent?.(event),
       getDeferredResults:   () => getEngine()?.deferredResults ?? null,
       getSubagentRunStore:  () => getEngine()?.subagentRuns ?? null,
+      getActivityHub:       () => getEngine()?.activityHub ?? null,
       getTaskRegistry:      () => getEngine()?.taskRegistry ?? null,
       getTerminalSessionManager: () => getEngine()?.terminalSessions ?? null,
       registerSessionFile:  (entry) => getEngine()?.registerSessionFile?.(entry),
