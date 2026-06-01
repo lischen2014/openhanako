@@ -379,6 +379,32 @@ describe("HanaEngine.buildTools", () => {
       filePath: path.join(workspace, "draft.md"),
       origin: "agent_edit",
     });
+    expect(engine._emitEvent).toHaveBeenCalledWith(expect.objectContaining({
+      type: "app_event",
+      event: expect.objectContaining({
+        type: "session-file-updated",
+        payload: expect.objectContaining({
+          sessionPath,
+          filePath: path.join(workspace, "draft.md"),
+          fileId: "sf_created",
+          origin: "agent_write",
+          operation: "created",
+        }),
+      }),
+    }), null);
+    expect(engine._emitEvent).toHaveBeenCalledWith(expect.objectContaining({
+      type: "app_event",
+      event: expect.objectContaining({
+        type: "session-file-updated",
+        payload: expect.objectContaining({
+          sessionPath,
+          filePath: path.join(workspace, "draft.md"),
+          fileId: "sf_modified",
+          origin: "agent_edit",
+          operation: "modified",
+        }),
+      }),
+    }), null);
   });
 
   it("blocks direct agent config edits from built-in file tools even when sandbox is disabled", async () => {

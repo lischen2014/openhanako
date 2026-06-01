@@ -347,6 +347,18 @@ describe('handleAppEvent', () => {
     expect(mockRefreshPreviewItemsFromFile).toHaveBeenCalledWith('/notes/demo.md');
   });
 
+  it('refreshes open preview items when an agent updates a session file', async () => {
+    const { handleAppEvent } = await import('../../services/app-event-actions');
+
+    handleAppEvent('session-file-updated', {
+      sessionPath: '/sessions/a.jsonl',
+      filePath: '/notes/demo.md',
+      origin: 'agent_edit',
+    });
+
+    expect(mockRefreshPreviewItemsFromFile).toHaveBeenCalledWith('/notes/demo.md');
+  });
+
   it('agent-created reloads both agents and channels so the new DM appears immediately', async () => {
     const { handleAppEvent } = await import('../../services/app-event-actions');
 

@@ -498,6 +498,34 @@ export class HanaEngine {
   }
 
   registerSessionFile(entry) { return this._sessionFiles.registerFile(entry); }
+  recordSessionFileOperation(entry) {
+    const file = this.registerSessionFile(entry);
+    this._emitSessionFileUpdatedEvent(file, entry);
+    return file;
+  }
+  _emitSessionFileUpdatedEvent(file, entry = {}) {
+    const origin = typeof file?.origin === "string" ? file.origin : entry?.origin;
+    if (origin !== "agent_write" && origin !== "agent_edit") return;
+
+    const sessionPath = file?.sessionPath || entry?.sessionPath;
+    const filePath = file?.filePath || entry?.filePath;
+    if (!sessionPath || !filePath) return;
+
+    const fileId = file?.id || file?.fileId || null;
+    const operation = entry?.operation || file?.operation || (
+      Array.isArray(file?.operations) ? file.operations[file.operations.length - 1] : null
+    );
+    this._emitAppEvent("session-file-updated", {
+      sessionPath,
+      filePath,
+      ...(fileId ? { fileId } : {}),
+      origin,
+      ...(operation ? { operation } : {}),
+      ...(file?.mtimeMs !== undefined ? { mtimeMs: file.mtimeMs } : {}),
+      ...(file?.size !== undefined ? { size: file.size } : {}),
+      ...(file?.version ? { version: file.version } : {}),
+    });
+  }
   getSessionFile(fileId, options) { return this._sessionFiles.get(fileId, options); }
   getSessionFileByPath(filePath, options) { return this._sessionFiles.getByFilePath(filePath, options); }
   listSessionFiles(sessionPath) { return this._sessionFiles.list(sessionPath); }
@@ -1650,7 +1678,7 @@ export class HanaEngine {
         : this._readPreferences().sandbox_network !== false,
       getExternalReadPaths,
       getSessionPath,
-      recordFileOperation: (entry) => this.registerSessionFile(entry),
+      recordFileOperation: (entry) => this.recordSessionFileOperation(entry),
       getVisionBridge: () => this.getVisionBridge(),
       isVisionAuxiliaryEnabled: () => this.isVisionAuxiliaryEnabled(),
       legacyCleanupQueue: this._win32LegacySandboxCleanupQueue,

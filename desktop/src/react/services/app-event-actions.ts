@@ -225,6 +225,11 @@ export function handleAppEvent(type: string, data: any = {}, options: AppEventOp
         void refreshPreviewItemsFromFile(data.filePath);
       }
       break;
+    case 'session-file-updated':
+      if (typeof data.filePath === 'string' && data.filePath) {
+        void refreshPreviewItemsFromFile(data.filePath);
+      }
+      break;
     case 'theme-changed':
       window.setTheme(data.theme);
       break;
