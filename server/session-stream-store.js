@@ -10,6 +10,20 @@
 // 成功；trim 作为硬上限防止异常 turn 把内存打爆。turn 结束时 events 会被
 // finishSessionStream 清掉，不会持续占内存。
 const DEFAULT_MAX_EVENTS = 5000;
+const DEFAULT_MAX_BYTES = 8 * 1024 * 1024;
+const DEFAULT_MAX_EVENT_BYTES = 256 * 1024;
+const MAX_COMPACT_STRING_CHARS = 8192;
+const MAX_COMPACT_ARRAY_ITEMS = 64;
+const MAX_COMPACT_OBJECT_KEYS = 64;
+const LARGE_FIELD_KEYS = new Set([
+  "base64",
+  "content",
+  "data",
+  "details",
+  "snapshot",
+  "text",
+  "thumbnail",
+]);
 
 /** 创建初始流状态 */
 export function createSessionStreamState(opts = {}) {
@@ -21,6 +35,12 @@ export function createSessionStreamState(opts = {}) {
     endedAt: 0,
     events: [],
     maxEvents: Math.max(1, opts.maxEvents || DEFAULT_MAX_EVENTS),
+    maxBytes: Math.max(1024, opts.maxBytes || DEFAULT_MAX_BYTES),
+    maxEventBytes: Math.max(1024, opts.maxEventBytes || DEFAULT_MAX_EVENT_BYTES),
+    totalEventBytes: 0,
+    droppedEvents: 0,
+    droppedBytes: 0,
+    compactedEvents: 0,
   };
 }
 
@@ -32,6 +52,10 @@ export function beginSessionStream(state, streamId = null) {
   state.startedAt = Date.now();
   state.endedAt = 0;
   state.events = [];
+  state.totalEventBytes = 0;
+  state.droppedEvents = 0;
+  state.droppedBytes = 0;
+  state.compactedEvents = 0;
   return state.streamId;
 }
 
@@ -39,14 +63,19 @@ export function beginSessionStream(state, streamId = null) {
 export function appendSessionStreamEvent(state, event) {
   if (!state.streamId) beginSessionStream(state);
 
+  const prepared = prepareStoredEvent(event, state.maxEventBytes);
+  if (prepared.compacted) state.compactedEvents += 1;
+
   const entry = {
     streamId: state.streamId,
     seq: state.nextSeq++,
-    event,
+    event: prepared.event,
     ts: Date.now(),
+    byteLength: prepared.byteLength,
   };
 
   state.events.push(entry);
+  state.totalEventBytes += entry.byteLength;
   trimEvents(state);
   return entry;
 }
@@ -56,6 +85,7 @@ export function finishSessionStream(state) {
   state.isStreaming = false;
   state.endedAt = Date.now();
   state.events = [];
+  state.totalEventBytes = 0;
 }
 
 /**
@@ -112,9 +142,13 @@ export function resumeSessionStream(state, opts = {}) {
 }
 
 function trimEvents(state) {
-  const overflow = state.events.length - state.maxEvents;
-  if (overflow <= 0) return;
-  state.events.splice(0, overflow);
+  while (state.events.length > state.maxEvents || state.totalEventBytes > state.maxBytes) {
+    const [removed] = state.events.splice(0, 1);
+    if (!removed) break;
+    state.totalEventBytes = Math.max(0, state.totalEventBytes - (removed.byteLength || 0));
+    state.droppedEvents += 1;
+    state.droppedBytes += removed.byteLength || 0;
+  }
 }
 
 function toPublicEvent(entry) {
@@ -123,6 +157,90 @@ function toPublicEvent(entry) {
     event: entry.event,
     ts: entry.ts,
   };
+}
+
+function prepareStoredEvent(event, maxEventBytes) {
+  const initialBytes = jsonByteLength(event);
+  if (initialBytes <= maxEventBytes) {
+    return { event, byteLength: initialBytes, compacted: false };
+  }
+
+  const compacted = compactValue(event, new Set());
+  const compactedBytes = jsonByteLength(compacted);
+  if (compactedBytes <= maxEventBytes) {
+    return {
+      event: markCompactedEvent(compacted, initialBytes),
+      byteLength: jsonByteLength(markCompactedEvent(compacted, initialBytes)),
+      compacted: true,
+    };
+  }
+
+  const fallback = {
+    type: event?.type || "stream_event",
+    compacted: true,
+    omitted: true,
+    originalByteLength: initialBytes,
+  };
+  return {
+    event: fallback,
+    byteLength: jsonByteLength(fallback),
+    compacted: true,
+  };
+}
+
+function markCompactedEvent(event, originalByteLength) {
+  if (!event || typeof event !== "object" || Array.isArray(event)) {
+    return {
+      type: "stream_event",
+      compacted: true,
+      originalByteLength,
+      value: event,
+    };
+  }
+  return {
+    ...event,
+    compacted: true,
+    originalByteLength,
+  };
+}
+
+function compactValue(value, seen) {
+  if (typeof value === "string") {
+    if (value.length <= MAX_COMPACT_STRING_CHARS) return value;
+    return `[omitted ${value.length} chars]`;
+  }
+  if (!value || typeof value !== "object") return value;
+  if (seen.has(value)) return "[circular]";
+  seen.add(value);
+  if (Array.isArray(value)) {
+    return value
+      .slice(0, MAX_COMPACT_ARRAY_ITEMS)
+      .map((item) => compactValue(item, seen));
+  }
+  const out = {};
+  let count = 0;
+  for (const [key, item] of Object.entries(value)) {
+    if (count >= MAX_COMPACT_OBJECT_KEYS) {
+      out._omittedKeys = Object.keys(value).length - count;
+      break;
+    }
+    count += 1;
+    if (LARGE_FIELD_KEYS.has(key) && typeof item === "string" && item.length > 256) {
+      out[key] = `[omitted ${item.length} chars]`;
+      continue;
+    }
+    out[key] = compactValue(item, seen);
+  }
+  seen.delete(value);
+  return out;
+}
+
+function jsonByteLength(value) {
+  try {
+    return Buffer.byteLength(JSON.stringify(value), "utf8");
+  } catch {
+    return Buffer.byteLength(String(value), "utf8");
+  }
 }
 
 function normalizeSeq(value) {

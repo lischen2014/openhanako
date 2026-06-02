@@ -53,6 +53,43 @@ describe("session-stream-store", () => {
     expect(resumed.events.map(x => x.seq)).toEqual([2, 3, 4]);
   });
 
+  it("按总字节上限截断旧事件", () => {
+    const ss = createSessionStreamState({ maxEvents: 100, maxBytes: 1024, maxEventBytes: 1000 });
+    beginSessionStream(ss, "stream_a");
+    appendSessionStreamEvent(ss, { type: "text_delta", delta: "a".repeat(400) });
+    appendSessionStreamEvent(ss, { type: "text_delta", delta: "b".repeat(400) });
+    appendSessionStreamEvent(ss, { type: "text_delta", delta: "c".repeat(400) });
+
+    expect(ss.totalEventBytes).toBeLessThanOrEqual(1024);
+    expect(ss.droppedEvents).toBeGreaterThan(0);
+
+    const resumed = resumeSessionStream(ss, { streamId: "stream_a", sinceSeq: 0 });
+    expect(resumed.truncated).toBe(true);
+    expect(resumed.events.at(-1).event.delta).toBe("c".repeat(400));
+  });
+
+  it("压缩单个超大事件用于断线恢复缓冲", () => {
+    const ss = createSessionStreamState({ maxEventBytes: 1024 });
+    beginSessionStream(ss, "stream_a");
+    appendSessionStreamEvent(ss, {
+      type: "content_block",
+      block: {
+        type: "screenshot",
+        base64: "x".repeat(20_000),
+      },
+    });
+
+    expect(ss.compactedEvents).toBe(1);
+    const resumed = resumeSessionStream(ss, { streamId: "stream_a", sinceSeq: 0 });
+    expect(resumed.events).toHaveLength(1);
+    expect(resumed.events[0].event).toMatchObject({
+      type: "content_block",
+      compacted: true,
+    });
+    expect(resumed.events[0].event.block.base64).toContain("omitted");
+    expect(JSON.stringify(resumed.events[0].event)).not.toContain("x".repeat(1024));
+  });
+
   it("开始新流时会重置旧状态", () => {
     const ss = createSessionStreamState();
     beginSessionStream(ss, "stream_a");
