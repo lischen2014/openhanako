@@ -15,10 +15,11 @@ interface ToggleProps {
   on: boolean | undefined;
   onChange: (on: boolean) => void;
   label?: string;
+  ariaLabel?: string;
   disabled?: boolean;
 }
 
-export function Toggle({ on, onChange, label, disabled = false }: ToggleProps) {
+export function Toggle({ on, onChange, label, ariaLabel, disabled = false }: ToggleProps) {
   const loading = on === undefined;
   const visualOn = on === true;
   const effectiveDisabled = disabled || loading;
@@ -33,7 +34,7 @@ export function Toggle({ on, onChange, label, disabled = false }: ToggleProps) {
         className={className}
         type="button"
         disabled={effectiveDisabled}
-        aria-label={label}
+        aria-label={ariaLabel || label}
         aria-busy={loading || undefined}
         role="switch"
         aria-checked={loading ? 'mixed' : visualOn}

@@ -1205,10 +1205,12 @@
       "displayName": "顯示名稱",
       "vision": "視覺",
       "video": "影片",
+      "audio": "音訊",
       "reasoning": "推理",
       "capability": {
         "image": "支援圖像輸入",
         "video": "支援影片輸入",
+        "audio": "支援音訊輸入",
         "reasoning": "支援推理"
       }
     },
@@ -1667,6 +1669,7 @@
       "contextLength": "上下文長度",
       "maxOutput": "最大輸出",
       "imageInput": "支援圖片",
+      "audioInput": "支援音訊",
       "reasoning": "推理模型",
       "cancelEdit": "取消",
       "saveEdit": "儲存",

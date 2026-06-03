@@ -1254,10 +1254,12 @@
       "displayName": "Display name",
       "vision": "Vision",
       "video": "Video",
+      "audio": "Audio",
       "reasoning": "Reasoning",
       "capability": {
         "image": "Supports image input",
         "video": "Supports video input",
+        "audio": "Supports audio input",
         "reasoning": "Supports reasoning"
       }
     },
@@ -1716,6 +1718,7 @@
       "contextLength": "Context length",
       "maxOutput": "Max output",
       "imageInput": "Image input",
+      "audioInput": "Audio input",
       "reasoning": "Reasoning",
       "cancelEdit": "Cancel",
       "saveEdit": "Save",

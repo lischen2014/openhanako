@@ -18,7 +18,7 @@ describe('onboarding saveModel', () => {
       selectedUtilityLarge: 'deepseek-v4-pro',
       addedModels: [
         'deepseek-v4-flash',
-        { id: 'deepseek-v4-pro', name: 'DeepSeek V4 Pro' },
+        { id: 'deepseek-v4-pro', name: 'DeepSeek V4 Pro', audio: true },
       ],
       fetchedModels: [
         { id: 'deepseek-v4-flash' },
@@ -38,7 +38,7 @@ describe('onboarding saveModel', () => {
     const body = JSON.parse(String(providerSaveCall?.[1]?.body));
     expect(body.providers.deepseek.models).toEqual([
       'deepseek-v4-flash',
-      { id: 'deepseek-v4-pro', name: 'DeepSeek V4 Pro' },
+      { id: 'deepseek-v4-pro', name: 'DeepSeek V4 Pro', audio: true },
     ]);
   });
 });

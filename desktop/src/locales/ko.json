@@ -1213,10 +1213,12 @@
       "displayName": "표시 이름",
       "vision": "비전",
       "video": "비디오",
+      "audio": "오디오",
       "reasoning": "추론",
       "capability": {
         "image": "이미지 입력 지원",
         "video": "비디오 입력 지원",
+        "audio": "오디오 입력 지원",
         "reasoning": "추론 지원"
       }
     },
@@ -1675,6 +1677,7 @@
       "contextLength": "컨텍스트 길이",
       "maxOutput": "최대 출력",
       "imageInput": "이미지 입력",
+      "audioInput": "오디오 입력",
       "reasoning": "추론 모델",
       "cancelEdit": "취소",
       "saveEdit": "저장",

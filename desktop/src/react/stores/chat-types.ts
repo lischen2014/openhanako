@@ -226,11 +226,14 @@ export interface SessionModel {
   id: string;
   name: string;
   provider: string;
-  /** 输入模态数组（Pi SDK 标准字段），镜像后端 /models, /models/switch 响应。 */
+  /** 输入模态数组（Pi SDK 标准字段），镜像后端 /models, /models/switch 响应；音频走 Hana 兼容能力字段。 */
   input?: ("text" | "image" | "video")[];
   video?: boolean;
   videoTransport?: string | null;
   videoTransportSupported?: boolean;
+  audio?: boolean;
+  audioTransport?: string | null;
+  audioTransportSupported?: boolean;
   reasoning?: boolean;
   xhigh?: boolean;
   contextWindow?: number;

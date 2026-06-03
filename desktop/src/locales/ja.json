@@ -1213,10 +1213,12 @@
       "displayName": "表示名",
       "vision": "ビジョン",
       "video": "動画",
+      "audio": "音声",
       "reasoning": "推論",
       "capability": {
         "image": "画像入力に対応",
         "video": "動画入力に対応",
+        "audio": "音声入力に対応",
         "reasoning": "推論に対応"
       }
     },
@@ -1675,6 +1677,7 @@
       "contextLength": "コンテキスト長",
       "maxOutput": "最大出力",
       "imageInput": "画像入力",
+      "audioInput": "音声入力",
       "reasoning": "推論モデル",
       "cancelEdit": "キャンセル",
       "saveEdit": "保存",

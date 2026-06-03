@@ -4985,6 +4985,15 @@ a.about-link:hover {
     gap: 8px;
 }
 
+.pv-model-edit-capabilities {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.pv-model-edit-capabilities .pv-model-edit-field {
+    min-width: 0;
+}
+
 .pv-model-edit-actions {
     display: flex;
     gap: 6px;

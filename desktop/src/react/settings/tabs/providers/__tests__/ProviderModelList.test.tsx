@@ -113,13 +113,14 @@ describe('ProviderModelList', () => {
     });
   });
 
-  it('shows image, video and reasoning capability icons after the added model id', () => {
+  it('shows image, video, audio and reasoning capability icons after the added model id', () => {
     mocks.lookupModelMeta.mockImplementation((id: unknown, provider: unknown) => {
       if (id === 'doubao-seed-2-0-lite-260428' && provider === 'volcengine') {
         return {
           name: 'Doubao Seed 2.0 Lite',
           image: true,
           video: true,
+          audio: true,
           reasoning: true,
           context: 256000,
         };
@@ -151,7 +152,8 @@ describe('ProviderModelList', () => {
     const id = screen.getByText('doubao-seed-2-0-lite-260428');
     expect(id.nextElementSibling).toHaveAttribute('title', 'settings.api.capability.image');
     expect(id.nextElementSibling?.nextElementSibling).toHaveAttribute('title', 'settings.api.capability.video');
-    expect(id.nextElementSibling?.nextElementSibling?.nextElementSibling).toHaveAttribute('title', 'settings.api.capability.reasoning');
+    expect(id.nextElementSibling?.nextElementSibling?.nextElementSibling).toHaveAttribute('title', 'settings.api.capability.audio');
+    expect(id.nextElementSibling?.nextElementSibling?.nextElementSibling?.nextElementSibling).toHaveAttribute('title', 'settings.api.capability.reasoning');
   });
 
   it('opens fetched models in the add-model dropdown so they can be enabled', async () => {
@@ -205,6 +207,7 @@ describe('ProviderModelList', () => {
           reasoning: true,
           image: false,
           video: false,
+          audio: false,
         };
       }
       return null;
@@ -242,6 +245,61 @@ describe('ProviderModelList', () => {
       expect(updateCall).toBeTruthy();
       expect(JSON.parse(String(updateCall?.[1]?.body))).toEqual({
         name: 'MiMo V2.5 Pro',
+      });
+    });
+  });
+
+  it('serializes audio only after the user changes the audio capability toggle', async () => {
+    const onRefresh = vi.fn(async () => {});
+    mocks.hanaFetch.mockResolvedValue(jsonResponse({ models: [] }));
+    mocks.lookupModelMeta.mockImplementation((id: unknown, provider: unknown) => {
+      expect(provider).toBe('mimo');
+      if (id === 'mimo-v2.5-pro') {
+        return {
+          name: 'MiMo V2.5 Pro',
+          reasoning: true,
+          image: false,
+          video: false,
+          audio: false,
+        };
+      }
+      return null;
+    });
+
+    render(
+      <ProviderModelList
+        providerId="mimo"
+        summary={{
+          type: 'api-key',
+          auth_type: 'api-key',
+          display_name: 'Xiaomi (MiMo)',
+          base_url: 'https://api.xiaomimimo.com/v1',
+          api: 'openai-completions',
+          api_key: 'sk-test',
+          models: ['mimo-v2.5-pro'],
+          custom_models: [],
+          has_credentials: true,
+          supports_oauth: false,
+          is_coding_plan: false,
+          can_delete: true,
+        }}
+        onRefresh={onRefresh}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'settings.api.editModel' }));
+    fireEvent.click(screen.getByRole('switch', { name: 'settings.api.audio' }));
+    fireEvent.click(screen.getByRole('button', { name: 'settings.api.save' }));
+
+    await waitFor(() => {
+      const updateCall = mocks.hanaFetch.mock.calls.find(([url, options]) => (
+        String(url).includes('/api/providers/mimo/models/mimo-v2.5-pro')
+        && options?.method === 'PUT'
+      ));
+      expect(updateCall).toBeTruthy();
+      expect(JSON.parse(String(updateCall?.[1]?.body))).toEqual({
+        name: 'MiMo V2.5 Pro',
+        audio: true,
       });
     });
   });
