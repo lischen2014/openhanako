@@ -51,16 +51,13 @@ describe("current_status tool", () => {
     expect(tool.description).toContain("does not return hour/minute/second");
   });
 
-  it("localizes the description and current-view guidance via i18n", () => {
-    loadLocale("zh");
-    const zhTool = createCurrentStatusTool();
-    expect(zhTool.description).toContain("当前视野");
-    expect(zhTool.description).toContain("ui_context");
-
-    loadLocale("en");
-    const enTool = createCurrentStatusTool();
-    expect(enTool.description).toContain("UI context");
-    expect(enTool.description).toContain("ui_context");
+  it("falls back to English toolDef for all locales", () => {
+    for (const locale of ["zh", "en"]) {
+      loadLocale(locale);
+      const tool = createCurrentStatusTool();
+      expect(tool.description).toContain("UI context");
+      expect(tool.description).toContain("ui_context");
+    }
   });
 
   it("lists available status keys without returning live status values", async () => {

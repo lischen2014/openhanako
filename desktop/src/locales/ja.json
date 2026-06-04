@@ -13,6 +13,16 @@
   "selection": {
     "quoteToChat": "会話に引用"
   },
+  "quickChat": {
+    "title": "クイックチャット",
+    "close": "クイックチャットを閉じる",
+    "openFullSession": "完全な会話を開く",
+    "waitingReply": "返信を待っています...",
+    "attachImage": "画像を追加",
+    "serviceUnavailable": "Hana サービスに接続できません",
+    "createSessionFailed": "会話の作成に失敗しました",
+    "sendFailed": "送信に失敗しました"
+  },
   "channel": {
     "tab": "チャンネル",
     "chatTab": "チャット",
@@ -720,6 +730,9 @@
         "title": "Quick Chat",
         "shortcut": "呼び出しショートカット",
         "shortcutHint": "クリックして新しいキー組み合わせを押します。Esc でキャンセルします。",
+        "reuseTimeout": "以前の入力を保持",
+        "reuseTimeoutHint": "ミニウィンドウをこの時間以上隠した後は、ショートカットで新しい入力を開きます。",
+        "minutes": "分",
         "recording": "ショートカットを押してください...",
         "restoreDefault": "既定に戻す",
         "registrationFailed": "ショートカットはすでに使われています"
@@ -883,14 +896,38 @@
         "title": "ツール",
         "description": "ツールの切り替えは、会話を再開するか新しく始めた後に反映されます。進行中の会話は開始時のツールセットを使い続けます。",
         "items": {
-          "automation": { "label": "自動化", "summary": "通知とプラグインのスケジュール動作を Agent が作成できるようにします" },
-          "beautify": { "label": "小花美术", "summary": "Agent にドキュメントカバーと美的な強化を生成させます" },
-          "browser": { "label": "ブラウザ", "summary": "ヘッドレスブラウザを操作してウェブを閲覧" },
-          "cron": { "label": "定期実行", "summary": "指定した時刻にタスクを自動実行" },
-          "dm": { "label": "ダイレクトメッセージ", "summary": "別のエージェントに 1 対 1 のメッセージを送信" },
-          "install_skill": { "label": "スキルをインストール", "summary": "GitHub またはスキルライブラリから新しいスキルをインストール" },
-          "update_settings": { "label": "設定を変更", "summary": "Agent にアプリ設定の変更を許可" },
-          "workflow": { "label": "Workflow", "summary": "Agent に複数 Agent のワークフロースクリプトをバックグラウンドタスクとして実行させる" }
+          "automation": {
+            "label": "自動化",
+            "summary": "通知とプラグインのスケジュール動作を Agent が作成できるようにします"
+          },
+          "beautify": {
+            "label": "小花美术",
+            "summary": "Agent にドキュメントカバーと美的な強化を生成させます"
+          },
+          "browser": {
+            "label": "ブラウザ",
+            "summary": "ヘッドレスブラウザを操作してウェブを閲覧"
+          },
+          "cron": {
+            "label": "定期実行",
+            "summary": "指定した時刻にタスクを自動実行"
+          },
+          "dm": {
+            "label": "ダイレクトメッセージ",
+            "summary": "別のエージェントに 1 対 1 のメッセージを送信"
+          },
+          "install_skill": {
+            "label": "スキルをインストール",
+            "summary": "GitHub またはスキルライブラリから新しいスキルをインストール"
+          },
+          "update_settings": {
+            "label": "設定を変更",
+            "summary": "Agent にアプリ設定の変更を許可"
+          },
+          "workflow": {
+            "label": "Workflow",
+            "summary": "Agent に複数 Agent のワークフロースクリプトをバックグラウンドタスクとして実行させる"
+          }
         }
       }
     },
@@ -2286,182 +2323,6 @@
     "cantRead": "ファイルを読み取れません",
     "copied": "スキルリストにコピーしました",
     "installFailed": "インストール失敗: "
-  },
-  "toolDef": {
-    "webSearch": {
-      "label": "ウェブ検索",
-      "description": "インターネットを検索してリアルタイム情報を取得します。最新ニュース、技術ドキュメント、時事、または記憶にない外部知識が必要なときに使用します。",
-      "queryDesc": "検索キーワード",
-      "maxResultsDesc": "返す結果の数、デフォルト 10"
-    },
-    "webFetch": {
-      "label": "ウェブページ取得",
-      "description": "指定した URL のウェブページ内容を取得してテキストを抽出します。記事、ドキュメント、API レスポンスなどの読み取りに適しています。web_search と組み合わせて使います：まず検索で URL を見つけ、次に web_fetch で詳細を読み取ります。",
-      "urlDesc": "取得する完全な URL（https:// を含む）",
-      "maxLenDesc": "返す最大文字数、デフォルト {max}"
-    },
-    "browser": {
-      "label": "ブラウザ",
-      "description": "ヘッドレスブラウザを操作します（ナビゲート、クリック、入力、スクロール、スクリーンショット、JS 実行）。action パラメータで操作を選択し、各 action に必要なパラメータは action フィールドの説明を参照してください。注意：snapshot が返す [ref] 番号は navigate/click/type の後に無効になります。これらの操作は新しい snapshot を自動的に返すので、常に最新の snapshot の ref を使用してください。",
-      "actionDesc": "実行する操作。各 action の必須パラメータ：navigate→url；click→ref；type→text（任意 ref、pressEnter）；scroll→direction（任意 amount）；select→ref+value；key→key；wait→（任意 timeout、state）；evaluate→expression。start、stop、snapshot、screenshot、show は追加パラメータ不要。",
-      "urlDesc": "URL（navigate の場合必須）",
-      "refDesc": "要素の ref 番号（click/type/select で使用）",
-      "textDesc": "入力テキスト（type の場合必須）",
-      "directionDesc": "スクロール方向（scroll の場合必須）",
-      "amountDesc": "スクロール量（scroll の場合オプション、デフォルト 3）",
-      "valueDesc": "選択肢の値（select の場合必須）",
-      "keyDesc": "キー名（key の場合必須）、例：Enter、Escape、Tab、Control+a",
-      "expressionDesc": "JavaScript 式（evaluate の場合必須）",
-      "timeoutDesc": "タイムアウトのミリ秒数（wait の場合オプション、デフォルト 5000）",
-      "stateDesc": "待機状態（wait の場合オプション）：domcontentloaded / load / stable / networkidle（idle も可）",
-      "pressEnterDesc": "入力後に Enter を押す（type の場合オプション）"
-    },
-    "channel": {
-      "label": "チャンネル",
-      "description": "チャンネルメッセージを管理します（ブロードキャストやグループディスカッション向け）。\n操作：\n- read(channel, count?)：チャンネルの最近のメッセージを閲覧\n- post(channel, content)：チャンネルにメッセージを送信\n- create(name, members, intro?)：新しいチャンネルを作成\n- list：参加中のチャンネルを閲覧\n注意：agent と一対一でメッセージする場合は dm ツールを使ってください。チャンネルでプライベートチャットを模倣しないでください。",
-      "actionDesc": "操作タイプ",
-      "channelDesc": "チャンネル名（read/post の場合必須）",
-      "contentDesc": "メッセージ内容（post の場合必須）",
-      "nameDesc": "新しいチャンネル名（create の場合必須）",
-      "membersDesc": "メンバーリスト（create の場合必須）、例：[\"hana\", \"butter\"]",
-      "introDesc": "チャンネルの紹介（create の場合オプション）",
-      "countDesc": "読み取るメッセージ数（read の場合オプション、デフォルト 20）"
-    },
-    "artifact": {
-      "label": "プレビュー作成",
-      "description": "HTML ページ、コードスニペット、または長文 Markdown コンテンツをユーザーに表示する必要がある場合にこのツールを呼び出します。\nコンテンツは独立したプレビューパネルでレンダリングされ、ユーザーはリアルタイムで結果を確認できます。\n適している場面：実行可能な HTML/CSS/JS ページ、インタラクティブな可視化、SVG チャート、完全なコードファイル、長文のフォーマット済みドキュメント。\n適さない場面：短いテキスト回答、会話的な応答、一行のコードスニペット（メッセージ内に直接表示します）。",
-      "typeDesc": "コンテンツタイプ：html（レンダリングページ）、code（シンタックスハイライト）、markdown（ドキュメント）",
-      "titleDesc": "表示タイトル、コンテンツの簡単な説明",
-      "contentDesc": "完全なコンテンツ（HTML ソース / コード / Markdown テキスト）",
-      "languageDesc": "プログラミング言語（type=code の場合のみ有効）、例：javascript, python, css"
-    },
-    "dm": {
-      "label": "ダイレクトメッセージ",
-      "description": "別の agent に一通のダイレクトメッセージを送り、何かを知らせるためだけに使います。\nこのツールでタスクを割り当てたり結果を取得したりしないでください。それは subagent の役割です。",
-      "toDesc": "対象 agent の id フィールド値（チームリストの括弧内、太字の表示名ではない）",
-      "messageDesc": "メッセージ内容"
-    },
-    "cron": {
-      "label": "スケジュールタスク",
-      "description": "スケジュールタスクを作成・管理します。スケジュールタスクはバックグラウンドで自動実行され、指定時刻に独立した session を起動して prompt を実行します。\n操作：\n- list：全タスクを表示\n- add(scheduleType, schedule, prompt, label?, model?)：タスクを作成\n  - scheduleType \"at\"：一回限り、schedule は ISO 時間文字列\n  - scheduleType \"every\"：間隔、schedule は分数（例：60 = 毎時）\n  - scheduleType \"cron\"：cron 式（例：\"0 7 * * *\" = 毎朝 7 時）\n  - model：オプション、タスク実行に使うモデルを指定（未指定の場合はチャットモデルを使用）\n- remove(id)：タスクを削除\n- toggle(id)：タスクの有効/無効を切り替え",
-      "actionDesc": "操作タイプ",
-      "scheduleTypeDesc": "スケジュールタイプ（add の場合必須）",
-      "scheduleDesc": "スケジュール: ISO時刻(at)、分数(every、例:60=毎時)、cron式(cron)",
-      "promptDesc": "指定時刻に実行する prompt（add の場合必須）",
-      "labelDesc": "タスクの表示ラベル（オプション）",
-      "modelDesc": "実行モデルを provider/id 形式で指定（オプション、未指定の場合はチャットモデルを使用）",
-      "idDesc": "タスク ID（remove/toggle の場合必須）"
-    },
-    "notify": {
-      "label": "通知",
-      "description": "ユーザーに通知を送信します。タスクの要求に応じてデスクトップポップアップ、Bridge owner チャット、または既定チャンネルを選びます。WeChat、Feishu など特定の Bridge プラットフォームに固定する場合は bridgePlatforms を渡します。\n使用場面：\n- ユーザーが「xxx を思い出させて」「その時通知して」「xxx を忘れないように」と言った場合\n- スケジュールタスクの prompt に通知、リマインド、Bridge/WeChat 送信の意図が明記されている場合\n- 巡回/スケジュールタスクでユーザーの注意が必要な事項が見つかった場合\nすべて正常で問題がなければ、このツールを呼び出さないでください。Bridge 通知が成功した場合、contextPolicy に従って対応する会話コンテキストへ追記できます。",
-      "titleDesc": "通知タイトル（簡潔に）",
-      "bodyDesc": "通知内容"
-    },
-    "todoWrite": {
-      "label": "TODO",
-      "contentDesc": "TODO の静的な説明",
-      "activeFormDesc": "実行中の形式の説明（UI で in_progress 表示時に使用）",
-      "statusDesc": "pending / in_progress / completed のいずれか",
-      "todosDesc": "完全な TODO リスト。呼び出すたびに以前のリストを置き換えます",
-      "summaryEmpty": "TODO をクリアしました",
-      "summaryStats": "合計 {total} 件：{completed} 完了、{in_progress} 進行中、{pending} 保留中"
-    },
-    "pinnedMemory": {
-      "pinLabel": "メモリをピン留め",
-      "pinDescription": "ピン留めメモリに内容を保存します。ユーザーが「これを覚えておいて」「メモしておいて」「後で忘れないように」と言った場合に使用します。ピン留めメモリは常にコンテキストに保持されます。",
-      "pinContentDesc": "覚えておく内容",
-      "unpinLabel": "メモリのピン留めを解除",
-      "unpinDescription": "ピン留めメモリから内容を削除します。ユーザーが「xxx を忘れて」「この記憶を消して」と言った場合に使用します。あいまい一致に対応：指定したキーワードを含む行が削除されます。",
-      "unpinKeywordDesc": "削除するメモリのキーワード、あいまい一致で検索"
-    },
-    "experience": {
-      "recallLabel": "経験を確認",
-      "recallDescription": "経験ライブラリを閲覧します。パラメータなしで全カテゴリの概要を返し、カテゴリ名を指定するとそのカテゴリの具体的な経験を返します。ユーザーから具体的な作業（コード作成、調査、ドキュメント作成、問題分析など）を依頼された場合、開始前にこのツールで参考になる経験がないか確認します。雑談、Q&A、日常会話では呼び出す必要はありません。",
-      "recallCategoryDesc": "カテゴリ名。省略すると全カテゴリの概要を返します",
-      "recordLabel": "経験を記録",
-      "recordCategoryDesc": "経験のカテゴリ、2〜4 語の短いフレーズ、例：「ツール使用」「検索テクニック」「回答スタイル」",
-      "recordContentDesc": "具体的な経験内容、簡潔かつ直接的に、一文で"
-    },
-    "outputFile": {
-      "label": "ファイルを届ける",
-      "description": "ローカルファイルをユーザーへ渡す、デスクトップで提示する、または Bridge/リモートプラットフォーム経由で送る必要があるときに、このツールでファイルを登録します。ファイルを作成した後、要求されたローカルファイルを見つけた後、ブラウザのスクリーンショット、インストーラー/パッケージ元、プラグインやサブエージェントが交付対象のファイルを出した後に使います。実在するローカル絶対パスの場合だけ呼び出してください。返信文にパスだけを書かず、具体的なプラットフォームでの表示や送信方法を Agent 側で判断しないでください。消費側が能力に応じて処理します。",
-      "filepathsDesc": "交付するローカルファイルの絶対パス配列。見つけたファイルはここに渡し、StageFile がデスクトップ、Bridge、将来のモバイル消費側向けに登録します。",
-      "filePathDesc": "（互換）単一ローカルファイルの絶対パス。新しい呼び出しでは filepaths を優先してください。",
-      "labelDesc": "（互換）ユーザーに表示するファイル名。通常は省略でき、既定でファイル名が使われます。"
-    },
-    "subagent": {
-      "label": "サブエージェントを起動",
-      "description": "委任タスク用の継続可能なサブエージェントインスタンスを作成し、taskId と threadId をすぐ返します。結果はバックグラウンドで現在の会話へ届きます。agent=\"?\" で一覧を確認できます。",
-      "taskDesc": "サブエージェントへの完全な指示と必要なコンテキスト。現在の会話履歴は見えないため、必要な情報はここに含めてください。",
-      "agentDesc": "チーム一覧のバッククォート内に表示される対象 agent id。人格、得意領域、model に合う agent を選んでください。省略すると現在の agent、\"?\" で一覧表示。",
-      "labelDesc": "任意の表示ラベル（例：「探索一」「執筆二」）。表示専用です。続行は返された threadId を subagent_reply に渡します。",
-      "instanceDesc": "旧フィールド。label 互換としてのみ受け付けます。新しい呼び出しでは label を使い、続行は threadId を使ってください。",
-      "accessDesc": "オプション。権限レベル：探索/調査/レビュー系のタスクは \"read\"（読み取り専用、ファイル変更やコマンド実行は不可）；実行/変更系は \"write\"（操作可能）。省略すると現在の会話の権限レベルを継承：通常会話→操作可能、読み取り専用/plan モード→読み取り専用。",
-      "modelDesc": "モデルを provider/id 形式で指定（オプション）。省略すると対象 agent のチャットモデル設定を使います。"
-    },
-    "subagentReply": {
-      "label": "サブエージェントを続行",
-      "description": "現在の会話で開いているサブエージェントインスタンスにタスクを追加します。まず current_status の subagents で threadId を確認してください。",
-      "threadIdDesc": "続行するサブエージェントインスタンスの threadId。現在の会話で開いているインスタンスである必要があります。",
-      "taskDesc": "そのサブエージェントへ追加する完全な指示と必要なコンテキスト。",
-      "accessDesc": "オプションの権限レベル：\"read\" または \"write\"。省略するとインスタンスの権限を使い、現在の会話権限にも制限されます。"
-    },
-    "subagentClose": {
-      "label": "サブエージェントを閉じる",
-      "description": "現在の会話で不要になったサブエージェントインスタンスを閉じ、継続可能なインスタンス枠を空けます。",
-      "threadIdDesc": "閉じる開放中サブエージェントインスタンスの threadId。",
-      "reasonDesc": "任意の終了理由。インスタンスの最後の要約として保存されます。"
-    },
-    "installSkill": {
-      "label": "スキルをインストール",
-      "description": "新しいスキルを共有スキルプールへインストールし、デフォルトでは現在の Agent のみ有効にします。モード A：GitHub リポジトリ URL（SKILL.md を含む）を指定して自動取得・インストール。モード B：skill_content + skill_name を直接指定、自作スキル向け。",
-      "githubUrlDesc": "GitHub リポジトリ URL（モード A）",
-      "skillContentDesc": "SKILL.md の完全な内容（モード B）",
-      "skillNameDesc": "スキル名（モード B の場合必須）",
-      "reasonDesc": "このスキルが必要な理由の説明（監査用、必須）"
-    },
-    "updateSettings": {
-      "label": "設定",
-      "actionDesc": "操作タイプ：search で設定を検索 / apply で設定を変更",
-      "queryDesc": "検索キーワード（search 時に必須）",
-      "keyDesc": "設定キー（search で取得）",
-      "valueDesc": "提案する新しい値",
-      "searchResult": "{count} 件の設定が見つかりました：\n\n{results}\n\naction \"apply\" でキーと値を指定して設定を変更できます。",
-      "searchNoResults": "「{query}」に一致する設定が見つかりませんでした。より広いキーワードをお試しください。",
-      "searchMissingQuery": "search 操作には query パラメータが必要です。",
-      "applyMissingParams": "apply 操作には key と value の両方が必要です。",
-      "frontendOnly": "クライアント側のみ",
-      "sandbox": "サンドボックスセキュリティ",
-      "sandboxDesc": "ファイルシステムの書き込み範囲を制限",
-      "sandboxNetwork": "サンドボックスネットワーク",
-      "sandboxNetworkDesc": "サンドボックス内のコマンドが公開インターネットに接続することを許可します。Windows のコマンドサンドボックスはネットワーク隔離に対応せず、現在のユーザーのネットワーク権限を維持します",
-      "locale": "言語",
-      "timezone": "タイムゾーン",
-      "timezoneDesc": "IANA タイムゾーン（例: Asia/Shanghai）",
-      "bridgeMediaPublicBaseUrl": "Bridge ファイル公開 URL",
-      "bridgeMediaPublicBaseUrlDesc": "外部プラットフォームがローカル staged ファイルを取得するための公開 HTTP/HTTPS base URL。通常はリバースプロキシまたは tunnel で提供します。空にすると HANA_BRIDGE_PUBLIC_BASE_URL にフォールバックします。",
-      "computerUse": "Computer Use",
-      "computerUseDesc": "有効にすると、新しい会話で主 Agent に computer ツールを公開します。無効にすると新しい会話には表示されず、凍結済みの古い会話が呼び出した場合は拒否されます。",
-      "thinkingBudget": "思考の深さ",
-      "memory": "メモリシステム",
-      "memoryDesc": "現在の Agent のメモリ機能を有効/無効にする",
-      "experience": "経験",
-      "experienceDesc": "現在の Agent の経験ライブラリを有効/無効にする",
-      "agentName": "Agent 名",
-      "userName": "ユーザー名",
-      "workingDir": "作業ディレクトリ",
-      "workingDirDesc": "Agent のファイルシステム作業ディレクトリ",
-      "theme": "テーマ",
-      "chatModel": "チャットモデル",
-      "fileBackup": "ファイルバックアップ",
-      "fileBackupDesc": "AI変更前にファイルを自動バックアップ"
-    },
-    "stopTask": {
-      "label": "バックグラウンドタスクを停止",
-      "description": "実行中のバックグラウンドタスクを停止します。task_id を指定すると終了できます。対応するタスク種別：サブエージェントタスク、画像/動画生成タスクなど。",
-      "taskIdDesc": "停止するタスクの ID"
-    }
   },
   "cli": {
     "disconnected": "接続が切断されました",
