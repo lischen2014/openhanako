@@ -43,8 +43,8 @@ describe('CSP sync', () => {
   const profiles = extractCspProfiles();
   const htmlDir = path.resolve(__dirname, '..', 'desktop', 'src');
 
-  it('should have extracted all 7 profiles', () => {
-    expect(Object.keys(profiles)).toHaveLength(7);
+  it('should have extracted all 8 profiles', () => {
+    expect(Object.keys(profiles)).toHaveLength(8);
   });
 
   for (const [filename, profileCsp] of Object.entries(profiles)) {

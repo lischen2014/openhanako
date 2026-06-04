@@ -663,6 +663,9 @@ export class HanaEngine {
   async createSession(mgr, cwd, mem, model, opts = {}) {
     return this._sessionCoord.createSession(mgr, cwd, mem, model, opts);
   }
+  async createDetachedSession(opts = {}) {
+    return this._sessionCoord.createDetachedSession(opts);
+  }
   buildSessionCacheSnapshot(p, opts) {
     return this._sessionCoord.buildSessionCacheSnapshot(p, opts);
   }
@@ -1020,6 +1023,8 @@ export class HanaEngine {
   setAppearance(p) { return this._prefs.setAppearance(p); }
   getNotificationPreferences() { return this._prefs.getNotificationPreferences(); }
   setNotificationPreferences(p) { return this._prefs.setNotificationPreferences(p); }
+  getQuickChatPreferences() { return this._prefs.getQuickChatPreferences(); }
+  setQuickChatPreferences(p) { return this._prefs.setQuickChatPreferences(p); }
   getWorkspaceUiState(workspaceRoot, surface) { return this._prefs.getWorkspaceUiState(workspaceRoot, surface); }
   setWorkspaceUiState(workspaceRoot, surface, state) { return this._prefs.setWorkspaceUiState(workspaceRoot, surface, state); }
   gcWorkspacePersistence(options = {}) {

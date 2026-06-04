@@ -23,6 +23,9 @@ const CSP_PROFILES: Record<string, string> = {
   // 设置窗口：需要 API 连接、图片、字体
   'settings.html':
     "default-src 'self'; connect-src 'self' ws://127.0.0.1:* http://127.0.0.1:*; img-src 'self' data: file: http://127.0.0.1:*; style-src 'self' 'unsafe-inline'; script-src 'self'; font-src 'self' data:",
+  // Quick Chat：独立小窗，需要 API/WS、附件预览图片
+  'quick-chat.html':
+    "default-src 'self'; connect-src 'self' ws://127.0.0.1:* http://127.0.0.1:*; img-src 'self' data: blob: file: http://127.0.0.1:*; style-src 'self' 'unsafe-inline'; script-src 'self'; font-src 'self' data:",
   // Onboarding：需要 API 连接、图片、字体
   'onboarding.html':
     "default-src 'self'; connect-src 'self' ws://127.0.0.1:* http://127.0.0.1:*; img-src 'self' data: file: http://127.0.0.1:*; style-src 'self' 'unsafe-inline'; script-src 'self'; font-src 'self' data:",
@@ -298,6 +301,7 @@ export default defineConfig({
         main: path.resolve(__dirname, 'desktop/src/index.html'),
         mobile: path.resolve(__dirname, 'desktop/src/mobile.html'),
         settings: path.resolve(__dirname, 'desktop/src/settings.html'),
+        'quick-chat': path.resolve(__dirname, 'desktop/src/quick-chat.html'),
         onboarding: path.resolve(__dirname, 'desktop/src/onboarding.html'),
         splash: path.resolve(__dirname, 'desktop/src/splash.html'),
         'browser-viewer': path.resolve(__dirname, 'desktop/src/browser-viewer.html'),

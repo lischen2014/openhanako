@@ -32,6 +32,10 @@ import {
   mergeNotificationPreferences,
   normalizeNotificationPreferences,
 } from "../shared/notification-preferences.js";
+import {
+  mergeQuickChatPreferences,
+  normalizeQuickChatPreferences,
+} from "../shared/quick-chat-preferences.js";
 import { createModuleLogger } from "../lib/debug-log.js";
 import { normalizeSessionThinkingLevel } from "./session-thinking-level.js";
 
@@ -389,6 +393,19 @@ export class PreferencesManager {
     prefs.notifications = mergeNotificationPreferences(prefs.notifications || {}, partial || {});
     this.savePreferences(prefs);
     return prefs.notifications;
+  }
+
+  /** 读取快速聊天入口偏好。 */
+  getQuickChatPreferences() {
+    return normalizeQuickChatPreferences(this._cache.quick_chat || {});
+  }
+
+  /** 合并写入快速聊天入口偏好。 */
+  setQuickChatPreferences(partial) {
+    const prefs = this._mutableCopy();
+    prefs.quick_chat = mergeQuickChatPreferences(prefs.quick_chat || {}, partial || {});
+    this.savePreferences(prefs);
+    return prefs.quick_chat;
   }
 
   /** 读取指定工作区的 UI 状态（文件夹展开、预览 tabs 等）。 */

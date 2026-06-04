@@ -254,6 +254,36 @@ describe("session-coordinator tool snapshot (createSession)", () => {
     expect(coord.getPermissionMode(nextPath)).toBe("read_only");
   });
 
+  it("creates detached sessions without changing the focused session", async () => {
+    currentAgentConfig = { tools: { disabled: [] } };
+    const { sessionPath: focusedPath } = await coord.createSession(null, tmpDir, true);
+
+    const detachedSessionPath = path.join(sessionDir, "quick-chat-detached.jsonl");
+    createAgentSessionMock.mockImplementationOnce(async (options) => {
+      lastSessionOptions = options;
+      return {
+      session: {
+        sessionManager: { getSessionFile: () => detachedSessionPath },
+        subscribe: vi.fn(() => vi.fn()),
+        model: { id: "test-model", name: "test-model" },
+        setActiveToolsByName: activeToolsSpy,
+      },
+      };
+    });
+
+    const { sessionPath: detachedPath } = await coord.createDetachedSession({
+      cwd: tmpDir,
+      memoryEnabled: true,
+      visibleInSessionList: true,
+    });
+
+    expect(detachedPath).toBe(detachedSessionPath);
+    expect(coord.currentSessionPath).toBe(focusedPath);
+    expect(coord.session.sessionManager.getSessionFile()).toBe(focusedPath);
+    expect(coord._sessions.get(detachedPath)?.visibleInSessionList).toBe(true);
+    expect(coord.getPermissionMode(detachedPath)).toBe("ask");
+  });
+
   it("persists the resolved thinking level as session-owned state when creating a session", async () => {
     storedThinkingLevel = "high";
     currentAgentConfig = { tools: { disabled: [] } };

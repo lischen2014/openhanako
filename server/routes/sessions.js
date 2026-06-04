@@ -1126,6 +1126,66 @@ export function createSessionsRoute(engine, hub = null) {
     }
   });
 
+  route.post("/sessions/new-detached", async (c) => {
+    try {
+      const requestContext = createRequestContext(c, engine);
+      const auth = authorizeSessionRoute(requestContext, "sessions.write", {
+        kind: "studio",
+        studioId: requestContext.studioId,
+      });
+      if (!auth.allowed) return c.json({ error: "insufficient_scope", reason: auth.reason }, 403);
+      if (typeof engine.createDetachedSession !== "function") {
+        return c.json({ error: "detached session creation unavailable" }, 500);
+      }
+
+      const body = await safeJson(c);
+      const { cwd, memoryEnabled, agentId, permissionMode } = body;
+      const workspaceFolders = Array.isArray(body.workspaceFolders)
+        ? body.workspaceFolders.filter(p => typeof p === "string" && p.trim())
+        : [];
+      const memFlag = memoryEnabled !== false;
+
+      const result = await engine.createDetachedSession({
+        cwd: cwd || undefined,
+        memoryEnabled: memFlag,
+        agentId: typeof agentId === "string" && agentId.trim() ? agentId.trim() : null,
+        workspaceFolders,
+        visibleInSessionList: true,
+        permissionMode: permissionMode || null,
+      });
+      const newSessionPath = result.sessionPath;
+      const newAgentId = result.agentId;
+      engine.persistSessionMeta?.();
+
+      const resolvedPermissionMode = engine.getSessionPermissionMode?.(newSessionPath)
+        || permissionMode
+        || engine.permissionMode
+        || "ask";
+      const response = {
+        ok: true,
+        path: newSessionPath,
+        cwd: result.session?.sessionManager?.getCwd?.() || cwd || engine.cwd || null,
+        workspaceFolders: engine.getSessionWorkspaceFolders?.(newSessionPath) || workspaceFolders,
+        authorizedFolders: engine.getSessionAuthorizedFolders?.(newSessionPath) || [],
+        agentId: newAgentId,
+        agentName: engine.getAgent?.(newAgentId)?.agentName || newAgentId || engine.agentName,
+        currentSessionPath: engine.currentSessionPath || null,
+        planMode: resolvedPermissionMode === "read_only",
+        permissionMode: resolvedPermissionMode,
+        accessMode: resolvedPermissionMode === "read_only" ? "read_only" : "operate",
+        thinkingLevel: normalizeSessionThinkingLevel(engine.getSessionThinkingLevel?.(newSessionPath) || engine.getThinkingLevel?.()),
+        memoryModelUnavailableReason: engine.memoryModelUnavailableReason || null,
+      };
+      hub?.eventBus?.emit?.({
+        type: "session_created",
+        session: response,
+      }, newSessionPath);
+      return c.json(response);
+    } catch (err) {
+      return c.json({ error: err.message }, 500);
+    }
+  });
+
   route.post("/sessions/continue-deleted-agent", async (c) => {
     try {
       const requestContext = createRequestContext(c, engine);

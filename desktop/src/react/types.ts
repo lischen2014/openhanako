@@ -396,6 +396,13 @@ export interface PlatformApi {
   setAutoLaunchEnabled?(enabled: boolean): Promise<AutoLaunchStatus>;
   getKeepAwakeStatus?(): Promise<KeepAwakeStatus>;
   setKeepAwakeEnabled?(enabled: boolean): Promise<KeepAwakeStatus>;
+  quickChatReloadShortcut?(): Promise<{ ok: boolean; shortcut: string; error?: string }>;
+  quickChatShortcutStatus?(): Promise<{ shortcut: string; registered: boolean }>;
+  quickChatShow?(): void;
+  quickChatResize?(mode: 'compact' | 'chat'): void;
+  quickChatOpenSession?(sessionPath: string): void;
+  onQuickChatOpenSession?(callback: (payload: { sessionPath?: string }) => void): (() => void) | void;
+  onQuickChatShown?(callback: () => void): (() => void) | void;
 
   // ── Skill viewer overlay ──
   onShowSkillViewer?(callback: (data: unknown) => void): void;

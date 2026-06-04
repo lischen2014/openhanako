@@ -1087,6 +1087,45 @@ export class SessionCoordinator {
     return { session, sessionPath: sessionPath || mapKey, agentId: creatingAgentId };
   }
 
+  async createDetachedSession({
+    sessionMgr = null,
+    cwd = undefined,
+    memoryEnabled = true,
+    model = null,
+    agent = null,
+    agentId = null,
+    preserveAgentMemoryState = false,
+    workspaceFolders = [],
+    authorizedFolders = [],
+    visibleInSessionList = true,
+    permissionMode = null,
+  } = {}) {
+    const prevFocus = this._session;
+    const prevCurrentSessionPath = this._currentSessionPath;
+    const prevSessionStarted = this._sessionStarted;
+    const prevPendingPermissionMode = this._pendingPermissionMode;
+
+    if (permissionMode !== null && permissionMode !== undefined) {
+      this._pendingPermissionMode = normalizeSessionPermissionMode(permissionMode);
+    }
+
+    try {
+      return await this.createSession(sessionMgr, cwd, memoryEnabled, model, {
+        agent,
+        agentId,
+        preserveAgentMemoryState,
+        workspaceFolders,
+        authorizedFolders,
+        visibleInSessionList,
+      });
+    } finally {
+      this._session = prevFocus;
+      this._currentSessionPath = prevCurrentSessionPath;
+      this._sessionStarted = prevSessionStarted;
+      this._pendingPermissionMode = prevPendingPermissionMode;
+    }
+  }
+
   async continueDeletedAgentSession(sourceSessionPath) {
     this._assertActiveDesktopSessionPath(sourceSessionPath, "continueDeletedAgentSession");
     const sourceAgentId = this._d.agentIdFromSessionPath(sourceSessionPath);

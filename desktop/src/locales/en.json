@@ -919,6 +919,14 @@
       },
       "launchAtLogin": "Launch at login",
       "keepAwake": "Keep running while locked",
+      "quickChat": {
+        "title": "Quick Chat",
+        "shortcut": "Open shortcut",
+        "shortcutHint": "Click and press a new key combo. Esc cancels recording.",
+        "recording": "Press shortcut...",
+        "restoreDefault": "Restore default",
+        "registrationFailed": "Shortcut is already in use"
+      },
       "notifications": {
         "title": "Notifications",
         "turnCompletion": "Turn completion notification",

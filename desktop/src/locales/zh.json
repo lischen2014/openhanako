@@ -919,6 +919,14 @@
       },
       "launchAtLogin": "开机自启",
       "keepAwake": "锁屏时保持运行",
+      "quickChat": {
+        "title": "快速聊天",
+        "shortcut": "呼出快捷键",
+        "shortcutHint": "点击后按下新的组合键，Esc 取消录制",
+        "recording": "按下快捷键...",
+        "restoreDefault": "恢复默认",
+        "registrationFailed": "快捷键已被占用"
+      },
       "notifications": {
         "title": "通知",
         "turnCompletion": "轮次完成通知",

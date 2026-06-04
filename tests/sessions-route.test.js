@@ -168,6 +168,67 @@ describe("sessions route", () => {
     );
   });
 
+  it("creates a detached session without switching the focused session", async () => {
+    const { createSessionsRoute } = await import("../server/routes/sessions.js");
+    const app = new Hono();
+    const cwd = path.join(tmpDir, "quick");
+    const extra = path.join(tmpDir, "reference");
+    const hub = { eventBus: { emit: vi.fn() } };
+
+    const engine = {
+      currentSessionPath: "/tmp/agents/hana/sessions/focused.jsonl",
+      currentAgentId: "hana",
+      config: {},
+      cwd: "/tmp/main-workspace",
+      memoryEnabled: true,
+      planMode: false,
+      memoryModelUnavailableReason: null,
+      createDetachedSession: vi.fn(async () => ({ sessionPath: "/tmp/agents/hana/sessions/quick.jsonl", agentId: "hana" })),
+      persistSessionMeta: vi.fn(),
+      getAgent: vi.fn(() => ({ agentName: "Hana" })),
+      getSessionWorkspaceFolders: vi.fn(() => [extra]),
+      getSessionPermissionMode: vi.fn(() => "auto"),
+    };
+
+    app.route("/api", createSessionsRoute(engine, hub));
+
+    const res = await app.request("/api/sessions/new-detached", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        cwd,
+        workspaceFolders: [extra],
+        agentId: "hana",
+        permissionMode: "auto",
+      }),
+    });
+    const data = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(engine.createDetachedSession).toHaveBeenCalledWith({
+      cwd,
+      memoryEnabled: true,
+      agentId: "hana",
+      workspaceFolders: [extra],
+      visibleInSessionList: true,
+      permissionMode: "auto",
+    });
+    expect(data).toMatchObject({
+      ok: true,
+      path: "/tmp/agents/hana/sessions/quick.jsonl",
+      agentId: "hana",
+      currentSessionPath: "/tmp/agents/hana/sessions/focused.jsonl",
+      permissionMode: "auto",
+    });
+    expect(hub.eventBus.emit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: "session_created",
+        session: expect.objectContaining({ path: "/tmp/agents/hana/sessions/quick.jsonl" }),
+      }),
+      "/tmp/agents/hana/sessions/quick.jsonl",
+    );
+  });
+
   it("adds a session authorized folder through an explicit session route", async () => {
     const { createSessionsRoute } = await import("../server/routes/sessions.js");
     const app = new Hono();

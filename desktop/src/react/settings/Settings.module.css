@@ -376,6 +376,51 @@
     box-shadow: 0 1px 0 color-mix(in srgb, var(--accent) 16%, transparent);
 }
 
+.quick-chat-shortcut-control {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-sm);
+    min-width: 0;
+}
+
+.quick-chat-shortcut-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 132px;
+    height: 34px;
+    padding: 0 10px;
+    border: var(--border-width, 1px) solid color-mix(in srgb, var(--accent) 20%, var(--border));
+    border-radius: var(--radius-input, 4px);
+    background: color-mix(in srgb, var(--accent) 5%, var(--bg-card));
+    color: var(--text);
+    font: inherit;
+    cursor: default;
+}
+
+.quick-chat-shortcut-button.recording {
+    color: var(--accent);
+    border-color: color-mix(in srgb, var(--accent) 42%, var(--border));
+    background: color-mix(in srgb, var(--accent) 11%, var(--bg-card));
+}
+
+.quick-chat-shortcut-button:disabled,
+.quick-chat-reset-button:disabled {
+    opacity: 0.48;
+}
+
+.quick-chat-reset-button {
+    height: 34px;
+    padding: 0 10px;
+    border: var(--border-width, 1px) solid var(--border);
+    border-radius: var(--radius-input, 4px);
+    color: var(--text-light);
+    background: var(--bg-card);
+    font: inherit;
+    font-size: 0.78rem;
+    cursor: default;
+}
+
 /* 头像居中（单头像，助手页和我的页面各用一个） */
 .settings-avatar-center {
     display: flex;

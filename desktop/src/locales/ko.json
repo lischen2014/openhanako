@@ -716,6 +716,14 @@
       },
       "launchAtLogin": "로그인 시 자동 실행",
       "keepAwake": "잠금 중에도 계속 실행",
+      "quickChat": {
+        "title": "빠른 채팅",
+        "shortcut": "호출 단축키",
+        "shortcutHint": "클릭한 뒤 새 키 조합을 누르세요. Esc로 취소합니다.",
+        "recording": "단축키를 누르세요...",
+        "restoreDefault": "기본값 복원",
+        "registrationFailed": "이미 사용 중인 단축키입니다"
+      },
       "notifications": {
         "title": "알림",
         "turnCompletion": "턴 완료 알림",

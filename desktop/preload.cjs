@@ -35,6 +35,21 @@ contextBridge.exposeInMainWorld("hana", {
   setAutoLaunchEnabled: (enabled) => ipcRenderer.invoke("set-auto-launch-enabled", enabled),
   getKeepAwakeStatus: () => ipcRenderer.invoke("get-keep-awake-status"),
   setKeepAwakeEnabled: (enabled) => ipcRenderer.invoke("set-keep-awake-enabled", enabled),
+  quickChatReloadShortcut: () => ipcRenderer.invoke("quick-chat-reload-shortcut"),
+  quickChatShortcutStatus: () => ipcRenderer.invoke("quick-chat-shortcut-status"),
+  quickChatShow: () => ipcRenderer.invoke("quick-chat-show"),
+  quickChatResize: (mode) => ipcRenderer.invoke("quick-chat-resize", mode),
+  quickChatOpenSession: (sessionPath) => ipcRenderer.invoke("quick-chat-open-session", sessionPath),
+  onQuickChatOpenSession: (cb) => {
+    const handler = (_, payload) => cb(payload);
+    ipcRenderer.on("quick-chat-open-session", handler);
+    return () => ipcRenderer.removeListener("quick-chat-open-session", handler);
+  },
+  onQuickChatShown: (cb) => {
+    const handler = () => cb();
+    ipcRenderer.on("quick-chat-shown", handler);
+    return () => ipcRenderer.removeListener("quick-chat-shown", handler);
+  },
   onAutoUpdateState: (cb) => {
     const handler = (_, state) => cb(state);
     ipcRenderer.on("auto-update-state", handler);

@@ -716,6 +716,14 @@
       },
       "launchAtLogin": "ログイン時に起動",
       "keepAwake": "ロック中も実行を継続",
+      "quickChat": {
+        "title": "Quick Chat",
+        "shortcut": "呼び出しショートカット",
+        "shortcutHint": "クリックして新しいキー組み合わせを押します。Esc でキャンセルします。",
+        "recording": "ショートカットを押してください...",
+        "restoreDefault": "既定に戻す",
+        "registrationFailed": "ショートカットはすでに使われています"
+      },
       "notifications": {
         "title": "通知",
         "turnCompletion": "ターン完了通知",

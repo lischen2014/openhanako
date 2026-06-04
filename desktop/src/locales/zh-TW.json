@@ -716,6 +716,14 @@
       },
       "launchAtLogin": "開機自啟",
       "keepAwake": "鎖定時保持執行",
+      "quickChat": {
+        "title": "快速聊天",
+        "shortcut": "呼出快捷鍵",
+        "shortcutHint": "點擊後按下新的組合鍵，Esc 取消錄製",
+        "recording": "按下快捷鍵...",
+        "restoreDefault": "恢復預設",
+        "registrationFailed": "快捷鍵已被占用"
+      },
       "notifications": {
         "title": "通知",
         "turnCompletion": "輪次完成通知",

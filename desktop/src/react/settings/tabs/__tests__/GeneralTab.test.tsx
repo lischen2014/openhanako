@@ -9,6 +9,8 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 const getAutoLaunchStatus = vi.fn();
 const setAutoLaunchEnabled = vi.fn();
 const setKeepAwakeEnabled = vi.fn();
+const quickChatReloadShortcut = vi.fn();
+const settingsChanged = vi.fn();
 const autoSaveConfig = vi.fn();
 const loadSettingsConfig = vi.fn();
 const hanaFetch = vi.fn();
@@ -92,6 +94,8 @@ function installHana(overrides: Record<string, unknown> = {}) {
       getAutoLaunchStatus,
       setAutoLaunchEnabled,
       setKeepAwakeEnabled,
+      quickChatReloadShortcut,
+      settingsChanged,
       ...overrides,
     },
   }));
@@ -107,6 +111,7 @@ beforeEach(() => {
   hanaFetch.mockResolvedValue(jsonResponse({
     notifications: { turnCompletion: 'never' },
   }));
+  quickChatReloadShortcut.mockResolvedValue({ ok: true, shortcut: 'Alt+Space' });
   useSettingsStore.setState({
     settingsConfig: { keep_awake: false },
     toastMessage: '',
@@ -120,6 +125,8 @@ afterEach(() => {
   getAutoLaunchStatus.mockReset();
   setAutoLaunchEnabled.mockReset();
   setKeepAwakeEnabled.mockReset();
+  quickChatReloadShortcut.mockReset();
+  settingsChanged.mockReset();
   autoSaveConfig.mockReset();
   loadSettingsConfig.mockReset();
   hanaFetch.mockReset();
@@ -136,10 +143,12 @@ describe('GeneralTab', () => {
     expect(await screen.findByText('settings.general.startup.title')).toBeTruthy();
     const launchRow = await screen.findByText('settings.general.launchAtLogin');
     const keepAwakeRow = screen.getByText('settings.general.keepAwake');
+    const quickChatSection = screen.getByText('settings.general.quickChat.title');
     const notificationSection = screen.getByText('settings.general.notifications.title');
 
     expect(launchRow.compareDocumentPosition(keepAwakeRow) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(keepAwakeRow.compareDocumentPosition(notificationSection) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(keepAwakeRow.compareDocumentPosition(quickChatSection) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(quickChatSection.compareDocumentPosition(notificationSection) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(screen.getByTestId('settings.general.launchAtLogin-off')).toBeTruthy();
     expect(screen.getByTestId('settings.general.keepAwake-off')).toBeTruthy();
   });
@@ -184,6 +193,7 @@ describe('GeneralTab', () => {
   it('saves turn completion notification preference through the notification route', async () => {
     installHana();
     hanaFetch
+      .mockResolvedValueOnce(jsonResponse({ quickChat: { shortcut: 'Alt+Space' } }))
       .mockResolvedValueOnce(jsonResponse({ notifications: { turnCompletion: 'never' } }))
       .mockResolvedValueOnce(jsonResponse({ ok: true, notifications: { turnCompletion: 'when_session_unfocused' } }));
 
@@ -199,5 +209,29 @@ describe('GeneralTab', () => {
       body: JSON.stringify({ notifications: { turnCompletion: 'when_session_unfocused' } }),
     }));
     expect((select as HTMLSelectElement).value).toBe('when_session_unfocused');
+  });
+
+  it('records and registers the quick chat shortcut', async () => {
+    installHana();
+    hanaFetch
+      .mockResolvedValueOnce(jsonResponse({ quickChat: { shortcut: 'Alt+Space' } }))
+      .mockResolvedValueOnce(jsonResponse({ notifications: { turnCompletion: 'never' } }))
+      .mockResolvedValueOnce(jsonResponse({ ok: true, quickChat: { shortcut: 'CommandOrControl+Shift+K' } }));
+    quickChatReloadShortcut.mockResolvedValue({ ok: true, shortcut: 'CommandOrControl+Shift+K' });
+
+    render(<GeneralTab />);
+
+    fireEvent.click(await screen.findByLabelText('settings.general.quickChat.shortcut'));
+    fireEvent.keyDown(window, { key: 'k', ctrlKey: true, shiftKey: true });
+
+    await waitFor(() => expect(hanaFetch).toHaveBeenLastCalledWith('/api/preferences/quick-chat', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ quickChat: { shortcut: 'CommandOrControl+Shift+K' } }),
+    }));
+    expect(quickChatReloadShortcut).toHaveBeenCalledOnce();
+    expect(settingsChanged).toHaveBeenCalledWith('quick-chat-shortcut-changed', {
+      quickChat: { shortcut: 'CommandOrControl+Shift+K' },
+    });
   });
 });
