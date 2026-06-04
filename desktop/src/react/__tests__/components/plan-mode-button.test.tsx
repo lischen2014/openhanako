@@ -100,6 +100,17 @@ describe('PlanModeButton', () => {
     expect(dropdown?.querySelector('svg[data-permission-mode="read_only"]')).not.toBeNull();
   });
 
+  it('scales the read-only book icon visually without changing its layout slot', () => {
+    const css = fs.readFileSync(
+      path.join(process.cwd(), 'desktop/src/react/components/input/InputArea.module.css'),
+      'utf8',
+    );
+    const readOnlyIconBlock = css.match(/svg\[data-permission-mode="read_only"\]\s*\{(?<body>[^}]*)\}/)?.groups?.body || '';
+
+    expect(readOnlyIconBlock).toMatch(/transform\s*:\s*scale\(0\.8\)/);
+    expect(readOnlyIconBlock).toMatch(/transform-origin\s*:\s*center/);
+  });
+
   it('keeps ask neutral, trigger modes colored, and menu mode colors text-only', () => {
     const css = fs.readFileSync(
       path.join(process.cwd(), 'desktop/src/react/components/input/InputArea.module.css'),

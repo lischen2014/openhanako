@@ -416,6 +416,12 @@
     flex: 0 0 auto;
 }
 
+.plan-mode-btn svg[data-permission-mode="read_only"],
+.plan-mode-option svg[data-permission-mode="read_only"] {
+    transform: scale(0.8);
+    transform-origin: center;
+}
+
 .plan-mode-option-auto {
     color: var(--permission-auto);
 }
