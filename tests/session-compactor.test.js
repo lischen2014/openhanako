@@ -32,6 +32,7 @@ import {
   createCachePreservingCompactionResult,
   runCachePreservingCompactionForSession,
 } from "../core/session-compactor.js";
+import { buildSessionCacheSnapshot } from "../core/session-cache-snapshot.js";
 import { createUsageLedger } from "../lib/llm/usage-ledger.js";
 
 describe("session-compactor", () => {
@@ -195,6 +196,54 @@ describe("session-compactor", () => {
       cacheStrategy: "session_snapshot",
       cacheGroup: "compaction.history",
       strict: true,
+    });
+  });
+
+  it("uses supplied session snapshot cache params as the strict side-task contract", async () => {
+    const messages = [{ role: "user", content: "history before compaction" }];
+    const model = {
+      id: "gpt-5",
+      provider: "openai",
+      api: "openai-responses",
+      reasoning: true,
+    };
+    const sessionSnapshot = buildSessionCacheSnapshot({
+      sessionPath: "/sessions/current.jsonl",
+      reason: "compaction.history",
+      model,
+      cacheKeyParams: { thinkingLevel: "medium" },
+      systemPrompt: "system prompt",
+      tools: [],
+      messages,
+    });
+    const streamFn = vi.fn(async () => ({
+      result: vi.fn(async () => ({
+        stopReason: "stop",
+        content: [{ type: "text", text: "cache summary" }],
+      })),
+    }));
+
+    const result = await createCachePreservingCompactionResult({
+      preparation: {
+        firstKeptEntryId: "entry-keep",
+        tokensBefore: 1234,
+        messagesToSummarize: messages,
+        settings: { reserveTokens: 1000 },
+      },
+      model,
+      systemPrompt: "system prompt",
+      messages,
+      sessionSnapshot,
+      cacheKeyParams: { thinkingLevel: "off" },
+      thinkingLevel: "off",
+      streamFn,
+      convertToLlm: vi.fn(async (input) => input),
+    });
+
+    expect(result.summary).toBe("cache summary");
+    expect(streamFn.mock.calls[0][2]).toMatchObject({
+      reasoning: "medium",
+      toolChoice: "none",
     });
   });
 

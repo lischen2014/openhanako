@@ -343,6 +343,34 @@ describe("CompactionGuardExtension", () => {
       }));
     });
 
+    it("uses the session snapshot cache params for the side-task request contract", async () => {
+      estimatePreparationTokens.mockReturnValue(50_000);
+      buildSessionCacheSnapshot.mockImplementationOnce((sessionPath, { reason, messages } = {}) => ({
+        strategy: "session_snapshot",
+        strict: true,
+        sessionPath,
+        reason,
+        cachePrefixHash: "b".repeat(64),
+        cacheKeyParams: { thinkingLevel: "medium" },
+        tools: [],
+        messages,
+        messageCount: Array.isArray(messages) ? messages.length : 0,
+      }));
+
+      await pi.trigger(
+        "session_before_compact",
+        { preparation, signal: { aborted: false } },
+        ctx,
+      );
+
+      expect(cacheCompactor).toHaveBeenCalledWith(expect.objectContaining({
+        sessionSnapshot: expect.objectContaining({
+          cacheKeyParams: { thinkingLevel: "medium" },
+        }),
+        cacheKeyParams: { thinkingLevel: "medium" },
+      }));
+    });
+
     it("uses explicit cache recovery when GLM thinking tool-call history cannot replay reasoning_content", async () => {
       estimatePreparationTokens.mockReturnValue(50_000);
       const glmModel = {

@@ -247,6 +247,13 @@ function isErrorResponse(response) {
   return response?.stopReason === "error" || response?.stopReason === "aborted";
 }
 
+function cacheKeyParamsFromSnapshot(snapshot) {
+  if (snapshot?.cacheKeyParams && typeof snapshot.cacheKeyParams === "object" && !Array.isArray(snapshot.cacheKeyParams)) {
+    return snapshot.cacheKeyParams;
+  }
+  return null;
+}
+
 export function isStaleExtensionContextError(error) {
   const message = error instanceof Error ? error.message : String(error || "");
   return message.includes("This extension ctx is stale after session replacement or reload");
@@ -384,10 +391,16 @@ export async function createCachePreservingCompactionResult({
   const effectivePreparation = Array.isArray(messages) && messages.length === rawMessagesToSummarize.length
     ? { ...preparation, messagesToSummarize: messages }
     : preparation;
+  const seedCacheKeyParams = !cacheMetadataOverride
+    ? (cacheKeyParamsFromSnapshot(sessionSnapshot) || cacheKeyParams)
+    : cacheKeyParams;
   const effectiveCacheKeyParams = {
-    ...cacheKeyParams,
-    thinkingLevel: cacheKeyParams.thinkingLevel ?? thinkingLevel ?? "off",
+    ...seedCacheKeyParams,
+    thinkingLevel: seedCacheKeyParams.thinkingLevel ?? thinkingLevel ?? "off",
   };
+  const effectiveThinkingLevel = !cacheMetadataOverride && typeof effectiveCacheKeyParams.thinkingLevel === "string"
+    ? effectiveCacheKeyParams.thinkingLevel
+    : thinkingLevel;
   const requests = buildCachePreservingCompactionRequests({ preparation: effectivePreparation, customInstructions });
 
   async function runRequest(request) {
@@ -399,7 +412,7 @@ export async function createCachePreservingCompactionResult({
       maxTokens: request.maxTokens,
       signal,
       toolChoice: "none",
-      ...(model.reasoning && thinkingLevel && thinkingLevel !== "off" ? { reasoning: thinkingLevel } : {}),
+      ...(model.reasoning && effectiveThinkingLevel && effectiveThinkingLevel !== "off" ? { reasoning: effectiveThinkingLevel } : {}),
     };
     if (cacheMetadataOverride) {
       const context = {

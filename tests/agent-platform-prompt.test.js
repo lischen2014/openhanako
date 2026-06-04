@@ -1,7 +1,7 @@
 import fs from "fs";
 import os from "os";
 import path from "path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { Agent } from "../core/agent.js";
 
@@ -36,6 +36,7 @@ function makeAgent(locale) {
 }
 
 afterEach(() => {
+  vi.useRealTimers();
   for (const dir of tempDirs.splice(0)) {
     fs.rmSync(dir, { recursive: true, force: true });
   }
@@ -60,5 +61,23 @@ describe("Agent platform prompt identity", () => {
 
     expect(prompt).toContain("You are running on the HanaAgent platform (formerly OpenHanako)");
     expect(prompt).toContain("https://github.com/liliMozi/openhanako");
+  });
+
+  it("formats prompt times with an unambiguous 24-hour clock", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-06-04T07:53:00.000Z"));
+
+    const agent = makeAgent("en");
+    agent._cb = { getTimezone: () => "Asia/Shanghai" };
+
+    const prompt = agent.buildSystemPrompt({
+      forceMemoryEnabled: false,
+      forceExperienceEnabled: false,
+    });
+
+    expect(prompt).toContain("Current date and time:");
+    expect(prompt).toContain("15:53");
+    expect(prompt).toContain("Your day starts at 04:00.");
+    expect(prompt).not.toMatch(/\b(?:AM|PM)\b/);
   });
 });

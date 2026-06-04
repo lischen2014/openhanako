@@ -1300,13 +1300,14 @@ export class Agent {
     const fmtOpts = {
       weekday: "long", year: "numeric", month: "long", day: "numeric",
       hour: "2-digit", minute: "2-digit", timeZoneName: "short",
+      hourCycle: "h23",
       ...(tz ? { timeZone: tz } : {}),
     };
-    const dateTime = now.toLocaleString("en-US", fmtOpts);
+    const dateTime = new Intl.DateTimeFormat("en-US", fmtOpts).format(now);
     parts.push(`\nCurrent date and time: ${dateTime}`);
     parts.push(isZh
-      ? "你的一天从凌晨 4:00 开始。4:00 之前的对话属于前一天。"
-      : "Your day starts at 4:00 AM. Conversations before 4:00 AM belong to the previous day.");
+      ? "你的一天从 04:00 开始。04:00 之前的对话属于前一天。"
+      : "Your day starts at 04:00. Conversations before 04:00 belong to the previous day.");
 
     return parts.join("\n");
   }
