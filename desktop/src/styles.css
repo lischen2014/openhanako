@@ -429,14 +429,7 @@ html[data-platform="linux"] .tb-toggle-right {
 
 .float-sidebar-panel-right {
     width: var(--jian-sidebar-width, 260px);
-    overflow: hidden;
-}
-
-/* 右侧浮出面板：卡片去掉边框圆角，内容自然引入 titlebar、自然滚出底部 */
-.float-sidebar-panel-right .jian-card {
-    border: none;
-    border-radius: 0;
-    background: transparent;
+    background: var(--bg);
 }
 
 /* ── 左侧面板内部：覆盖 sidebar 原有样式 ── */
