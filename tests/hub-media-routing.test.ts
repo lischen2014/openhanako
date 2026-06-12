@@ -38,6 +38,25 @@ function createEngine(overrides = {}) {
 }
 
 describe("Hub media routing", () => {
+  it("preserves clientMessageId when routing desktop session messages", async () => {
+    const engine = createEngine();
+    const hub = new Hub({ engine });
+
+    await hub.send("hello", {
+      sessionPath: "/agents/hanako/sessions/chat.jsonl",
+      clientMessageId: "client-user-1",
+      displayMessage: { text: "hello" },
+    });
+
+    expect(submitDesktopSessionMessageMock).toHaveBeenCalledWith(
+      engine,
+      expect.objectContaining({
+        sessionPath: "/agents/hanako/sessions/chat.jsonl",
+        clientMessageId: "client-user-1",
+      }),
+    );
+  });
+
   it("preserves native audio fields when routing desktop session messages", async () => {
     const engine = createEngine();
     const hub = new Hub({ engine });

@@ -175,13 +175,14 @@ export class Hub {
       audios,
       audioAttachmentPaths,
       inboundFiles,
+      clientMessageId,
       sessionPath,
       agentId,
       uiContext,
       displayMessage,
       sessionFileRefs,
     } = opts;
-    const o = { sessionKey, role, ephemeral, meta, isGroup, cwd, model, persist, from, to, onDelta, images, imageAttachmentPaths, videos, videoAttachmentPaths, audios, audioAttachmentPaths, inboundFiles, sessionPath, agentId, uiContext, displayMessage, sessionFileRefs };
+    const o = { sessionKey, role, ephemeral, meta, isGroup, cwd, model, persist, from, to, onDelta, images, imageAttachmentPaths, videos, videoAttachmentPaths, audios, audioAttachmentPaths, inboundFiles, clientMessageId, sessionPath, agentId, uiContext, displayMessage, sessionFileRefs };
 
     // ── 图片预处理：持久化到磁盘 + 插入 [attached_image] 标记 ──
     // 在路由之前统一处理，所有消息路径（WS / Bridge DM / Bridge Group）共享
@@ -250,6 +251,7 @@ export class Hub {
             audios: o.audios,
             audioAttachmentPaths: o.audioAttachmentPaths,
             inboundFiles: o.inboundFiles,
+            clientMessageId: o.clientMessageId,
             onDelta: o.onDelta,
             uiContext: o.uiContext,
             displayMessage: o.displayMessage,
