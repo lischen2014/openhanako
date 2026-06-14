@@ -268,8 +268,12 @@ export function extractToolDetail(name: string, args: Record<string, unknown> | 
       return { text: truncateHead((args.title || '') as string, 30) };
     case 'create_artifact':
       return { text: truncateHead((args.title || '') as string, 30) };
-    case 'install_skill':
-      return { text: (args.skill_name || '') as string };
+    case 'install_skill': {
+      const sourceType = args.source && typeof args.source === 'object' && 'type' in args.source
+        ? (args.source as { type?: unknown }).type
+        : '';
+      return { text: truncateHead((args.skill_name || args.github_url || args.local_path || args.fileId || sourceType || '') as string, 40) };
+    }
     case 'update_settings':
       return { text: (args.key || args.setting || '') as string };
     default: {

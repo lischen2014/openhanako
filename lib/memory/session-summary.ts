@@ -340,7 +340,9 @@ export class SessionSummaryManager {
       case "artifact":
         return isZh ? `生成了产物${pick("title") ? `：${shorten(pick("title"), 80)}` : ""}` : `Generated artifact${pick("title") ? `: ${shorten(pick("title"), 80)}` : ""}`;
       case "install_skill":
-        return isZh ? `安装了技能 ${pick("skill_name")}` : `Installed skill ${pick("skill_name")}`;
+        return isZh
+          ? `安装了技能 ${pick("skill_name", "github_url", "local_path", "fileId")}`
+          : `Installed skill ${pick("skill_name", "github_url", "local_path", "fileId")}`;
       case "update_settings":
         return isZh ? `修改了设置 ${pick("key", "setting")}` : `Updated setting ${pick("key", "setting")}`;
       default: {

@@ -592,7 +592,7 @@ describe("syncModels", () => {
     expect(model.reasoning).toBe(true);
   });
 
-  it("projects Kimi Coding Plan stable model with Anthropic thinking compat", async () => {
+  it("normalizes legacy Kimi Coding Plan configs to the official OpenAI-compatible endpoint", async () => {
     const syncModels = await loadSync();
 
     const providers = {
@@ -600,7 +600,7 @@ describe("syncModels", () => {
         base_url: "https://api.kimi.com/coding/",
         api: "anthropic-messages",
         api_key: "sk-test",
-        models: ["kimi-for-coding"],
+        models: ["kimi-k2.6"],
       },
     };
 
@@ -608,15 +608,25 @@ describe("syncModels", () => {
 
     const result = JSON.parse(fs.readFileSync(modelsJsonPath, "utf-8"));
     expect(result.providers["kimi-coding"]).toMatchObject({
-      baseUrl: "https://api.kimi.com/coding/",
-      api: "anthropic-messages",
+      baseUrl: "https://api.kimi.com/coding/v1",
+      api: "openai-completions",
       apiKey: "hana-runtime-api-key:kimi-coding",
     });
-    expect(result.providers["kimi-coding"].models).toBeUndefined();
+    expect(result.providers["kimi-coding"].models[0]).toMatchObject({
+      id: "kimi-for-coding",
+      name: "Kimi for Coding",
+      reasoning: true,
+      headers: { "User-Agent": "KimiCLI/1.5" },
+      compat: {
+        supportsDeveloperRole: false,
+        thinkingFormat: "kimi",
+        reasoningProfile: "kimi-openai",
+      },
+    });
     expect(result.providers["kimi-coding"].modelOverrides).toBeUndefined();
   });
 
-  it("preserves user metadata for Pi built-in Kimi Coding models as model overrides", async () => {
+  it("preserves user metadata while projecting Kimi Coding Plan to the official model id", async () => {
     const syncModels = await loadSync();
 
     const providers = {
@@ -631,13 +641,19 @@ describe("syncModels", () => {
     syncModels(providers, { modelsJsonPath });
 
     const result = JSON.parse(fs.readFileSync(modelsJsonPath, "utf-8"));
-    expect(result.providers["kimi-coding"].models).toBeUndefined();
-    expect(result.providers["kimi-coding"].modelOverrides["kimi-for-coding"]).toEqual({
+    expect(result.providers["kimi-coding"].modelOverrides).toBeUndefined();
+    expect(result.providers["kimi-coding"].models[0]).toMatchObject({
+      id: "kimi-for-coding",
       name: "Kimi 自定义显示名",
       maxTokens: 16000,
       xhigh: true,
       input: ["text", "image"],
-      compat: { hanaVideoInput: true },
+      compat: {
+        supportsDeveloperRole: false,
+        thinkingFormat: "kimi",
+        reasoningProfile: "kimi-openai",
+        hanaVideoInput: true,
+      },
     });
   });
 
@@ -659,9 +675,14 @@ describe("syncModels", () => {
     const model = result.providers["kimi-coding"].models[0];
     expect(model.id).toBe("kimi-for-coding");
     expect(model.headers).toEqual({ "User-Agent": "KimiCLI/1.5" });
+    expect(model.compat).toMatchObject({
+      supportsDeveloperRole: false,
+      thinkingFormat: "kimi",
+      reasoningProfile: "kimi-openai",
+    });
   });
 
-  it("marks Anthropic-compatible reasoning models with anthropic thinking format", async () => {
+  it("keeps Kimi Coding on official OpenAI-compatible thinking while other Anthropic-compatible reasoning models use anthropic format", async () => {
     const syncModels = await loadSync();
 
     const providers = {
@@ -688,9 +709,17 @@ describe("syncModels", () => {
     syncModels(providers, { modelsJsonPath });
 
     const result = JSON.parse(fs.readFileSync(modelsJsonPath, "utf-8"));
-    expect(result.providers["kimi-coding"].models[0].compat).toMatchObject({
-      supportsDeveloperRole: false,
-      thinkingFormat: "anthropic",
+    expect(result.providers["kimi-coding"]).toMatchObject({
+      baseUrl: "https://api.kimi.com/coding/v1",
+      api: "openai-completions",
+    });
+    expect(result.providers["kimi-coding"].models[0]).toMatchObject({
+      id: "kimi-for-coding",
+      compat: {
+        supportsDeveloperRole: false,
+        thinkingFormat: "kimi",
+        reasoningProfile: "kimi-openai",
+      },
     });
     expect(result.providers.minimax.models[0].compat).toMatchObject({
       supportsDeveloperRole: false,

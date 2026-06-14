@@ -82,6 +82,7 @@ export function apply(payload, model, options) { ... }
 | `zhipu` | `thinking: { type, clear_thinking }` | Zhipu / BigModel GLM OpenAI-compatible API |
 | `deepseek` | DeepSeek 子模块统一转换 | DeepSeek V4 / reasoner |
 | `openrouter` | `reasoning: { effort }`，历史推理细节由 SDK 通过 `reasoning_details` 回放 | OpenRouter-hosted reasoning models, e.g. DeepSeek / MiMo via OpenRouter |
+| `kimi` | `thinking: { type, keep? }` + `reasoning_effort`，历史推理用 `reasoning_content` 回放 | Kimi Code `/coding/v1`、Moonshot OpenAI-compatible thinking models |
 
 `compat.reasoningProfile` 表示同一 wire format 内部更细的协议契约，例如
 `deepseek-v4-anthropic` 表示 Anthropic Messages 请求体，但思考强度要写入

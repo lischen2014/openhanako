@@ -83,6 +83,7 @@ const MODEL_THINKING_FORMATS = new Set([
   "zhipu",
   "deepseek",
   "openrouter",
+  "kimi",
 ]);
 
 const MODEL_REASONING_PROFILES = new Set([
@@ -92,6 +93,7 @@ const MODEL_REASONING_PROFILES = new Set([
   "mimo-openai",
   "openrouter-anthropic-adaptive",
   "zhipu-openai",
+  "kimi-openai",
 ]);
 
 const TOOL_USE_DIALECTS = new Set([
@@ -210,6 +212,20 @@ function isOpenAIReasoningApi(model: any, context: any = {}) {
   return api === "openai-completions" || api === "openai-responses" || api === "";
 }
 
+function isOfficialKimiOpenAIEndpoint(model: any, context: any = {}) {
+  if (!isOpenAIReasoningApi(model, context)) return false;
+
+  const provider = getProvider(model, context);
+  if (provider === "kimi-coding" || provider === "moonshot") return true;
+
+  const host = getBaseHost(model, context);
+  const baseUrl = getBaseUrl(model, context);
+  return (
+    host === "api.kimi.com"
+    && baseUrl.includes("/coding/v1")
+  ) || host === "api.moonshot.cn";
+}
+
 function isMimoFamilyModel(model: any, context: any = {}) {
   const text = getModelText(model, context);
   if (!/\bmimo[-_]?v\d/.test(text)) return false;
@@ -287,6 +303,10 @@ export function getThinkingFormat(model: any, context: any = {}) {
     return "openrouter";
   }
 
+  if (isOfficialKimiOpenAIEndpoint(model, context) && model.reasoning === true) {
+    return "kimi";
+  }
+
   if (
     isOfficialDeepSeekEndpoint(model, context)
     && (model.reasoning === true || isDeepSeekThinkingModelId(modelId))
@@ -355,6 +375,10 @@ export function getReasoningProfile(model: any, context: any = {}) {
     if (api === "openai-completions" || api === "openai-responses" || api === "") {
       return "zhipu-openai";
     }
+  }
+
+  if (isOfficialKimiOpenAIEndpoint(model, context) && model.reasoning === true) {
+    return "kimi-openai";
   }
 
   if (isOfficialDeepSeekEndpoint(model, context)) {

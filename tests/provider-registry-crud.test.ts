@@ -443,6 +443,15 @@ describe("auth policy", () => {
 // ── builtin defaults ─────────────────────────────────────────────────────────
 
 describe("builtin default models", () => {
+  it("uses the official OpenAI-compatible endpoint for Kimi Coding Plan", () => {
+    writeAddedModels({});
+    const reg = new ProviderRegistry(tmpDir);
+    expect(reg.get("kimi-coding")).toMatchObject({
+      baseUrl: "https://api.kimi.com/coding/v1",
+      api: "openai-completions",
+    });
+  });
+
   it("uses the stable Kimi for Coding model ID for Kimi Coding Plan", () => {
     writeAddedModels({});
     const reg = new ProviderRegistry(tmpDir);

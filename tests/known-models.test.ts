@@ -224,6 +224,10 @@ describe("known-models dictionary", () => {
       maxOutput: 32768,
       image: true,
       reasoning: true,
+      compat: {
+        thinkingFormat: "kimi",
+        reasoningProfile: "kimi-openai",
+      },
     });
   });
 

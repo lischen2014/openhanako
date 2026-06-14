@@ -249,6 +249,76 @@ export async function installSkillPackageFromPath({
   }
 }
 
+export async function prepareLocalSkillPackage({
+  sourcePath,
+  installDir,
+}: any = {}) {
+  if (!sourcePath || !path.isAbsolute(sourcePath)) {
+    throw new SkillInstallError("skill source path must be absolute", {
+      code: "SKILL_SOURCE_MUST_BE_ABSOLUTE",
+    });
+  }
+  if (!installDir) {
+    throw new SkillInstallError("installDir is required", {
+      code: "SKILL_INSTALL_MISSING_PATH",
+    });
+  }
+  if (!fs.existsSync(sourcePath)) {
+    throw new SkillInstallError("skill source path does not exist", {
+      code: "SKILL_SOURCE_NOT_FOUND",
+    });
+  }
+
+  const stat = fs.statSync(sourcePath);
+  if (stat.isDirectory()) {
+    const skillDir = findSkillPackageRoot(sourcePath);
+    if (!skillDir) {
+      throw new SkillInstallError("skill package missing SKILL.md", {
+        code: "SKILL_MISSING_SKILL_MD",
+      });
+    }
+    assertNoSymlinkEntries(skillDir);
+    return {
+      sourceDir: sourcePath,
+      skillDir,
+      skillFilePath: path.join(skillDir, "SKILL.md"),
+      fetchedFrom: sourcePath,
+      cleanup: () => {},
+    };
+  }
+
+  const ext = path.extname(sourcePath).toLowerCase();
+  if (ext !== ".zip" && ext !== ".skill") {
+    throw new SkillInstallError("unsupported skill package format", {
+      code: "SKILL_UNSUPPORTED_FORMAT",
+    });
+  }
+
+  const tmpDir = makeTempDir(installDir, "tmp-local-skill");
+  const extractDir = path.join(tmpDir, "source");
+  try {
+    fs.mkdirSync(extractDir, { recursive: true });
+    await extractZip(sourcePath, extractDir);
+    const skillDir = findSkillPackageRoot(extractDir);
+    if (!skillDir) {
+      throw new SkillInstallError("skill package missing SKILL.md", {
+        code: "SKILL_MISSING_SKILL_MD",
+      });
+    }
+    assertNoSymlinkEntries(skillDir);
+    return {
+      sourceDir: extractDir,
+      skillDir,
+      skillFilePath: path.join(skillDir, "SKILL.md"),
+      fetchedFrom: sourcePath,
+      cleanup: () => cleanupDir(tmpDir),
+    };
+  } catch (err) {
+    cleanupDir(tmpDir);
+    throw err;
+  }
+}
+
 export async function installSkillPackageFromContent({
   content,
   skillName,

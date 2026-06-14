@@ -91,6 +91,24 @@ export function buildProviderRequestHeaders({ api, apiKey, headers, allowMissing
 export function normalizeProviderBaseUrlForApi({ provider, baseUrl, api }: { provider?: string; baseUrl?: string; api?: string } = {}) {
   const raw = String(baseUrl || "").trim();
   if (!raw) return raw;
+  if (provider === "kimi-coding" && api === "openai-completions") {
+    try {
+      const parsed = new URL(raw);
+      if (parsed.hostname !== "api.kimi.com") return raw.replace(/\/+$/, "");
+      const pathname = parsed.pathname.replace(/\/+$/, "");
+      if (pathname === "/coding/v1") return raw.replace(/\/+$/, "");
+      if (pathname === "" || pathname === "/coding") {
+        parsed.pathname = "/coding/v1";
+        parsed.search = "";
+        parsed.hash = "";
+        return parsed.toString().replace(/\/+$/, "");
+      }
+    } catch {
+      const base = raw.replace(/\/+$/, "");
+      if (base === "https://api.kimi.com/coding") return "https://api.kimi.com/coding/v1";
+    }
+    return raw.replace(/\/+$/, "");
+  }
   if (provider === "ollama" && api === "openai-completions") {
     try {
       const parsed = new URL(raw);

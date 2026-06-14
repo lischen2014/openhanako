@@ -25,10 +25,8 @@ import { normalizeThinkingLevelForModel } from "./session-thinking-level.ts";
 
 const DEFAULT_CONTEXT_WINDOW = 128_000;
 const PI_BUILTIN_PROVIDER_REUSE = new Set(["kimi-coding"]);
-
-function isPlainObject(value) {
-  return value && typeof value === "object" && !Array.isArray(value);
-}
+const KIMI_CODING_PROVIDER = "kimi-coding";
+const KIMI_CODING_MODEL_ID = "kimi-for-coding";
 
 /**
  * 模型 ID → 人类可读名
@@ -80,6 +78,58 @@ function getPiBuiltinModel(provider, modelId) {
 
 function shouldReusePiBuiltinModel(provider, modelId, api) {
   return api === "anthropic-messages" && !!getPiBuiltinModel(provider, modelId);
+}
+
+function isKimiCodingProvider(provider) {
+  return provider === KIMI_CODING_PROVIDER;
+}
+
+function isOfficialKimiCodingBaseUrl(baseUrl) {
+  try {
+    const parsed = new URL(String(baseUrl || ""));
+    return parsed.hostname === "api.kimi.com"
+      && (
+        parsed.pathname.replace(/\/+$/, "") === "/coding"
+        || parsed.pathname.replace(/\/+$/, "") === "/coding/v1"
+      );
+  } catch {
+    return String(baseUrl || "").replace(/\/+$/, "") === "https://api.kimi.com/coding";
+  }
+}
+
+function getKimiCodingEffectiveApi(provider, baseUrl, api) {
+  if (!isKimiCodingProvider(provider)) return api;
+  if (!isOfficialKimiCodingBaseUrl(baseUrl)) return api;
+  return "openai-completions";
+}
+
+function normalizeKimiCodingModelEntry(modelEntry) {
+  if (typeof modelEntry === "object" && modelEntry !== null) {
+    return { ...modelEntry, id: KIMI_CODING_MODEL_ID };
+  }
+  return KIMI_CODING_MODEL_ID;
+}
+
+function isObjectModelEntry(modelEntry) {
+  return typeof modelEntry === "object" && modelEntry !== null;
+}
+
+function normalizeKimiCodingModelEntries(provider, baseUrl, modelEntries) {
+  if (!isKimiCodingProvider(provider) || !isOfficialKimiCodingBaseUrl(baseUrl)) return modelEntries;
+
+  const byId = new Map();
+  for (const rawEntry of modelEntries) {
+    const entry = normalizeKimiCodingModelEntry(rawEntry);
+    const id = getModelId(entry);
+    const current = byId.get(id);
+    if (!current) {
+      byId.set(id, entry);
+      continue;
+    }
+    if (isObjectModelEntry(current) || !isObjectModelEntry(entry)) continue;
+    byId.set(id, entry);
+  }
+  return Array.from(byId.values());
 }
 
 function isZhipuOpenAICompat(provider, baseUrl, api) {
@@ -299,14 +349,19 @@ export function syncModels(providers, opts: Record<string, any> = {}) {
     })) continue;
 
     const effectiveApiKey = apiKey || (hasHeaders ? "headers" : "local");
-    const effectiveApi = p.api || "openai-completions";
+    const configuredApi = p.api || "openai-completions";
+    const effectiveApi = getKimiCodingEffectiveApi(name, p.base_url, configuredApi);
     const effectiveBaseUrl = normalizeProviderBaseUrlForApi({
       provider: name,
       baseUrl: p.base_url,
       api: effectiveApi,
     });
     const modelDefaults = p.model_defaults || {};
-    const chatModels = filterChatModelEntries(name, p.models);
+    const chatModels = normalizeKimiCodingModelEntries(
+      name,
+      p.base_url,
+      filterChatModelEntries(name, p.models),
+    );
     const customModels = [];
     const modelOverrides = {};
 

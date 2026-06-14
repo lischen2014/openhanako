@@ -25,7 +25,31 @@ describe("enrichModelFromKnownMetadata", () => {
     });
     expect(enriched.compat).toMatchObject({
       supportsDeveloperRole: false,
-      thinkingFormat: "anthropic",
+      thinkingFormat: "kimi",
+      reasoningProfile: "kimi-openai",
+    });
+    expect(enriched.api).toBe("openai-completions");
+    expect(enriched.baseUrl).toBe("https://api.kimi.com/coding/v1");
+  });
+
+  it("normalizes legacy Kimi runtime ids before looking up Pi built-in headers", () => {
+    const model = {
+      id: "kimi-k2.6",
+      name: "Kimi K2.6",
+      api: "anthropic-messages",
+      provider: "kimi-coding",
+      baseUrl: "https://api.kimi.com/coding",
+      reasoning: true,
+      input: ["text", "image"],
+    };
+
+    const enriched = enrichModelFromKnownMetadata(model);
+
+    expect(enriched.id).toBe("kimi-for-coding");
+    expect(enriched.headers).toEqual({ "User-Agent": "KimiCLI/1.5" });
+    expect(enriched.compat).toMatchObject({
+      thinkingFormat: "kimi",
+      reasoningProfile: "kimi-openai",
     });
   });
 });

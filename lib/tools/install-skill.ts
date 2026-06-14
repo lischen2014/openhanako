@@ -5,14 +5,17 @@
  *
  * 模型侧工具只接受完整 skill package 来源。当前公开入口：
  *   A. github_url — 从 GitHub 仓库拉取完整 skill package（有 star 数门槛）
+ *   B. local_path / source(path) — 从当前 Hana server 可见路径安装完整 package
+ *   C. fileId / source(session_file) — 从已登记 SessionFile package 安装
  *
  * 开关（agent config.yaml）：
  *   capabilities.learn_skills.enabled          — 整体开关
- *   capabilities.learn_skills.allow_github_fetch — GitHub 拉取开关
+ *   capabilities.learn_skills.allow_github_fetch — GitHub 拉取开关（只管 github_url）
  *   capabilities.learn_skills.min_stars         — star 数门槛（默认 25，仅 GitHub）
  *
  * 安全策略：
  *   - GitHub URL 需满足 star 门槛 + 安全审查（审查 SKILL.md，安装完整目录）。
+ *   - 本地 / SessionFile 来源必须先解析为 FileRef，再审查 SKILL.md，最后安装完整目录。
  *   - 禁止用 skill_content 安装单个 SKILL.md；多文件 skill 必须保留 package 目录结构。
  */
 
@@ -27,8 +30,10 @@ import { serializeSessionFile } from "../session-files/session-file-response.ts"
 import {
   installSkillPackageFromDirectory,
   prepareGithubSkillPackage,
+  prepareLocalSkillPackage,
   sanitizeSkillName,
 } from "../skills/skill-package-installer.ts";
+import { statFileRef } from "../file-ref/resource-io.ts";
 
 const GITHUB_API_TIMEOUT = 15_000;
 const SAFETY_REVIEW_TIMEOUT = 20_000;
@@ -165,14 +170,47 @@ ${skillContent}`;
  * @param {() => object} opts.resolveUtilityConfig  返回 { utility, api_key, base_url }
  * @param {(skillName: string) => Promise<void>} opts.onInstalled  安装完成后的回调
  */
-export function createInstallSkillTool({ getUserSkillsDir, getConfig, resolveUtilityConfig, onInstalled, registerSessionFile }: any) {
+function sourceRefFromParams(params: any = {}) {
+  if (params.source && typeof params.source === "object" && params.source.type) {
+    return { ref: params.source, kind: "file_ref" };
+  }
+  if (typeof params.local_path === "string" && params.local_path.trim()) {
+    return { ref: { type: "path", path: params.local_path.trim() }, kind: "local_path" };
+  }
+  if (typeof params.fileId === "string" && params.fileId.trim()) {
+    return {
+      ref: {
+        type: "session_file",
+        fileId: params.fileId.trim(),
+        ...(params.sessionPath ? { sessionPath: params.sessionPath } : {}),
+      },
+      kind: "file_ref",
+    };
+  }
+  return null;
+}
+
+export function createInstallSkillTool({ getUserSkillsDir, getConfig, resolveUtilityConfig, onInstalled, registerSessionFile, resolveSessionFile }: any) {
   return {
     name: "install_skill",
     label: "Install Skill",
-    description: "Install a complete skill package into the shared skill pool, enabled only for the current Agent by default. Provide a GitHub repo URL containing SKILL.md; the full package directory is installed so references/scripts/assets are preserved. Do not provide raw skill_content or a single SKILL.md file.",
+    description: "Install a complete skill package into the shared skill pool, enabled only for the current Agent by default. Provide github_url for a GitHub repo, local_path for a package path visible to the current Hana server, fileId for an uploaded SessionFile package, or source as a typed FileRef such as { type: 'path', path } / { type: 'session_file', fileId }. The full package directory is installed so references/scripts/assets are preserved. Do not provide raw skill_content or a single SKILL.md file.",
     parameters: Type.Object({
       github_url: Type.Optional(
         Type.String({ description: "GitHub repo URL containing a complete skill package with SKILL.md" })
+      ),
+      local_path: Type.Optional(
+        Type.String({ description: "Skill package path visible to the current Hana server. Can point to a folder containing SKILL.md, .zip, or .skill. Relative paths resolve from the current session cwd." })
+      ),
+      source: Type.Optional(Type.Object({}, {
+        description: "Typed FileRef for the package source, such as { type: 'path', path } or { type: 'session_file', fileId }.",
+        additionalProperties: true,
+      } as any)),
+      fileId: Type.Optional(
+        Type.String({ description: "SessionFile id shorthand for an uploaded .zip/.skill package in the current session." })
+      ),
+      sessionPath: Type.Optional(
+        Type.String({ description: "Optional session JSONL path that owns fileId. Usually omit to use the current session." })
       ),
       reason: Type.String({ description: "Explain why this skill is needed (for audit, required)" }),
     }),
@@ -326,9 +364,94 @@ export function createInstallSkillTool({ getUserSkillsDir, getConfig, resolveUti
         };
       }
 
+      const sourceRef = sourceRefFromParams(params);
+      if (sourceRef) {
+        const cwd = ctx?.sessionManager?.getCwd?.() || process.cwd();
+        const sessionPath = params.sessionPath
+          || getToolSessionPath(ctx)
+          || ctx?.sessionPath
+          || null;
+        let sourceFile;
+        try {
+          sourceFile = await statFileRef(sourceRef.ref, {
+            cwd,
+            sessionPath,
+            resolveSessionFile,
+          });
+        } catch (err) {
+          return {
+            content: [{ type: "text", text: err?.message || String(err) }],
+            details: {},
+          };
+        }
+
+        let prepared = null;
+        try {
+          prepared = await prepareLocalSkillPackage({
+            sourcePath: sourceFile.filePath,
+            installDir,
+          });
+        } catch (err) {
+          return {
+            content: [{ type: "text", text: err.code === "SKILL_INVALID_NAME"
+              ? t("error.installSkillNameInvalid", { name: "" })
+              : err.message }],
+            details: {},
+          };
+        }
+
+        const content = fs.readFileSync(prepared.skillFilePath, "utf-8");
+        let safetyPassed = false;
+        try {
+          if (!skipSafetyReview) {
+            const review = await safetyReview(content, resolveUtilityConfig);
+            if (!review.safe) {
+              return {
+                content: [{ type: "text", text: t("error.installSkillSafetyFailed", { reason: review.reason }) }],
+                details: {},
+              };
+            }
+            safetyPassed = true;
+          }
+
+          const installed = installSkillPackageFromDirectory({
+            sourceDir: prepared.sourceDir,
+            installDir,
+            owner: "user",
+            defaultEnabled: false,
+          } as any);
+          const skillFilePath = installed.filePath;
+          const installedFile = registerInstalledSkillFile(registerSessionFile, ctx, skillFilePath);
+
+          await onInstalled?.(installed.name);
+
+          const safetyNote = safetyPassed ? t("error.installSkillSafetyPassed") : "";
+          return {
+            content: [{ type: "text", text: t("error.installSkillSuccessLocal", { name: installed.name, reason }) + (safetyNote ? "\n" + safetyNote : "") }],
+            details: {
+              skillName: installed.name,
+              source: sourceRef.kind,
+              safetyReview: safetyPassed,
+              skillFilePath,
+              installedSkillSource: installed.installedSkillSource,
+              ...(installedFile ? { installedFile } : {}),
+            },
+          };
+        } catch (err) {
+          return {
+            content: [{ type: "text", text: err.code === "SKILL_INVALID_NAME"
+              ? t("error.installSkillNameInvalid", { name: "" })
+              : err.message }],
+            details: {},
+          };
+        } finally {
+          prepared.cleanup?.();
+        }
+      }
+
       if (skill_content?.trim() || skill_name?.trim()) {
         return {
-          content: [{ type: "text", text: "install_skill 只能安装完整 skill package（例如 GitHub 仓库、zip、.skill 或文件夹来源），不能用 skill_content 安装单个 SKILL.md。请提供 github_url；多文件 skill 必须保留 references/scripts/assets 等配套目录。" }],
+          content: [{ type: "text", text: "install_skill 只能安装完整 skill package（例如 GitHub 仓库、zip、.skill、文件夹来源或 SessionFile 包），不能用 skill_content 安装单个 SKILL.md。请提供 github_url、local_path、fileId 或 source FileRef；多文件 skill 必须保留 references/scripts/assets 等配套目录。" }],
           details: { rejectedInput: "skill_content" },
         };
       }
