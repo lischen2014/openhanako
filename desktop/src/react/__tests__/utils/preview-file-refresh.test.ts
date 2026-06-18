@@ -145,6 +145,94 @@ describe('refreshPreviewItemsFromFile', () => {
     expect(mockUpsertPreviewItem).toHaveBeenCalledTimes(1);
   });
 
+  it('retries unchanged reads when the caller expects a file change', async () => {
+    const oldVersion = { mtimeMs: 10, size: 20, sha256: 'old' };
+    const newVersion = { mtimeMs: 11, size: 30, sha256: 'new' };
+    mockState.previewItems = [{
+      id: 'note',
+      type: 'markdown',
+      title: 'note.md',
+      content: 'old content',
+      filePath: '/tmp/note.md',
+      ext: 'md',
+      fileVersion: oldVersion,
+    }];
+
+    vi.mocked(window.platform!.readFileSnapshot!)
+      .mockResolvedValueOnce({
+        content: 'old content',
+        version: oldVersion,
+      })
+      .mockResolvedValueOnce({
+        content: 'new content',
+        version: newVersion,
+      });
+
+    const { __resetPreviewFileRefreshStateForTests, refreshPreviewItemsFromFile } = await import('../../utils/preview-file-refresh');
+    __resetPreviewFileRefreshStateForTests();
+
+    await (refreshPreviewItemsFromFile as (
+      filePath: string,
+      options: { retryUnchanged: boolean; retryDelaysMs: number[] },
+    ) => Promise<void>)('/tmp/note.md', {
+      retryUnchanged: true,
+      retryDelaysMs: [0],
+    });
+
+    expect(window.platform?.readFileSnapshot).toHaveBeenCalledTimes(2);
+    expect(mockUpsertPreviewItem).toHaveBeenCalledTimes(1);
+    expect(mockUpsertPreviewItem).toHaveBeenCalledWith({
+      ...mockState.previewItems[0],
+      content: 'new content',
+      fileVersion: newVersion,
+      status: 'available',
+      missingAt: null,
+    });
+  });
+
+  it('delays missing status when a transient read miss recovers during retry', async () => {
+    const newVersion = { mtimeMs: 12, size: 18, sha256: 'fresh' };
+    mockState.previewItems = [{
+      id: 'missing',
+      type: 'markdown',
+      title: 'missing.md',
+      content: 'stale',
+      filePath: '/tmp/missing.md',
+      ext: 'md',
+    }];
+    vi.mocked(window.platform!.readFileSnapshot!)
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({
+        content: 'fresh',
+        version: newVersion,
+      });
+    vi.mocked(window.platform!.readFile!).mockResolvedValueOnce(null);
+    const noticeSpy = vi.fn();
+    window.addEventListener('hana-inline-notice', noticeSpy);
+
+    const { __resetPreviewFileRefreshStateForTests, refreshPreviewItemsFromFile } = await import('../../utils/preview-file-refresh');
+    __resetPreviewFileRefreshStateForTests();
+
+    await (refreshPreviewItemsFromFile as (
+      filePath: string,
+      options: { retryMissing: boolean; retryDelaysMs: number[] },
+    ) => Promise<void>)('/tmp/missing.md', {
+      retryMissing: true,
+      retryDelaysMs: [0],
+    });
+    window.removeEventListener('hana-inline-notice', noticeSpy);
+
+    expect(mockUpsertPreviewItem).toHaveBeenCalledTimes(1);
+    expect(mockUpsertPreviewItem).toHaveBeenCalledWith({
+      ...mockState.previewItems[0],
+      content: 'fresh',
+      fileVersion: newVersion,
+      status: 'available',
+      missingAt: null,
+    });
+    expect(noticeSpy).not.toHaveBeenCalled();
+  });
+
   it('marks matching preview items missing when the backing file cannot be read', async () => {
     mockState.previewItems = [{
       id: 'missing',

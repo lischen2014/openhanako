@@ -166,6 +166,31 @@ describe('PreviewPanel markdown editor status', () => {
     });
   });
 
+  it('refreshes open local preview files when the panel mounts', async () => {
+    useStore.setState({
+      previewOpen: true,
+      previewItems: [{
+        id: 'note',
+        type: 'markdown',
+        title: 'note.md',
+        content: 'stale snapshot',
+        filePath: '/tmp/hana-note.md',
+        fileVersion: { mtimeMs: 1, size: 14, sha256: 'stale' },
+      }],
+      openTabs: ['note'],
+      activeTabId: 'note',
+      markdownPreviewIds: [],
+    } as Partial<StoreState>);
+
+    render(<PreviewPanel />);
+
+    await waitFor(() => {
+      const note = useStore.getState().previewItems.find(item => item.id === 'note');
+      expect(note?.content).toBe('外部更新');
+      expect(note?.fileVersion).toEqual({ mtimeMs: 20, size: 23, sha256: 'fresh' });
+    });
+  });
+
   it('keeps retained file watches alive when the open tab set changes', async () => {
     useStore.setState({
       previewOpen: true,

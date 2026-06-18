@@ -22,6 +22,7 @@ describe('file-change-events', () => {
   });
 
   afterEach(() => {
+    vi.useRealTimers();
     vi.restoreAllMocks();
   });
 
@@ -49,7 +50,26 @@ describe('file-change-events', () => {
 
     unwatchSecond();
     unwatchSecond();
+    await Promise.resolve();
     expect(platform.unwatchFile).toHaveBeenCalledTimes(1);
     expect(platform.unwatchFile).toHaveBeenCalledWith('/tmp/note.md');
+  });
+
+  it('retries platform watcher creation when the first attempt reports failure', async () => {
+    vi.useFakeTimers();
+    vi.mocked(platform.watchFile!).mockResolvedValueOnce(false).mockResolvedValueOnce(true);
+    const { watchFileChanges } = await import('../../services/file-change-events');
+
+    const unwatch = watchFileChanges('/tmp/note.md', vi.fn());
+
+    expect(platform.watchFile).toHaveBeenCalledTimes(1);
+    expect(platform.watchFile).toHaveBeenLastCalledWith('/tmp/note.md');
+
+    await vi.advanceTimersByTimeAsync(1000);
+
+    expect(platform.watchFile).toHaveBeenCalledTimes(2);
+    expect(platform.watchFile).toHaveBeenLastCalledWith('/tmp/note.md');
+
+    unwatch();
   });
 });

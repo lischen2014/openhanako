@@ -23,7 +23,11 @@ import { clearSelection, getSelectionCommitAnchorRect, scheduleCaptureSelection 
 import type { PreviewItem } from '../types';
 import { isRemoteWorkbenchContentRef, saveRemoteWorkbenchContent } from '../utils/remote-file-preview';
 import { watchFileChanges } from '../services/file-change-events';
-import { refreshPreviewItemsFromFile } from '../utils/preview-file-refresh';
+import {
+  PREVIEW_FILE_CATCH_UP_REFRESH_OPTIONS,
+  PREVIEW_FILE_CHANGE_REFRESH_OPTIONS,
+  refreshPreviewItemsFromFile,
+} from '../utils/preview-file-refresh';
 import previewStyles from './Preview.module.css';
 
 const EDITABLE_TYPES = new Set(['markdown', 'code', 'csv']);
@@ -89,9 +93,10 @@ function PreviewFileWatchBridge({ previewItems, openTabs }: { previewItems: Prev
     for (const filePath of paths) {
       if (subscriptionsRef.current.has(filePath)) continue;
       const unsubscribe = watchFileChanges(filePath, (changedPath) => {
-        void refreshPreviewItemsFromFile(changedPath);
+        void refreshPreviewItemsFromFile(changedPath, PREVIEW_FILE_CHANGE_REFRESH_OPTIONS);
       });
       subscriptionsRef.current.set(filePath, unsubscribe);
+      void refreshPreviewItemsFromFile(filePath, PREVIEW_FILE_CATCH_UP_REFRESH_OPTIONS);
     }
   }, [paths]);
 

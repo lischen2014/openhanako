@@ -6,7 +6,7 @@ import { loadModels } from '../utils/ui-helpers';
 import { activateWorkspaceDesk } from '../stores/desk-actions';
 import { loadChannels } from '../stores/channel-actions';
 import { applyEditorTypography } from '../editor/typography';
-import { refreshPreviewItemsFromFile } from '../utils/preview-file-refresh';
+import { PREVIEW_FILE_CHANGE_REFRESH_OPTIONS, refreshPreviewItemsFromFile } from '../utils/preview-file-refresh';
 import { isRemoteWorkbenchContentRef, refreshPreviewItemsFromRemoteWorkbenchTarget } from '../utils/remote-file-preview';
 import { mergeWorkspaceHistory } from '../../../../shared/workspace-history.ts';
 
@@ -227,14 +227,14 @@ export function handleAppEvent(type: string, data: any = {}, options: AppEventOp
       break;
     case 'markdown-cover-updated':
       if (typeof data.filePath === 'string' && data.filePath) {
-        void refreshPreviewItemsFromFile(data.filePath);
+        void refreshPreviewItemsFromFile(data.filePath, PREVIEW_FILE_CHANGE_REFRESH_OPTIONS);
       } else if (isRemoteWorkbenchContentRef(data.target)) {
         void refreshPreviewItemsFromRemoteWorkbenchTarget(data.target);
       }
       break;
     case 'session-file-updated':
       if (typeof data.filePath === 'string' && data.filePath) {
-        void refreshPreviewItemsFromFile(data.filePath);
+        void refreshPreviewItemsFromFile(data.filePath, PREVIEW_FILE_CHANGE_REFRESH_OPTIONS);
       }
       break;
     case 'session-authorized-folders-updated':
