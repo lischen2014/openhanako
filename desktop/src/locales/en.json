@@ -1024,6 +1024,8 @@
       "newWarmPaperMode": "Paper",
       "midnightContrast": "Aoi Night Contrast",
       "midnightContrastMode": "Clear",
+      "coral": "Coral",
+      "coralMode": "Spring Paper",
       "auto": "Auto",
       "autoMode": "System",
       "font": "Font",

@@ -516,12 +516,12 @@ describe("update-settings-tool", () => {
       expect(text).not.toContain("claude-design");
     });
 
-    it("search 'theme' 结果中 options 包含全部 11 个选项（10 主题 + auto）", async () => {
+    it("search 'theme' 结果中 options 包含全部 12 个选项（11 主题 + auto）", async () => {
       const { tool } = buildTool();
       const result = await tool.execute("c10", { action: "search", query: "theme" });
       const text = result.content[0].text;
-      // 验证原有主题 + 高对比暗色 + auto 均存在
-      for (const id of ["warm-paper", "midnight", "high-contrast", "grass-aroma", "contemplation", "absolutely", "delve", "deep-think", "new-warm-paper", "midnight-contrast", "auto"]) {
+      // 验证原有主题 + 珊瑚 + 高对比暗色 + auto 均存在
+      for (const id of ["warm-paper", "midnight", "high-contrast", "grass-aroma", "contemplation", "absolutely", "delve", "deep-think", "new-warm-paper", "coral", "midnight-contrast", "auto"]) {
         expect(text).toContain(id);
       }
     });

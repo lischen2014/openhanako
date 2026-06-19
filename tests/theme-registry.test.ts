@@ -45,20 +45,20 @@ describe('theme-registry', () => {
   });
 
   describe('THEMES 完整性', () => {
-    it('恰好 10 条', () => {
-      expect(Object.keys(reg.THEMES)).toHaveLength(10);
+    it('恰好 11 条', () => {
+      expect(Object.keys(reg.THEMES)).toHaveLength(11);
     });
 
     it('包含所有已知主题 id', () => {
       expect(Object.keys(reg.THEMES).sort()).toEqual([
-        'absolutely', 'contemplation', 'deep-think',
+        'absolutely', 'contemplation', 'coral', 'deep-think',
         'delve', 'grass-aroma', 'high-contrast', 'midnight', 'midnight-contrast',
         'new-warm-paper', 'warm-paper',
       ]);
     });
 
     it.each(['warm-paper', 'midnight', 'high-contrast', 'grass-aroma',
-             'contemplation', 'absolutely', 'delve', 'deep-think', 'new-warm-paper',
+             'contemplation', 'absolutely', 'delve', 'deep-think', 'new-warm-paper', 'coral',
              'midnight-contrast'])(
       '"%s" 每条都有完整字段',
       (id) => {
@@ -92,6 +92,7 @@ describe('theme-registry', () => {
       expect(reg.migrateSavedTheme('warm-paper')).toBe('warm-paper');
       expect(reg.migrateSavedTheme('midnight')).toBe('midnight');
       expect(reg.migrateSavedTheme('new-warm-paper')).toBe('new-warm-paper');
+      expect(reg.migrateSavedTheme('coral')).toBe('coral');
     });
 
     it('旧新暖纸主题 id 迁移到新 id', () => {
@@ -155,11 +156,12 @@ describe('theme-registry', () => {
       expect(reg.getThemeIds().sort()).toEqual(Object.keys(reg.THEMES).sort());
     });
 
-    it('getAllUIOptions 含 10 个主题 + auto', () => {
+    it('getAllUIOptions 含 11 个主题 + auto', () => {
       const opts = reg.getAllUIOptions();
-      expect(opts).toHaveLength(11);
+      expect(opts).toHaveLength(12);
       expect(opts.map(o => o.id).sort()).toContain('auto');
       expect(opts.map(o => o.id).sort()).toContain('warm-paper');
+      expect(opts.map(o => o.id).sort()).toContain('coral');
       opts.forEach(o => {
         expect(o).toHaveProperty('id');
         expect(o).toHaveProperty('i18nName');

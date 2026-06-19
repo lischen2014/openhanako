@@ -75,6 +75,12 @@
       "backgroundColor": "#26343D",
       "i18nName": "settings.appearance.midnightContrast",
       "i18nMode": "settings.appearance.midnightContrastMode"
+    },
+    "coral": {
+      "cssPath": "themes/coral.css",
+      "backgroundColor": "#FDFDFB",
+      "i18nName": "settings.appearance.coral",
+      "i18nMode": "settings.appearance.coralMode"
     }
   }
 }

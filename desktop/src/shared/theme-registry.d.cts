@@ -15,7 +15,8 @@ export type ThemeId =
   | 'delve'
   | 'deep-think'
   | 'new-warm-paper'
-  | 'midnight-contrast';
+  | 'midnight-contrast'
+  | 'coral';
 
 export type StoredThemeSelection = ThemeId | 'auto';
 

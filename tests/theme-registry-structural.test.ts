@@ -25,8 +25,8 @@ const SKIP_DIRS = [
 // - theme-registry.cjs / .d.cts: the single source of truth itself
 // - Tests that reference ids directly for white-box validation
 // - onboarding/constants.ts: onboarding UI layer owns its own theme-list UX decision
-//   (auto at position 3 + new-warm-paper excluded is a product/UX choice,
-//   not a data-mirroring bug; see Task 8 of theme-registry refactor plan)
+//   (curated order and excluded advanced themes are product/UX choices, not
+//   data-mirroring bugs; see Task 8 of theme-registry refactor plan)
 const ALLOWED_FILES = new Set([
   'desktop/src/shared/theme-registry.cjs',
   'desktop/src/shared/theme-registry.d.cts',
