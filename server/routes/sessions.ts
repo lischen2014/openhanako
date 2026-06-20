@@ -20,6 +20,7 @@ import {
 } from "../../lib/deferred-result-notification.ts";
 import {
   materializeExecutorIdentity,
+  normalizeExecutorMetadata,
   readSubagentSessionMetaSync,
 } from "../../lib/subagent-executor-metadata.ts";
 import {
@@ -289,10 +290,13 @@ export function createSessionsRoute(engine, hub = null) {
     const map = new Map();
     return (sessionPath) => {
       if (!sessionPath) return null;
-      const { cacheKey, readPath } = resolveSessionCacheLocator(sessionPath);
+      const { cacheKey, readPath, sessionId } = resolveSessionCacheLocator(sessionPath);
       if (!cacheKey || !readPath) return null;
       if (map.has(cacheKey)) return map.get(cacheKey);
-      const meta = readSubagentSessionMetaSync(readPath);
+      const manifestMeta = normalizeExecutorMetadata(
+        engine.getSessionExecutorMetadata?.({ sessionId, sessionPath: readPath }),
+      );
+      const meta = manifestMeta || readSubagentSessionMetaSync(readPath);
       map.set(cacheKey, meta);
       return meta;
     };

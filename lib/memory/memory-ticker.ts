@@ -60,8 +60,9 @@ const CACHE_SNAPSHOT_PREVIEW_LIMIT = 16_000;
  * @param {function} [opts.getMemoryMasterEnabled] - 返回 agent 级别记忆总开关状态
  * @param {(sessionPath: string) => boolean} [opts.isSessionMemoryEnabled] - 返回指定 session 的记忆状态
  * @param {function} [opts.getTimezone] - 返回用户配置时区
-   * @param {function} [opts.getCacheSnapshotReflectionMode] - 返回 off / shadow / write
+ * @param {function} [opts.getCacheSnapshotReflectionMode] - 返回 off / shadow / write
    * @param {function} [opts.getEditableMemoryEnabled] - 返回可编辑 Facts 实验开关
+ * @param {(sessionPath: string) => object|null} [opts.readMemoryReflectionSnapshot] - 返回 session 创建时冻结的记忆反思快照
  * @param {string} [opts.agentId] - 当前 agent id，用于实验观察产物归属
  * @param {string} [opts.agentDir] - 当前 agent 数据目录，用于实验观察产物落盘
  */
@@ -84,6 +85,7 @@ export function createMemoryTicker(opts) {
     getTimezone,
     getCacheSnapshotReflectionMode,
     getEditableMemoryEnabled,
+    readMemoryReflectionSnapshot,
     memoryReflectionRunner,
     buildSessionCacheSnapshot,
     ensureSessionLoaded,
@@ -134,9 +136,7 @@ export function createMemoryTicker(opts) {
   };
   const _readMemoryReflectionSnapshot = (sessionPath) => {
     try {
-      const metaPath = path.join(path.dirname(sessionPath), "session-meta.json");
-      const meta = JSON.parse(fs.readFileSync(metaPath, "utf-8"));
-      const snapshot = meta[path.basename(sessionPath)]?.memoryReflectionSnapshot;
+      const snapshot = readMemoryReflectionSnapshot?.(sessionPath);
       return snapshot && typeof snapshot === "object" && !Array.isArray(snapshot)
         ? snapshot
         : null;

@@ -118,6 +118,52 @@ describe("SessionManifestStore", () => {
     });
   });
 
+  it("stores capability snapshots by session id", () => {
+    const sessionPath = createSessionFile("capabilities");
+    const manifest = store.createForPath({ sessionPath, domain: "desktop", kind: "chat" });
+
+    store.setCapabilitySnapshot(manifest.sessionId, {
+      toolNames: ["read", "media_generate-image"],
+      promptSnapshot: {
+        version: 1,
+        systemPrompt: "frozen prompt",
+        appendSystemPrompt: [],
+        skillsResult: { skills: [], diagnostics: [] },
+        agentsFilesResult: { agentsFiles: [] },
+      },
+      capabilityDriftDismissedFingerprint: "fp-old",
+    }, { source: "session_create" });
+
+    expect(store.getCapabilitySnapshot(manifest.sessionId)).toMatchObject({
+      sessionId: manifest.sessionId,
+      source: "session_create",
+      toolNames: ["read", "media_generate-image"],
+      promptSnapshot: {
+        systemPrompt: "frozen prompt",
+      },
+      capabilityDriftDismissedFingerprint: "fp-old",
+    });
+  });
+
+  it("stores executor metadata by session id", () => {
+    const sessionPath = createSessionFile("executor");
+    const manifest = store.createForPath({ sessionPath, domain: "desktop", kind: "chat" });
+
+    store.setExecutorMetadata(manifest.sessionId, {
+      executorAgentId: "butter",
+      executorAgentNameSnapshot: "Butter",
+      executorMetaVersion: 1,
+    }, { source: "subagent_runtime" });
+
+    expect(store.getExecutorMetadata(manifest.sessionId)).toMatchObject({
+      sessionId: manifest.sessionId,
+      executorAgentId: "butter",
+      executorAgentNameSnapshot: "Butter",
+      executorMetaVersion: 1,
+      source: "subagent_runtime",
+    });
+  });
+
   it("reports repairable conflicts instead of assigning one locator to two sessions", () => {
     const firstPath = createSessionFile("first");
     const secondPath = createSessionFile("second");

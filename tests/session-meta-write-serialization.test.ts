@@ -206,11 +206,14 @@ describe("SessionCoordinator.writeSessionMeta serialization", () => {
     expect(payloadFiles.some((name) => name.endsWith(".promptSnapshot.json"))).toBe(true);
   });
 
-  it("quarantines an oversized legacy session-meta file before writing a fresh small index (#1681)", async () => {
+  it("compacts an oversized legacy session-meta file instead of dropping unrelated entries (#1681)", async () => {
     const metaPath = path.join(sessionDir, "session-meta.json");
+    const legacySessionPath = path.join(sessionDir, "legacy.jsonl");
+    const largePrompt = "legacy ".repeat(220_000);
     await fsp.writeFile(metaPath, JSON.stringify({
-      legacy: {
-        promptSnapshot: { systemPrompt: "x".repeat(1_200_000) },
+      "legacy.jsonl": {
+        memoryEnabled: true,
+        promptSnapshot: { systemPrompt: largePrompt },
       },
     }), "utf-8");
 
@@ -218,10 +221,18 @@ describe("SessionCoordinator.writeSessionMeta serialization", () => {
 
     const meta = JSON.parse(await fsp.readFile(metaPath, "utf-8"));
     expect(meta[path.basename(fakeSessionPath)].memoryEnabled).toBe(false);
+    expect(meta[path.basename(legacySessionPath)].memoryEnabled).toBe(true);
+    expect(meta[path.basename(legacySessionPath)].promptSnapshot).toMatchObject({
+      kind: "session-meta-payload",
+      field: "promptSnapshot",
+    });
     expect(JSON.stringify(meta).length).toBeLessThan(20_000);
 
     const files = await fsp.readdir(sessionDir);
-    expect(files.some((name) => /^session-meta\.oversized\.\d+\.json$/.test(name))).toBe(true);
+    expect(files.some((name) => /^session-meta\.oversized\.\d+\.json$/.test(name))).toBe(false);
+
+    const hydrated = await sessionCoord._readMetaCached(metaPath);
+    expect(hydrated[path.basename(legacySessionPath)].promptSnapshot.systemPrompt).toBe(largePrompt);
   });
 
   it("setSessionPinned writes and clears pinnedAt on the session meta entry", async () => {

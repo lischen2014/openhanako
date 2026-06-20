@@ -37,6 +37,17 @@ describe("session manifest legacy migration", () => {
     return { sessionDir, sessionPath };
   }
 
+  function writeSubagentSession(agentId, fileName) {
+    const sessionDir = path.join(hanaHome, "agents", agentId, "subagent-sessions");
+    const sessionPath = path.join(sessionDir, fileName);
+    fs.mkdirSync(sessionDir, { recursive: true });
+    fs.writeFileSync(sessionPath, [
+      JSON.stringify({ type: "session", version: 3, id: fileName, timestamp: "2026-06-18T03:00:00.000Z", cwd: hanaHome }),
+      "",
+    ].join("\n"));
+    return { sessionDir, sessionPath };
+  }
+
   function linkDirectory(target, linkPath) {
     fs.symlinkSync(target, linkPath, process.platform === "win32" ? "junction" : "dir");
   }
@@ -137,6 +148,90 @@ describe("session manifest legacy migration", () => {
       provenance: {
         legacyTitle: "Archived title",
       },
+    });
+  });
+
+  it("imports capability snapshots and repairs permission from oversized session-meta backups", () => {
+    const active = writeSession("hana", "media.jsonl");
+    fs.writeFileSync(path.join(active.sessionDir, "session-meta.json"), JSON.stringify({
+      "media.jsonl": {
+        toolNames: ["read", "bash"],
+      },
+    }, null, 2));
+    fs.writeFileSync(path.join(active.sessionDir, "session-meta.oversized.1781913830749.json"), JSON.stringify({
+      "media.jsonl": {
+        permissionMode: "auto",
+        accessMode: "operate",
+        planMode: false,
+        toolNames: ["read", "bash", "media_generate-image", "media_generate-video"],
+        promptSnapshot: {
+          version: 1,
+          systemPrompt: "prompt with media tools",
+          appendSystemPrompt: [],
+          skillsResult: { skills: [], diagnostics: [] },
+          agentsFilesResult: { agentsFiles: [] },
+        },
+      },
+    }, null, 2));
+
+    const result = migrateLegacySessions({
+      hanaHome,
+      store,
+      migratedAt: "2026-06-18T03:02:00.000Z",
+    });
+
+    expect(result).toMatchObject({
+      scanned: 1,
+      created: 1,
+      existing: 0,
+      skipped: 0,
+    });
+    const manifest = store.resolveByLocatorPath(active.sessionPath);
+    expect(manifest.permissionModeSnapshot).toMatchObject({
+      mode: "auto",
+      source: "legacy_session_meta_backup",
+    });
+    expect(store.getCapabilitySnapshot(manifest.sessionId)).toMatchObject({
+      toolNames: ["read", "bash", "media_generate-image", "media_generate-video"],
+      promptSnapshot: {
+        systemPrompt: "prompt with media tools",
+      },
+      source: "legacy_session_meta_backup",
+    });
+  });
+
+  it("imports subagent executor metadata from legacy subagent sidecars", () => {
+    const child = writeSubagentSession("hana", "child.jsonl");
+    fs.writeFileSync(path.join(child.sessionDir, "session-meta.json"), JSON.stringify({
+      "child.jsonl": {
+        executorAgentId: "butter",
+        executorAgentNameSnapshot: "Butter",
+        executorMetaVersion: 1,
+      },
+    }, null, 2));
+
+    const result = migrateLegacySessions({
+      hanaHome,
+      store,
+      migratedAt: "2026-06-18T03:02:00.000Z",
+    });
+
+    expect(result).toMatchObject({
+      scanned: 1,
+      created: 1,
+      existing: 0,
+      skipped: 0,
+    });
+    const manifest = store.resolveByLocatorPath(child.sessionPath);
+    expect(manifest).toMatchObject({
+      ownerAgentId: "hana",
+      lifecycle: "active",
+    });
+    expect(store.getExecutorMetadata(manifest.sessionId)).toMatchObject({
+      executorAgentId: "butter",
+      executorAgentNameSnapshot: "Butter",
+      executorMetaVersion: 1,
+      source: "legacy_session_meta",
     });
   });
 

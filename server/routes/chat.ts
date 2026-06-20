@@ -320,7 +320,7 @@ export function createChatRoute(engine: any, hub: any, { upgradeWebSocket }: any
       sessionState.set(key, sessionState.get(sessionPath));
       sessionState.delete(sessionPath);
     }
-    const ss = sessionState.get(key) || sessionState.get(sessionPath) || null;
+    const ss = sessionState.get(key) || null;
     if (ss) {
       ss.sessionPath = sessionPath;
       ss.lastAccessed = Date.now();

@@ -508,6 +508,17 @@ function matchesApprovedIdentityBoundary(file, line) {
   ));
 }
 
+function isPathKeyedSessionMetaLine(line) {
+  return /\b(?:meta|raw|fileData)\s*\[[^\]]*path\.basename\(sessionPath(?:ForMeta)?\)/.test(line);
+}
+
+function isLegacySessionMetaBoundaryFile(normalizedFile) {
+  return /(^|\/)core\/session-manifest\/legacy-migration\.ts$/.test(normalizedFile)
+    || /(^|\/)core\/session-coordinator\.ts$/.test(normalizedFile)
+    || /(^|\/)core\/migrations\.ts$/.test(normalizedFile)
+    || /(^|\/)lib\/subagent-executor-metadata\.ts$/.test(normalizedFile);
+}
+
 function classify(file, line) {
   const normalizedFile = file.split(path.sep).join("/");
   const text = line.toLowerCase();
@@ -520,6 +531,11 @@ function classify(file, line) {
     || normalizedFile.includes("/__tests__/")
   ) {
     return "test-fixture";
+  }
+  if (isPathKeyedSessionMetaLine(line)) {
+    return isLegacySessionMetaBoundaryFile(normalizedFile)
+      ? "legacy-session-meta-boundary"
+      : "identity-risk";
   }
   if (matchesApprovedIdentityBoundary(normalizedFile, line)) {
     return "approved-identity-boundary";

@@ -816,6 +816,84 @@ export class SessionCoordinator {
     }
   }
 
+  _readSessionCapabilitySnapshot(sessionPath: any) {
+    if (!this._sessionManifestStore || !sessionPath) return null;
+    try {
+      const manifest = this._resolveSessionManifestForPath(sessionPath);
+      if (!manifest?.sessionId || typeof this._sessionManifestStore.getCapabilitySnapshot !== "function") return null;
+      return this._sessionManifestStore.getCapabilitySnapshot(manifest.sessionId);
+    } catch (err) {
+      log.warn(`session capability snapshot read failed for ${path.basename(sessionPath || "")}: ${err?.message || err}`);
+      return null;
+    }
+  }
+
+  _writeSessionCapabilitySnapshot(sessionPath: any, partial: any, source = "session_meta_write") {
+    if (!this._sessionManifestStore || !sessionPath || !partial || typeof partial !== "object") return;
+    if (typeof this._sessionManifestStore.setCapabilitySnapshot !== "function") return;
+    const snapshot: any = {};
+    if (Object.prototype.hasOwnProperty.call(partial, "toolNames")) {
+      snapshot.toolNames = partial.toolNames;
+    }
+    if (Object.prototype.hasOwnProperty.call(partial, "promptSnapshot")) {
+      snapshot.promptSnapshot = partial.promptSnapshot;
+    }
+    if (Object.prototype.hasOwnProperty.call(partial, "capabilityDriftDismissedFingerprint")) {
+      snapshot.capabilityDriftDismissedFingerprint = partial.capabilityDriftDismissedFingerprint;
+    }
+    if (Object.keys(snapshot).length === 0) return;
+    try {
+      const manifest = this._resolveSessionManifestForPath(sessionPath);
+      if (!manifest?.sessionId) return;
+      this._sessionManifestStore.setCapabilitySnapshot(manifest.sessionId, snapshot, { source });
+    } catch (err) {
+      log.warn(`session capability snapshot write failed for ${path.basename(sessionPath || "")}: ${err?.message || err}`);
+    }
+  }
+
+  getSessionExecutorMetadata(ref: any) {
+    if (!this._sessionManifestStore || typeof this._sessionManifestStore.getExecutorMetadata !== "function") return null;
+    try {
+      const normalized = this._normalizeSessionRef(ref);
+      const sessionId = normalized.sessionId
+        || (normalized.sessionPath ? this._resolveSessionManifestForPath(normalized.sessionPath)?.sessionId : null);
+      return sessionId ? this._sessionManifestStore.getExecutorMetadata(sessionId) : null;
+    } catch (err) {
+      log.warn(`session executor metadata read failed: ${err?.message || err}`);
+      return null;
+    }
+  }
+
+  setSessionExecutorMetadata(ref: any, metadata: any, options: any = {}) {
+    if (!this._sessionManifestStore || typeof this._sessionManifestStore.setExecutorMetadata !== "function") return null;
+    const normalized = this._normalizeSessionRef(ref);
+    let manifest = null;
+    if (normalized.sessionId) {
+      manifest = this._resolveSessionManifestForId(normalized.sessionId);
+    } else if (normalized.sessionPath) {
+      manifest = this._resolveSessionManifestForPath(normalized.sessionPath)
+        || this._ensureSessionManifestForPath(normalized.sessionPath, {
+          ownerAgentId: this._d.agentIdFromSessionPath?.(normalized.sessionPath) || null,
+          domain: "desktop",
+          kind: options.kind || "chat",
+          provenance: { createdBy: options.provenance || "session_executor_metadata" },
+          locatorReason: options.locatorReason || "session_executor_metadata",
+          ...(options.manifestDefaults || {}),
+        });
+    }
+    if (!manifest?.sessionId) return null;
+    try {
+      return this._sessionManifestStore.setExecutorMetadata(
+        manifest.sessionId,
+        metadata,
+        { source: options.source || "subagent_runtime" },
+      );
+    } catch (err) {
+      log.warn(`session executor metadata write failed: ${err?.message || err}`);
+      return null;
+    }
+  }
+
   _sessionTitleKeyForPath(sessionPath: any) {
     return this._sessionIdForPath(sessionPath) || sessionPath;
   }
@@ -987,6 +1065,9 @@ export class SessionCoordinator {
       sessionMgr = SessionManager.create(effectiveCwd, agent.sessionDir);
     }
     const sessionPathForMeta = sessionMgr.getSessionFile?.() || null;
+    let restoredCapabilitySnapshot = restore && sessionPathForMeta
+      ? this._readSessionCapabilitySnapshot(sessionPathForMeta)
+      : null;
     let restoredThinkingLevel = null;
     if (restore && sessionPathForMeta) {
       try {
@@ -1005,7 +1086,10 @@ export class SessionCoordinator {
     // #1624 refreshCapabilitySnapshots：跳过冻结 promptSnapshot，下游 fresh-build
     // 路径会按当前配置重建并在 metaPatch 持久化（与 !restoredPromptSnapshot 同一条路）。
     const restoredPromptSnapshot = restore && sessionPathForMeta && !refreshCapabilitySnapshots
-      ? await this._readSessionPromptSnapshot(agent, sessionPathForMeta)
+      ? (
+        normalizeSessionPromptSnapshot(restoredCapabilitySnapshot?.promptSnapshot)
+        || await this._readSessionPromptSnapshot(agent, sessionPathForMeta)
+      )
       : null;
     const restoredPromptModel = restore && !restoredPromptSnapshot
       ? this._resolvePromptModelFromSessionManager(sessionMgr, models)
@@ -1098,11 +1182,17 @@ export class SessionCoordinator {
     const baseResourceLoader = this._d.getResourceLoader();
     let restoredPermissionMode = null;
     if (restore && sessionPathForMeta) {
+      const manifest = this._resolveSessionManifestForPath(sessionPathForMeta);
+      if (manifest?.permissionModeSnapshot?.mode) {
+        restoredPermissionMode = normalizeSessionPermissionMode(manifest.permissionModeSnapshot.mode);
+      }
+    }
+    if (restore && sessionPathForMeta && restoredPermissionMode === null) {
       try {
         const metaPath = path.join(agent.sessionDir, "session-meta.json");
         const meta = await this._readMetaCached(metaPath);
         const metaEntry = meta[path.basename(sessionPathForMeta)];
-        if (metaEntry) {
+        if (hasSessionPermissionModeFields(metaEntry)) {
           restoredPermissionMode = normalizeSessionPermissionMode(metaEntry);
         }
       } catch (err) {
@@ -1286,12 +1376,27 @@ export class SessionCoordinator {
     this._session = session;
     this._currentSessionPath = sessionPath || null;
     this._sessionStarted = false;
+    if (restore && sessionPath && !restoredCapabilitySnapshot) {
+      restoredCapabilitySnapshot = this._readSessionCapabilitySnapshot(sessionPath);
+    }
+    if (restore && sessionPath && restoredPermissionMode === null) {
+      const manifest = this._resolveSessionManifestForPath(sessionPath);
+      if (manifest?.permissionModeSnapshot?.mode) {
+        restoredPermissionMode = normalizeSessionPermissionMode(manifest.permissionModeSnapshot.mode);
+        initialPermissionMode = restoredPermissionMode;
+        initialAccessMode = legacyAccessModeFromPermissionMode(initialPermissionMode);
+        initialPlanMode = isReadOnlyPermissionMode(initialPermissionMode);
+        sessionEntry.permissionMode = initialPermissionMode;
+        sessionEntry.accessMode = initialAccessMode;
+        sessionEntry.planMode = initialPlanMode;
+      }
+    }
     if (restore && sessionPath && restoredPermissionMode === null) {
       try {
         const metaPath = path.join(agent.sessionDir, "session-meta.json");
         const meta = await this._readMetaCached(metaPath);
         const metaEntry = meta[path.basename(sessionPath)];
-        if (metaEntry) {
+        if (hasSessionPermissionModeFields(metaEntry)) {
           initialPermissionMode = normalizeSessionPermissionMode(metaEntry);
           initialAccessMode = legacyAccessModeFromPermissionMode(initialPermissionMode);
           initialPlanMode = isReadOnlyPermissionMode(initialPermissionMode);
@@ -1377,6 +1482,9 @@ export class SessionCoordinator {
     let shouldPersistRestoredToolNames = false;
     // #1624：dismissed fingerprint 仍从 session-meta 读出，保留未来手动提示链路。
     let restoredDriftDismissedFingerprint: string | null = null;
+    const restoredCapabilityToolNames = Array.isArray(restoredCapabilitySnapshot?.toolNames)
+      ? uniqueToolNames(restoredCapabilitySnapshot.toolNames)
+      : null;
 
     if (restore) {
       if (sessionPath) {
@@ -1391,7 +1499,9 @@ export class SessionCoordinator {
           }
         }
         restoredDriftDismissedFingerprint =
-          typeof metaEntry?.capabilityDriftDismissedFingerprint === "string"
+          typeof restoredCapabilitySnapshot?.capabilityDriftDismissedFingerprint === "string"
+            ? restoredCapabilitySnapshot.capabilityDriftDismissedFingerprint
+            : typeof metaEntry?.capabilityDriftDismissedFingerprint === "string"
             ? metaEntry.capabilityDriftDismissedFingerprint
             : null;
         if (refreshCapabilitySnapshots) {
@@ -1403,6 +1513,13 @@ export class SessionCoordinator {
           });
           shouldPersistRestoredToolNames = true;
           restoredDriftDismissedFingerprint = null;
+        } else if (restoredCapabilityToolNames) {
+          const gatedRestoredToolNames = computeToolSnapshot(restoredCapabilityToolNames, [], {
+            extraDisabled: stableFeatureDisabledToolNames,
+          });
+          const repair = repairRestoredToolSnapshotDetailed(gatedRestoredToolNames, allToolNames);
+          snapshotToolNames = repair.toolNames;
+          shouldPersistRestoredToolNames = !sameToolNames(snapshotToolNames, restoredCapabilityToolNames);
         } else if (metaEntry && Array.isArray(metaEntry.toolNames)) {
           const restoredToolNames = uniqueToolNames(metaEntry.toolNames);
           const gatedRestoredToolNames = computeToolSnapshot(restoredToolNames, [], {
@@ -2022,6 +2139,19 @@ export class SessionCoordinator {
   _readSessionMemoryEnabledFromMeta(sessionPath: any) {
     const metaEntry = this._readSessionMetaEntrySync(sessionPath);
     return typeof metaEntry?.memoryEnabled === "boolean" ? metaEntry.memoryEnabled : null;
+  }
+
+  getSessionMemoryReflectionSnapshot(sessionPath = this.currentSessionPath) {
+    if (!sessionPath) return null;
+    const entry = this._sessionFolderEntry(sessionPath);
+    const liveSnapshot = entry?.memoryReflectionSnapshot;
+    if (liveSnapshot && typeof liveSnapshot === "object" && !Array.isArray(liveSnapshot)) {
+      return liveSnapshot;
+    }
+    const metaSnapshot = this._readSessionMetaEntrySync(sessionPath)?.memoryReflectionSnapshot;
+    return metaSnapshot && typeof metaSnapshot === "object" && !Array.isArray(metaSnapshot)
+      ? metaSnapshot
+      : null;
   }
 
   getSessionMemoryEnabled(sessionPath = this.currentSessionPath) {
@@ -3827,8 +3957,10 @@ export class SessionCoordinator {
     try {
       const stat = await fsp.stat(metaPath);
       if (stat.size > SESSION_META_INDEX_MAX_BYTES) {
-        log.warn(`session-meta is too large to parse safely (${stat.size} bytes): ${metaPath}`);
-        return {};
+        const compacted = await this._compactOversizedSessionMeta(metaPath);
+        const data = await this._hydrateSessionMetaPayloads(metaPath, compacted);
+        this._metaCache.set(metaPath, { data, ts: Date.now() });
+        return data;
       }
       const raw = await fsp.readFile(metaPath, "utf-8");
       const data = await this._hydrateSessionMetaPayloads(metaPath, JSON.parse(raw));
@@ -4008,6 +4140,7 @@ export class SessionCoordinator {
         meta[sessKey] = await this._externalizeSessionMetaPayloads(metaPath, sessKey, meta[sessKey]);
         await fsp.writeFile(metaPath, JSON.stringify(meta, null, 2));
         this.invalidateMetaCache(metaPath);
+        this._writeSessionCapabilitySnapshot(sessionPath, partial);
         return;
       } catch (err) {
         if (attempt === 0) {
@@ -4040,8 +4173,7 @@ export class SessionCoordinator {
     try {
       const stat = await fsp.stat(metaPath);
       if (stat.size > SESSION_META_INDEX_MAX_BYTES) {
-        await this._quarantineOversizedSessionMeta(metaPath);
-        return {};
+        return await this._compactOversizedSessionMeta(metaPath);
       }
     } catch (err) {
       if (err?.code !== "ENOENT") {
@@ -4070,6 +4202,28 @@ export class SessionCoordinator {
         log.warn(`oversized session-meta quarantine failed: ${err.message}`);
       }
     }
+  }
+
+  async _compactOversizedSessionMeta(metaPath: any) {
+    let data;
+    try {
+      data = JSON.parse(await fsp.readFile(metaPath, "utf-8"));
+    } catch {
+      await this._quarantineOversizedSessionMeta(metaPath);
+      return {};
+    }
+    if (!data || typeof data !== "object" || Array.isArray(data)) {
+      await this._quarantineOversizedSessionMeta(metaPath);
+      return {};
+    }
+    const compacted: any = {};
+    for (const [sessKey, entry] of Object.entries(data)) {
+      compacted[sessKey] = await this._externalizeSessionMetaPayloads(metaPath, sessKey, entry);
+    }
+    await fsp.writeFile(metaPath, JSON.stringify(compacted, null, 2));
+    this.invalidateMetaCache(metaPath);
+    log.warn(`oversized session-meta compacted with payload sidecars: ${metaPath}`);
+    return compacted;
   }
 
   async _externalizeSessionMetaPayloads(metaPath: any, sessKey: any, entry: any) {

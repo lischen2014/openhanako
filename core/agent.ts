@@ -35,7 +35,6 @@ import {
   createSubagentReplyTool,
   createSubagentTool,
 } from "../lib/tools/subagent-tool.ts";
-import { writeSubagentSessionMeta } from "../lib/subagent-executor-metadata.ts";
 import { createCheckDeferredTool } from "../lib/tools/check-deferred-tool.ts";
 import { createStopTaskTool } from "../lib/tools/stop-task-tool.ts";
 import { createCurrentStatusTool } from "../lib/tools/current-status-tool.ts";
@@ -402,6 +401,9 @@ export class Agent {
         buildSessionCacheSnapshot: (sessionPath, options) => (
           this._cb?.getEngine?.()?.buildSessionCacheSnapshot?.(sessionPath, options)
         ),
+        readMemoryReflectionSnapshot: (sessionPath) => (
+          this._cb?.getEngine?.()?.getSessionMemoryReflectionSnapshot?.(sessionPath)
+        ),
         ensureSessionLoaded: (sessionPath) => (
           this._cb?.getEngine?.()?.ensureSessionLoaded?.(sessionPath)
         ),
@@ -611,7 +613,13 @@ export class Agent {
       currentAgentId: this.channelsDir && this.agentsDir ? this.id : undefined,
       agentDir: this.agentDir,
       emitEvent: (event, sp) => this._cb?.emitEvent?.(event, sp),
-      persistSubagentSessionMeta: (sessionPath, meta) => writeSubagentSessionMeta(sessionPath, meta),
+      persistSubagentSessionMeta: (sessionPath, meta) => (
+        this._cb?.getEngine?.()?.setSessionExecutorMetadata?.(
+          sessionPath,
+          meta,
+          { source: "subagent_runtime" },
+        )
+      ),
       proactiveDelegation: getResolvedExperimentValue(
         this._cb?.getPreferences?.(),
         PROACTIVE_SUBAGENT_EXPERIMENT_ID,
@@ -925,9 +933,11 @@ export class Agent {
   /** 查询指定 session 的持久化记忆开关，缺省视为开启 */
   isSessionMemoryEnabledFor(sessionPath) {
     if (!sessionPath) return this._memorySessionEnabled;
-    const metaPath = path.join(this.sessionDir, "session-meta.json");
-    const meta = safeReadJSON(metaPath, {});
-    return meta[path.basename(sessionPath)]?.memoryEnabled !== false;
+    const engine = this._cb?.getEngine?.();
+    if (typeof engine?.getSessionMemoryEnabled === "function") {
+      return engine.getSessionMemoryEnabled(sessionPath) !== false;
+    }
+    return this._memorySessionEnabled;
   }
 
   /** 设置 agent 级别记忆总开关（同时重载 config 以获取 disabledSince/reenableAt） */

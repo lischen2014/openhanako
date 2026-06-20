@@ -37,6 +37,7 @@ vi.mock("../lib/debug-log.js", () => ({
 }));
 
 import { SessionCoordinator } from "../core/session-coordinator.ts";
+import { SessionManifestStore } from "../core/session-manifest/store.ts";
 import { isBeautifyEnabledForAgentConfig } from "../plugins/beautify/lib/availability.ts";
 import { CORE_TOOL_NAMES } from "../shared/tool-categories.ts";
 
@@ -878,6 +879,81 @@ describe("session-coordinator tool snapshot (createSession)", () => {
     expect(appliedList).toContain("web_search");
     expect(appliedList).toContain("bash");
     expect(coord.getAccessMode()).toBe("read_only");
+  });
+
+  it("restores plugin tools from the sessionId capability snapshot even when legacy meta is partial", async () => {
+    const manifestStore = new SessionManifestStore({
+      dbPath: path.join(tmpDir, "session-manifest.db"),
+      idGenerator: () => "sess_media_restore",
+      now: () => "2026-06-20T10:00:00.000Z",
+    });
+    coord._sessionManifestStore = manifestStore;
+    const mediaTool = { ...makeTool("media_generate-image"), _pluginId: "media" };
+    coord._d.buildTools = () => ({
+      tools: SDK_BUILTIN_OBJS,
+      customTools: [...HANAKO_CUSTOM_OBJS, mediaTool],
+    });
+    const manifest = manifestStore.createForPath({
+      sessionPath: fakeSessionPath,
+      ownerAgentId: "test",
+      domain: "desktop",
+      permissionModeSnapshot: { mode: "auto", source: "test" },
+    });
+    manifestStore.setCapabilitySnapshot(manifest.sessionId, {
+      toolNames: [...defaultBaselineNames(), "media_generate-image"],
+    }, { source: "legacy_session_meta_backup" });
+    await fsp.writeFile(
+      path.join(sessionDir, "session-meta.json"),
+      JSON.stringify({
+        [path.basename(fakeSessionPath)]: {
+          toolNames: defaultBaselineNames(),
+        },
+      }, null, 2),
+    );
+
+    try {
+      const { sessionPath } = await coord.createSession(null, tmpDir, true, null, { restore: true });
+
+      const appliedList = activeToolsSpy.mock.calls[0][0];
+      expect(appliedList).toContain("media_generate-image");
+      expect(coord.getPermissionMode(sessionPath)).toBe("auto");
+      const entry = coord._sessions.get(manifest.sessionId);
+      expect(entry.toolNames).toContain("media_generate-image");
+    } finally {
+      manifestStore.close();
+    }
+  });
+
+  it("restores permission from manifest when legacy session-meta lacks permission fields", async () => {
+    const manifestStore = new SessionManifestStore({
+      dbPath: path.join(tmpDir, "session-manifest.db"),
+      idGenerator: () => "sess_permission_restore",
+      now: () => "2026-06-20T10:00:00.000Z",
+    });
+    coord._sessionManifestStore = manifestStore;
+    manifestStore.createForPath({
+      sessionPath: fakeSessionPath,
+      ownerAgentId: "test",
+      domain: "desktop",
+      permissionModeSnapshot: { mode: "auto", source: "legacy_session_meta" },
+    });
+    await fsp.writeFile(
+      path.join(sessionDir, "session-meta.json"),
+      JSON.stringify({
+        [path.basename(fakeSessionPath)]: {
+          toolNames: allNames(),
+        },
+      }, null, 2),
+    );
+
+    try {
+      const { sessionPath } = await coord.createSession(null, tmpDir, true, null, { restore: true });
+
+      expect(coord.getPermissionMode(sessionPath)).toBe("auto");
+      expect(coord.getAccessMode(sessionPath)).toBe("operate");
+    } finally {
+      manifestStore.close();
+    }
   });
 
   it("maps legacy planMode meta to read-only access mode", async () => {

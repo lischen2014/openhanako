@@ -966,6 +966,15 @@ export class HanaEngine {
   getSessionAuthorizedFolders(p = this.currentSessionPath) {
     return this._sessionCoord.getSessionAuthorizedFolders(p);
   }
+  getSessionExecutorMetadata(ref) {
+    return this._sessionCoord.getSessionExecutorMetadata(ref);
+  }
+  setSessionExecutorMetadata(ref, metadata, options = {}) {
+    return this._sessionCoord.setSessionExecutorMetadata(ref, metadata, options);
+  }
+  getSessionMemoryReflectionSnapshot(p = this.currentSessionPath) {
+    return this._sessionCoord.getSessionMemoryReflectionSnapshot(p);
+  }
   getSessionFolderScope(p = this.currentSessionPath) {
     return this._sessionCoord.getSessionFolderScope(p);
   }

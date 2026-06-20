@@ -219,6 +219,32 @@ describe("session path identity audit", () => {
     expect(approved.some((file: string) => file.endsWith("stream-resume.ts"))).toBe(true);
   });
 
+  it("flags path-keyed session-meta business reads but allows legacy migration boundaries", () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hana-session-audit-meta-"));
+    const appDir = path.join(dir, "core");
+    const legacyDir = path.join(dir, "core", "session-manifest");
+    fs.mkdirSync(appDir, { recursive: true });
+    fs.mkdirSync(legacyDir, { recursive: true });
+    fs.writeFileSync(path.join(appDir, "new-business.ts"), `
+      const metaEntry = meta[path.basename(sessionPath)];
+      const rawEntry = raw[path.basename(sessionPath)];
+      const restoredToolNames = meta[path.basename(sessionPathForMeta)]?.toolNames;
+    `);
+    fs.writeFileSync(path.join(legacyDir, "legacy-migration.ts"), `
+      const metaEntry = meta[path.basename(sessionPath)];
+    `);
+
+    const report = runAudit(dir);
+    const risks = report.identityRisk.map((item: { file: string }) => item.file);
+    const legacy = report.matches
+      .filter((item: { category: string }) => item.category === "legacy-session-meta-boundary")
+      .map((item: { file: string }) => item.file);
+
+    expect(risks.some((file: string) => file.endsWith("new-business.ts"))).toBe(true);
+    expect(risks.some((file: string) => file.endsWith("legacy-migration.ts"))).toBe(false);
+    expect(legacy.some((file: string) => file.endsWith("legacy-migration.ts"))).toBe(true);
+  });
+
   it("allows verified sessionId-first runtime adapters while still flagging new path-keyed maps", () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hana-session-audit-runtime-adapters-"));
     const files = {
