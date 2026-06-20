@@ -1199,6 +1199,45 @@ describe("BridgeManager._handleMessage", () => {
       expect(feishuAdapter.sendReply).not.toHaveBeenCalled();
     });
 
+    it("falls back to a normal Feishu message when CardKit finalization fails", async () => {
+      const { bm, hub } = createMocks();
+      const feishuAdapter = {
+        richStreamingCapabilities: {
+          mode: "cardkit_stream",
+          scopes: ["dm"],
+          minIntervalMs: 0,
+          maxChars: 150_000,
+          requiresRichStreaming: true,
+          receiptMode: "fold_into_stream",
+        },
+        startRichStreamReply: vi.fn().mockResolvedValue({ cardId: "card_stream_001" }),
+        updateRichStreamReply: (vi.fn().mockResolvedValue as any)(),
+        finishRichStreamReply: vi.fn().mockRejectedValue(new Error("CardKit unavailable")),
+        sendReply: (vi.fn().mockResolvedValue as any)(),
+        sendBlockReply: (vi.fn().mockResolvedValue as any)(),
+        stop: vi.fn(),
+      };
+      bm._platforms.set("feishu:hana", { adapter: feishuAdapter, status: "connected", agentId: "hana", platform: "feishu" });
+      hub.send.mockImplementation(async (_text, opts) => {
+        opts.onDelta("Hel", "Hel");
+        opts.onDelta("lo", "Hello");
+        return bridgeReply("Hello");
+      });
+
+      bm._handleMessage("feishu", {
+        sessionKey: "fs_dm_owner123@hana",
+        text: "hi",
+        userId: "owner123",
+        chatId: "oc_chat",
+        agentId: "hana",
+      });
+
+      await vi.advanceTimersByTimeAsync(2100);
+      await vi.waitFor(() => expect(feishuAdapter.sendReply).toHaveBeenCalledWith("oc_chat", "Hello"));
+      expect(feishuAdapter.finishRichStreamReply).toHaveBeenCalledOnce();
+      expect(bm._processing.has("fs_dm_owner123@hana")).toBe(false);
+    });
+
     it("folds Feishu waiting receipts into the edit-message stream lifecycle", async () => {
       const { bm, hub } = createMocks();
       const feishuAdapter = {
@@ -1255,7 +1294,7 @@ describe("BridgeManager._handleMessage", () => {
       );
     });
 
-    it("does not send a second Feishu final message when a created stream has no message id", async () => {
+    it("falls back to a normal Feishu message when a created stream has no message id", async () => {
       const { bm, hub } = createMocks();
       const feishuAdapter = {
         streamingCapabilities: {
@@ -1289,7 +1328,47 @@ describe("BridgeManager._handleMessage", () => {
 
       expect(feishuAdapter.startStreamReply).toHaveBeenCalledTimes(1);
       expect(feishuAdapter.finishStreamReply).not.toHaveBeenCalled();
-      expect(feishuAdapter.sendReply).not.toHaveBeenCalledWith("oc_chat", "Hello", expect.anything());
+      expect(feishuAdapter.sendReply).toHaveBeenCalledWith("oc_chat", "Hello");
+    });
+
+    it("fails an RC-attached Feishu CardKit receipt when the desktop session returns only an error", async () => {
+      const { bm, hub } = createMocks();
+      const feishuAdapter = {
+        richStreamingCapabilities: {
+          mode: "cardkit_stream",
+          scopes: ["dm"],
+          minIntervalMs: 0,
+          maxChars: 150_000,
+          requiresRichStreaming: true,
+          receiptMode: "fold_into_stream",
+        },
+        startRichStreamReply: vi.fn().mockResolvedValue({ cardId: "card_stream_001" }),
+        updateRichStreamReply: (vi.fn().mockResolvedValue as any)(),
+        finishRichStreamReply: (vi.fn().mockResolvedValue as any)(),
+        sendReply: (vi.fn().mockResolvedValue as any)(),
+        sendBlockReply: (vi.fn().mockResolvedValue as any)(),
+        stop: vi.fn(),
+      };
+      bm._platforms.set("feishu:hana", { adapter: feishuAdapter, status: "connected", agentId: "hana", platform: "feishu" });
+      hub.send.mockResolvedValue({ text: "", toolMedia: [], error: "provider timeout", truncated: false });
+
+      await bm._flushAttachedDesktopSession({
+        sessionKey: "fs_dm_owner123@hana",
+        desktopSessionPath: "/tmp/desktop-session.jsonl",
+        platform: "feishu",
+        chatId: "oc_chat",
+        agentId: "hana",
+        text: "hi",
+        images: [],
+        inboundFiles: [],
+        alreadyLocked: false,
+      });
+
+      await vi.waitFor(() => expect(feishuAdapter.finishRichStreamReply).toHaveBeenCalledOnce());
+      const finalText = feishuAdapter.finishRichStreamReply.mock.calls[0][2];
+      expect(finalText).toContain("失败");
+      expect(finalText).not.toContain("provider timeout");
+      expect(bm._processing.has("fs_dm_owner123@hana")).toBe(false);
     });
 
     it("does not use legacy block streaming without an explicit streaming capability", async () => {

@@ -1648,7 +1648,10 @@ export class BridgeManager {
           }
           return mediaUrls;
         }
-        if (createdWithoutMessageId) return mediaUrls;
+        if (createdWithoutMessageId) {
+          await this._sendAdapterReply(adapter, chatId, textOnly, context);
+          return mediaUrls;
+        }
         const finalText = this._truncateStreamText(textOnly, maxChars);
         if (!failed) {
           try {
@@ -2005,7 +2008,7 @@ export class BridgeManager {
    *
    * @private
    */
-  async _flushAttachedDesktopSession({ sessionKey, desktopSessionPath, platform, chatId, agentId, text, images, inboundFiles, messageThreadId, replyContext = null, alreadyLocked = false }) {
+  async _flushAttachedDesktopSession({ sessionKey, desktopSessionPath, platform, chatId, agentId, text, images, inboundFiles, messageThreadId = null, replyContext = null, alreadyLocked = false }) {
     if (!alreadyLocked) {
       if (this._processing.has(sessionKey)) return;
       this._processing.add(sessionKey);
@@ -2013,7 +2016,7 @@ export class BridgeManager {
 
     const entry = this._platforms.get(this._getPlatformKey(platform, agentId));
     const adapter = entry?.adapter;
-    const delivery = this._createStreamDelivery({
+    const delivery: any = this._createStreamDelivery({
       adapter,
       chatId,
       isGroup: false,
@@ -2050,7 +2053,7 @@ export class BridgeManager {
           }))
           : undefined,
       };
-      const { text: replyText, toolMedia } = await this._hub.send(text, {
+      const result = await this._hub.send(text, {
         sessionPath: desktopSessionPath,
         images: images?.length ? images : undefined,
         inboundFiles: inboundFiles?.length ? inboundFiles : undefined,
@@ -2058,6 +2061,15 @@ export class BridgeManager {
         uiContext: null,
         onDelta: delivery.onDelta,
       });
+      const replyText = result?.text || null;
+      const toolMedia = Array.isArray(result?.toolMedia) ? result.toolMedia : [];
+      const replyError = result?.error || null;
+      const replyTruncated = result?.truncated === true;
+
+      if (replyError) {
+        log.error(`rc-attached reply generation error (${platform}, ${desktopSessionPath}): ${replyError}`);
+        debugLog()?.error("bridge", `rc-attached reply generation error: ${replyError}`);
+      }
 
       if (replyText && adapter) {
         const cleaned = this._cleanReplyForPlatform(replyText);
@@ -2082,6 +2094,14 @@ export class BridgeManager {
           sender, text: cleaned,
           isGroup: false, ts: Date.now(),
         });
+        if (replyTruncated) {
+          try { await this._sendAdapterReply(adapter, chatId, t("bridge.replyInterrupted"), replyContext); } catch {}
+        }
+      } else if (replyError && adapter) {
+        try {
+          if (typeof delivery.fail === "function") await delivery.fail(t("bridge.replyFailed"));
+          else await this._sendAdapterReply(adapter, chatId, t("bridge.replyFailed"), replyContext);
+        } catch {}
       }
     } catch (err) {
       if (!isAbortLikeError(err)) {
