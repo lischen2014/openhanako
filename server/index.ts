@@ -22,6 +22,7 @@ import { ensureFirstRun } from "../core/first-run.ts";
 import { initDebugLog, createModuleLogger } from "../lib/debug-log.ts";
 import { redactLogLabel, redactLogText } from "../lib/log-redactor.ts";
 import { safeJson } from "./hono-helpers.ts";
+import { resolveSessionThinkingLevelState } from "./session-thinking-level-state.ts";
 
 const log = createModuleLogger("server");
 const checkpointLog = createModuleLogger("checkpoint");
@@ -886,9 +887,9 @@ app.get("/api/session-permission-mode", async (c) => {
 });
 
 app.get("/api/session-thinking-level", async (c) => {
-  return c.json({
-    thinkingLevel: engine.getSessionThinkingLevel?.() || engine.getDefaultThinkingLevel?.() || engine.getThinkingLevel?.() || "medium",
-  });
+  const sessionPath = c.req.query("sessionPath") || null;
+  const pendingNewSession = c.req.query("pendingNewSession") === "1";
+  return c.json(resolveSessionThinkingLevelState(engine, { sessionPath, pendingNewSession }));
 });
 
 app.post("/api/session-thinking-level", async (c) => {
@@ -900,16 +901,12 @@ app.post("/api/session-thinking-level", async (c) => {
     return c.json({
       ok: false,
       error: result.error || "failed to set thinking level",
-      thinkingLevel: result.thinkingLevel || (
-        sessionPath
-          ? engine.getSessionThinkingLevel(sessionPath)
-          : engine.getDefaultThinkingLevel?.()
-      ),
+      ...resolveSessionThinkingLevelState(engine, { sessionPath, pendingNewSession: !sessionPath }),
     }, 409);
   }
   return c.json({
     ok: true,
-    thinkingLevel: result.thinkingLevel,
+    ...resolveSessionThinkingLevelState(engine, { sessionPath, pendingNewSession: !sessionPath }),
   });
 });
 

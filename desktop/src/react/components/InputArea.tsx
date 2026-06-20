@@ -1326,7 +1326,12 @@ function InputAreaInner({ surface }: Required<InputAreaProps>) {
   const activeServerConnection = useStore(s => s.activeServerConnection);
   useEffect(() => {
     if (activeServerConnection && surface !== 'mobile') {
-      hanaFetch('/api/session-thinking-level')
+      const query = pendingNewSession
+        ? '?pendingNewSession=1'
+        : currentSessionPath
+          ? `?sessionPath=${encodeURIComponent(currentSessionPath)}`
+          : '';
+      hanaFetch(`/api/session-thinking-level${query}`)
         .then(r => r.json())
         .then(d => { if (d.thinkingLevel) setThinkingLevel(d.thinkingLevel as ThinkingLevel); })
         .catch((err: unknown) => console.warn('[InputArea] load thinking level failed', err));
@@ -1338,7 +1343,7 @@ function InputAreaInner({ surface }: Required<InputAreaProps>) {
     };
     window.addEventListener('hana-plan-mode', handler);
     return () => window.removeEventListener('hana-plan-mode', handler);
-  }, [activeServerConnection, setPermissionMode, setThinkingLevel, surface]);
+  }, [activeServerConnection, currentSessionPath, pendingNewSession, setPermissionMode, setThinkingLevel, surface]);
 
   // ── Handle slash selection (builtin vs skill) ──
   const handleSlashSelect = useCallback((item: SlashItem) => {

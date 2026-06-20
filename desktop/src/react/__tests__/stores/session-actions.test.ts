@@ -623,7 +623,7 @@ function mockPermissionDefault(mode = 'ask') {
         if (url === '/api/preferences/session-permission-default') {
           return jsonResponse({ permissionMode: 'ask' });
         }
-        if (url === '/api/session-thinking-level') {
+        if (url === '/api/session-thinking-level?pendingNewSession=1') {
           return jsonResponse({ thinkingLevel: 'medium' });
         }
         throw new Error(`unexpected fetch: ${url}`);
@@ -631,7 +631,7 @@ function mockPermissionDefault(mode = 'ask') {
 
       await createNewSession();
 
-      expect(mockFetch).toHaveBeenCalledWith('/api/session-thinking-level');
+      expect(mockFetch).toHaveBeenCalledWith('/api/session-thinking-level?pendingNewSession=1');
       expect(mockState.thinkingLevel).toBe('medium');
       expect(mockState.pendingNewSessionThinkingLevel).toBe('medium');
     });

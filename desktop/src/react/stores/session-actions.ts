@@ -841,7 +841,7 @@ export async function createNewSession(options: CreateNewSessionOptions = {}): P
   await loadPendingNewSessionPermissionDefault();
 
   try {
-    const res = await hanaFetch('/api/session-thinking-level');
+    const res = await hanaFetch('/api/session-thinking-level?pendingNewSession=1');
     const data = await res.json();
     if (data.thinkingLevel && isPendingNewSessionDraftView()) {
       useStore.getState().setThinkingLevel(data.thinkingLevel);
