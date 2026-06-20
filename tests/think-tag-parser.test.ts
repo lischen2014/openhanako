@@ -25,6 +25,12 @@ describe("ThinkTagParser", () => {
     ]);
   });
 
+  it("keeps ordinary reasoning prose visible unless it is in a structured channel", () => {
+    expect(collect("思考过程：先比较方案。最终答案：选择 A。")).toEqual([
+      { type: "text", data: "思考过程：先比较方案。最终答案：选择 A。" },
+    ]);
+  });
+
   it("does not hold a trailing inline tag prefix after visible text", () => {
     const chunks = ["正文里提到 <thi", "nk> 标签"];
     expect(collect(chunks.join(""), chunks)).toEqual([

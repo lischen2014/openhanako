@@ -185,12 +185,15 @@ describe("known-models dictionary", () => {
     expect(lookupKnown("agnes", "agnes-2.0-flash")).toMatchObject({
       name: "Agnes 2.0 Flash",
       image: true,
-      reasoning: true,
+      reasoning: false,
       toolUse: {
         supportsTools: true,
         dialect: "openai",
         toolResultFormat: "message",
       },
+    });
+    expect(lookupKnown("custom", "agnes-2.0-flash")).toMatchObject({
+      reasoning: false,
     });
   });
 

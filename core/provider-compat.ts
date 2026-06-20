@@ -23,6 +23,7 @@ import * as kimi from "./provider-compat/kimi.ts";
 import * as mimo from "./provider-compat/mimo.ts";
 import * as qwen from "./provider-compat/qwen.ts";
 import * as zhipu from "./provider-compat/zhipu.ts";
+import * as agnes from "./provider-compat/agnes.ts";
 import * as openaiInputAudio from "./provider-compat/openai-input-audio.ts";
 import * as openaiVideoUrl from "./provider-compat/openai-video-url.ts";
 import * as openrouter from "./provider-compat/openrouter.ts";
@@ -56,6 +57,7 @@ const PROVIDER_MODULES: ProviderModule[] = [
   mimo,
   qwen,
   zhipu,
+  agnes,
   openaiInputAudio,
   openaiVideoUrl,
   openrouter,
