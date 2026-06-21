@@ -1,5 +1,5 @@
 import type { ResourceEventBus } from "./resource-event-bus.ts";
-import { capabilityDenied, providerNotAvailable } from "./errors.ts";
+import { capabilityDenied, crossProviderCopyUnsupported, providerNotAvailable } from "./errors.ts";
 import { normalizeResourceRef } from "./resource-refs.ts";
 import type {
   MaterializeResult,
@@ -134,7 +134,7 @@ export class ResourceIO {
     const fromRef = normalizeResourceRef(from);
     const toRef = normalizeResourceRef(to);
     if (fromRef.kind !== toRef.kind) {
-      throw new Error(`cross-provider copy is not implemented: ${fromRef.kind} -> ${toRef.kind}`);
+      throw crossProviderCopyUnsupported(providerIdForRef(fromRef), providerIdForRef(toRef));
     }
     const result = await this.callProvider<ResourceMutationResult>(toRef, "copy", fromRef, toRef);
     this.emitChanged(result, options);

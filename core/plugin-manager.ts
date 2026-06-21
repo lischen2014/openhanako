@@ -233,6 +233,7 @@ export class PluginManager {
   declare _providerPlugins: any;
   declare _registerSessionFile: any;
   declare _emitResourceChanged: any;
+  declare _resourceIO: any;
   declare _routeApps: any;
   declare _runtimeContext: any;
   declare _scanned: any;
@@ -257,6 +258,7 @@ export class PluginManager {
     getSessionPath,
     registerSessionFile,
     emitResourceChanged,
+    resourceIO,
     slashRegistry,
     loadTimeoutMs,
     lifecycleTimeoutMs,
@@ -271,6 +273,7 @@ export class PluginManager {
     this._getSessionPath = getSessionPath || (() => null);
     this._registerSessionFile = registerSessionFile || null;
     this._emitResourceChanged = typeof emitResourceChanged === "function" ? emitResourceChanged : null;
+    this._resourceIO = resourceIO || null;
     this._logSink = typeof logSink === "function" ? logSink : null;
     this._runtimeContext = runtimeContext || null;
     this._plugins = new Map();
@@ -690,6 +693,7 @@ export class PluginManager {
       accessLevel,
       registerSessionFile: this._registerSessionFile,
       emitResourceChanged: this._emitResourceChanged,
+      resourceIO: this._resourceIO,
       configSchema: entry.configSchema,
       logSink: this._logSink,
       runtimeContext: this._runtimeContext,
@@ -836,8 +840,8 @@ export class PluginManager {
             const sessionCtx = normalizeToolSessionRef(runtimeCtx, fallbackSessionPath);
             const helperCtx = withInvocationSessionHelpers(ctx, sessionCtx);
             const mergedCtx = hasExplicitCtx
-              ? { ...ctx, ...runtimeCtx, ...sessionCtx, ...helperCtx }
-              : { ...ctx, ...sessionCtx, ...helperCtx };
+              ? { ...ctx, ...runtimeCtx, ...sessionCtx, ...helperCtx, resources: ctx.resources }
+              : { ...ctx, ...sessionCtx, ...helperCtx, resources: ctx.resources };
             const raw = await origExecute(params, mergedCtx);
             return normalizePluginToolResult(raw, ctx.pluginId);
           },

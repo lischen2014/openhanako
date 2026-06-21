@@ -4,9 +4,9 @@ import { createPluginConfigStore } from "./plugin-config.ts";
 
 /**
  * Create a PluginContext for a plugin.
- * @param {{ pluginId: string, pluginKey?: string, source?: string, pluginDir: string, dataDir: string, bus: object, accessLevel?: "full-access" | "restricted", permissions?: string[], capabilities?: string[] | null, sensitiveCapabilities?: string[] | null, network?: object | null, fetchImpl?: Function, registerSessionFile?: Function, emitResourceChanged?: Function, configSchema?: object, logSink?: Function, runtimeContext?: object }} opts
+ * @param {{ pluginId: string, pluginKey?: string, source?: string, pluginDir: string, dataDir: string, bus: object, accessLevel?: "full-access" | "restricted", permissions?: string[], capabilities?: string[] | null, sensitiveCapabilities?: string[] | null, network?: object | null, fetchImpl?: Function, registerSessionFile?: Function, emitResourceChanged?: Function, resourceIO?: object | Function, configSchema?: object, logSink?: Function, runtimeContext?: object }} opts
  */
-export function createPluginContext({ pluginId, pluginKey, source, pluginDir, dataDir, bus, accessLevel, permissions, capabilities, sensitiveCapabilities, network = null, fetchImpl = undefined, registerSessionFile: registerSessionFileImpl, emitResourceChanged, configSchema, logSink, runtimeContext }) {
+export function createPluginContext({ pluginId, pluginKey, source, pluginDir, dataDir, bus, accessLevel, permissions, capabilities, sensitiveCapabilities, network = null, fetchImpl = undefined, registerSessionFile: registerSessionFileImpl, emitResourceChanged, resourceIO = null, configSchema, logSink, runtimeContext }) {
   const config = createPluginConfigStore({ dataDir, schema: configSchema });
   const runtimeScope = runtimeContext ? {
     serverId: runtimeContext.serverId,
@@ -33,6 +33,13 @@ export function createPluginContext({ pluginId, pluginKey, source, pluginDir, da
     capabilities: declaredCapabilities,
     sensitiveCapabilities: declaredSensitiveCapabilities,
     fetchImpl,
+  });
+  const pluginResources = createPluginResources({
+    pluginId,
+    resourceIO,
+    capabilities: declaredCapabilities,
+    sensitiveCapabilities: declaredSensitiveCapabilities,
+    runtimeScope,
   });
   const prefix = `[plugin:${pluginId}]`;
   const recordLog = (level, args) => {
@@ -151,6 +158,7 @@ export function createPluginContext({ pluginId, pluginKey, source, pluginDir, da
     bus: pluginBus,
     appEvents,
     resourceEvents,
+    resources: pluginResources,
     network: pluginNetwork,
     config,
     log,
@@ -271,6 +279,99 @@ function normalizeSessionRef(value, fallback: any = {}) {
     ...(sessionPath ? { sessionPath } : {}),
     ...(legacySessionPath ? { legacySessionPath } : {}),
   };
+}
+
+function createPluginResources({ pluginId, resourceIO, capabilities, sensitiveCapabilities, runtimeScope }) {
+  const getResourceIO = () => {
+    const resolved = typeof resourceIO === "function" ? resourceIO() : resourceIO;
+    if (resolved && typeof resolved === "object") return resolved;
+    throw pluginResourceError(
+      "PLUGIN_RESOURCE_IO_UNAVAILABLE",
+      "Plugin ResourceIO is unavailable in this runtime",
+      { pluginId },
+    );
+  };
+  const assertCapability = (capability) => {
+    if (
+      hasCapabilityDeclaration(capabilities, capability)
+      || hasCapabilityDeclaration(sensitiveCapabilities, capability)
+    ) {
+      return;
+    }
+    throw pluginResourceError(
+      "PLUGIN_RESOURCE_CAPABILITY_NOT_DECLARED",
+      `Plugin ResourceIO operation requires manifest capability "${capability}"`,
+      { pluginId, capability },
+    );
+  };
+  const mutationOptions = (operation, options: any = {}) => ({
+    ...(options?.emit === false ? { emit: false } : {}),
+    source: "api",
+    reason: `plugin:${pluginId}:${operation}`,
+    sessionPath: textOrNull(runtimeScope?.sessionPath) || null,
+  });
+
+  return Object.freeze({
+    async stat(ref) {
+      assertCapability("resource.read");
+      return getResourceIO().stat(ref);
+    },
+    async read(ref) {
+      assertCapability("resource.read");
+      return getResourceIO().read(ref);
+    },
+    async list(ref) {
+      assertCapability("resource.read");
+      return getResourceIO().list(ref);
+    },
+    async search(ref, options: any = {}) {
+      assertCapability("resource.search");
+      return getResourceIO().search(ref, options);
+    },
+    async materialize(ref) {
+      assertCapability("resource.materialize");
+      return getResourceIO().materialize(ref);
+    },
+    async write(ref, content, options: any = {}) {
+      assertCapability("resource.write");
+      return getResourceIO().write(ref, content, mutationOptions("write", options));
+    },
+    async edit(ref, edits, options: any = {}) {
+      assertCapability("resource.write");
+      return getResourceIO().edit(ref, edits, mutationOptions("edit", options));
+    },
+    async mkdir(ref, options: any = {}) {
+      assertCapability("resource.write");
+      return getResourceIO().mkdir(ref, mutationOptions("mkdir", options));
+    },
+    async delete(ref, options: any = {}) {
+      assertCapability("resource.write");
+      return getResourceIO().delete(ref, mutationOptions("delete", options));
+    },
+    async copy(from, to, options: any = {}) {
+      assertCapability("resource.write");
+      return getResourceIO().copy(from, to, mutationOptions("copy", options));
+    },
+    resolveWatchTarget(ref) {
+      assertCapability("resource.watch");
+      const io = getResourceIO();
+      if (typeof io.resolveWatchTarget !== "function") {
+        throw pluginResourceError(
+          "PLUGIN_RESOURCE_WATCH_UNAVAILABLE",
+          "Plugin ResourceIO watch target resolution is unavailable in this runtime",
+          { pluginId },
+        );
+      }
+      return io.resolveWatchTarget(ref);
+    },
+  });
+}
+
+function pluginResourceError(code, message, extra: any = {}) {
+  const err: any = new Error(message);
+  err.code = code;
+  Object.assign(err, extra);
+  return err;
 }
 
 const DEFAULT_NETWORK_TIMEOUT_MS = 15_000;

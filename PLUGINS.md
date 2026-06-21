@@ -232,6 +232,27 @@ const tool = defineTool({
 export const { name, description, parameters, execute } = tool;
 ```
 
+#### 用户资源访问
+
+插件需要读取或修改用户资源时，使用 `ctx.resources`，资源可以是本地文件、挂载文件、`SessionFile`、Resource 记录或 URL。manifest 里按需声明能力：
+
+```json
+{
+  "capabilities": ["resource.read", "resource.search", "resource.write"]
+}
+```
+
+```js
+export async function execute(input, ctx) {
+  const ref = { kind: "mount", mountId: input.mountId, path: input.path };
+  const file = await ctx.resources.read(ref);
+  await ctx.resources.write(ref, file.content.toString("utf-8") + "\nupdated\n");
+  return "updated";
+}
+```
+
+`resource.read` 覆盖 `stat`、`read`、`list`；`resource.search` 覆盖搜索；`resource.write` 覆盖 `write`、`edit`、`mkdir`、`delete`、`copy`；`resource.materialize` 用于把资源实体化成本机路径；`resource.watch` 用于解析监听目标。URL resource 保持只读。插件自己生成的文件仍然可以写到 `ctx.dataDir`，再通过 `stageFile()` 返回；用户资源读写不要直接用本地路径和 `fs.writeFileSync`。
+
 #### 媒体交付
 
 工具需要交付文件时，使用 `toolCtx.stageFile()` 把本地文件登记成当前 session 的 `SessionFile`，并直接复用它返回的 `mediaItem`：

@@ -72,4 +72,23 @@ describe("ResourceIO provider contract", () => {
     await expect(resourceIO.read({ kind: "local-file", path: "/repo/a.md" }))
       .rejects.toMatchObject({ code: "capability_denied" });
   });
+
+  it("rejects cross-provider copy with a typed ResourceIO error", async () => {
+    const resourceIO = new ResourceIO({
+      providers: {
+        local_fs: { capabilities: () => ({ copy: true }), copy: vi.fn() },
+        mount: { capabilities: () => ({ copy: true }), copy: vi.fn() },
+      },
+    });
+
+    await expect(resourceIO.copy(
+      { kind: "local-file", path: "/repo/a.md" },
+      { kind: "mount", mountId: "docs", path: "a.md" },
+    )).rejects.toMatchObject({
+      code: "cross_provider_copy_unsupported",
+      status: 501,
+      fromProvider: "local_fs",
+      toProvider: "mount",
+    });
+  });
 });

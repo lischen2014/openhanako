@@ -23,3 +23,23 @@ export function providerNotAvailable(providerId: string): ResourceIOError {
     status: 501,
   });
 }
+
+export function resourceAccessDenied(operation: string, filePath: string, reason?: string): ResourceIOError {
+  const err: any = new ResourceIOError(reason || `ResourceIO ${operation} denied: ${filePath}`, {
+    code: "resource_access_denied",
+    status: 403,
+  });
+  err.operation = operation;
+  err.filePath = filePath;
+  return err;
+}
+
+export function crossProviderCopyUnsupported(fromProvider: string, toProvider: string): ResourceIOError {
+  const err: any = new ResourceIOError(`ResourceIO cross-provider copy is not implemented: ${fromProvider} -> ${toProvider}`, {
+    code: "cross_provider_copy_unsupported",
+    status: 501,
+  });
+  err.fromProvider = fromProvider;
+  err.toProvider = toProvider;
+  return err;
+}

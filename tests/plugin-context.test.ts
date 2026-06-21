@@ -83,6 +83,61 @@ describe("createPluginContext", () => {
     expect(emitResourceChanged).toHaveBeenCalledWith(input);
   });
 
+  it("exposes a ResourceIO-backed resource facade with explicit capability checks", async () => {
+    const resourceIO = {
+      read: vi.fn(async (ref) => ({
+        resourceKey: "local_fs:/workspace/note.md",
+        resource: { kind: "local-file", path: "/workspace/note.md" },
+        content: Buffer.from("hello"),
+      })),
+      write: vi.fn(async (ref, content, options) => ({
+        changeType: "modified",
+        resourceKey: "local_fs:/workspace/note.md",
+        resource: { kind: "local-file", path: "/workspace/note.md" },
+        content,
+        options,
+      })),
+    };
+    const ctx = createPluginContext({
+      pluginId: "resource-plugin",
+      pluginDir: "/plugins/resource-plugin",
+      dataDir: "/plugin-data/resource-plugin",
+      bus: { emit() {}, subscribe() {}, request() {}, hasHandler() {} },
+      capabilities: ["resource.read"],
+      resourceIO,
+      runtimeContext: {
+        sessionPath: "/sessions/current.jsonl",
+      },
+    } as any);
+
+    const readResult = await ctx.resources.read({ kind: "local-file", path: "/workspace/note.md" });
+
+    expect(readResult.content.toString("utf-8")).toBe("hello");
+    expect(resourceIO.read).toHaveBeenCalledWith({ kind: "local-file", path: "/workspace/note.md" });
+    await expect(ctx.resources.write({ kind: "local-file", path: "/workspace/note.md" }, "updated"))
+      .rejects.toMatchObject({
+        code: "PLUGIN_RESOURCE_CAPABILITY_NOT_DECLARED",
+        capability: "resource.write",
+      });
+    expect(resourceIO.write).not.toHaveBeenCalled();
+  });
+
+  it("rejects resource operations when ResourceIO was not injected", async () => {
+    const ctx = createPluginContext({
+      pluginId: "resource-plugin",
+      pluginDir: "/plugins/resource-plugin",
+      dataDir: "/plugin-data/resource-plugin",
+      bus: { emit() {}, subscribe() {}, request() {}, hasHandler() {} },
+      capabilities: ["resource.read"],
+    } as any);
+
+    await expect(ctx.resources.read({ kind: "local-file", path: "/workspace/note.md" }))
+      .rejects.toMatchObject({
+        code: "PLUGIN_RESOURCE_IO_UNAVAILABLE",
+        pluginId: "resource-plugin",
+      });
+  });
+
   it("exposes server runtime scope when provided", () => {
     const bus = { emit() {}, subscribe() {}, request() {}, hasHandler() {} };
     const ctx = createPluginContext({

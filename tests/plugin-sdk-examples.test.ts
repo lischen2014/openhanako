@@ -50,6 +50,20 @@ describe("plugin SDK examples and docs", () => {
     expect(guide).toContain("npm run build:packages");
   });
 
+  it("documents ResourceIO access for user resources in plugin guides and Hana Plugin Creator", () => {
+    const sdkGuide = fs.readFileSync(path.join(root, "PLUGIN_SDK.md"), "utf-8");
+    const zhGuide = fs.readFileSync(path.join(root, "PLUGINS.md"), "utf-8");
+    const enGuide = fs.readFileSync(path.join(root, "PLUGINS_EN.md"), "utf-8");
+    const creatorSkill = fs.readFileSync(path.join(root, "skills2set", "hana-plugin-creator", "SKILL.md"), "utf-8");
+
+    for (const doc of [sdkGuide, zhGuide, enGuide, creatorSkill]) {
+      expect(doc).toContain("ctx.resources");
+      expect(doc).toContain("resource.read");
+      expect(doc).toContain("resource.write");
+    }
+    expect(creatorSkill).toContain("Do not use local path writes for user resources");
+  });
+
   it("ships a showcase plugin manifest that exercises iframe grants and UI contributions", () => {
     const manifest = JSON.parse(fs.readFileSync(path.join(exampleDir, "manifest.json"), "utf-8"));
 
@@ -96,6 +110,9 @@ describe("plugin SDK examples and docs", () => {
     expect(runtimeTypes).toContain("generateMedia");
     expect(runtimeTypes).toContain("transcribeAudio");
     expect(runtimeTypes).toContain("HanaProviderMediaMode");
+    expect(runtimeTypes).toContain("HanaPluginResources");
+    expect(runtimeTypes).toContain("HanaResourceRef");
+    expect(runtimeTypes).toContain("resources:");
     expect(runtimeReadme).toContain("modes[].inputLimits.referenceImages");
     expect(sdkTypes).toContain("api:");
     expect(sdkTypes).toContain("fetch(");

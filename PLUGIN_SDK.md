@@ -164,6 +164,27 @@ import {
 
 Tools should return local files through `stageFile()` and `createMediaDetails()` so desktop, Bridge, Mobile PWA, and future remote clients all consume the same `SessionFile` / Resource identity.
 
+### Runtime ResourceIO API
+
+Use `ctx.resources` for user resources such as local workspace files, mounted files, `SessionFile` references, Resource records, and URLs. Declare the exact manifest capabilities the plugin needs:
+
+```json
+{
+  "capabilities": ["resource.read", "resource.search", "resource.write"]
+}
+```
+
+```js
+export async function execute(input, ctx) {
+  const ref = { kind: "mount", mountId: input.mountId, path: input.path };
+  const file = await ctx.resources.read(ref);
+  await ctx.resources.write(ref, file.content.toString("utf-8") + "\nupdated\n");
+  return "updated";
+}
+```
+
+`resource.read` covers `stat`, `read`, and `list`; `resource.search` covers search; `resource.write` covers `write`, `edit`, `mkdir`, `delete`, and `copy`; `resource.materialize` is required before asking the host for a concrete local path; `resource.watch` covers watch-target resolution. URL resources are read-only and write attempts fail at the provider boundary. Plugin-generated artifacts may still be written under `ctx.dataDir` and returned with `stageFile()`, but user resource edits should not use raw local path writes.
+
 Scheduled automation plugin actions reuse plugin tools in v0. A cron executor saved as `plugin_action` with `{ pluginId, actionId, params }` maps to the loaded tool named `pluginId_actionId`. The scheduler stores only JSON data and invokes the tool at runtime; plugin-authored static `tools/*.js` tools and dynamic `ctx.registerTool()` tools both receive the SDK-style `(input, ctx)` call. If the plugin or tool is unavailable, the run fails explicitly and is recorded in cron history.
 
 Lifecycle plugins should declare `activationEvents` in `manifest.json` when they do not need to start on app launch. Existing lifecycle plugins without this field still activate on startup for compatibility.

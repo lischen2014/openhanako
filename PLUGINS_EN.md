@@ -190,6 +190,27 @@ const tool = defineTool({
 export const { name, description, parameters, execute } = tool;
 ```
 
+#### User Resource Access
+
+Use `ctx.resources` when a plugin needs to read or modify user resources. A resource can be a local file, mounted file, `SessionFile`, Resource record, or URL. Declare the exact capabilities in `manifest.json`:
+
+```json
+{
+  "capabilities": ["resource.read", "resource.search", "resource.write"]
+}
+```
+
+```js
+export async function execute(input, ctx) {
+  const ref = { kind: "mount", mountId: input.mountId, path: input.path };
+  const file = await ctx.resources.read(ref);
+  await ctx.resources.write(ref, file.content.toString("utf-8") + "\nupdated\n");
+  return "updated";
+}
+```
+
+`resource.read` covers `stat`, `read`, and `list`; `resource.search` covers search; `resource.write` covers `write`, `edit`, `mkdir`, `delete`, and `copy`; `resource.materialize` is for turning a resource into a concrete local path; `resource.watch` resolves watch targets. URL resources stay read-only. Plugin-generated artifacts may still be written under `ctx.dataDir` and returned with `stageFile()`, but user resource reads and writes should not use raw local paths or `fs.writeFileSync`.
+
 #### Media Delivery
 
 When a tool needs to deliver files, first stage the local file as a `SessionFile` for the current session, then return the staged media item through `details.media.items`:

@@ -2052,6 +2052,7 @@ export class HanaEngine {
       getSessionPath: () => this.currentSessionPath,
       registerSessionFile: (entry) => this.registerSessionFile(entry),
       emitResourceChanged: (input) => this.emitResourceChanged(input),
+      resourceIO: () => this.getResourceIO(),
       slashRegistry: this._slashSystem?.registry ?? null,
       loadTimeoutMs: undefined,
       lifecycleTimeoutMs: undefined,

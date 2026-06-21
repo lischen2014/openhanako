@@ -3,6 +3,7 @@ import os from "os";
 import path from "path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { wrapResourceIoFileTools, __resourceIoAgentToolsForTest } from "../lib/resource-io/agent-tools.ts";
+import { createResourceIoToolOperations } from "../lib/resource-io/pi-tool-operations.ts";
 
 describe("ResourceIO agent tools", () => {
   let tmpDir;
@@ -63,6 +64,36 @@ describe("ResourceIO agent tools", () => {
       expect.objectContaining({ path: absolutePath, content: "# A\n" }),
     );
     expect(fs.readFileSync(absolutePath, "utf-8")).toBe("# A\n");
+  });
+
+  it("routes local path file-tool writes through ResourceIO operations", async () => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "hana-resource-io-local-tool-"));
+    const resourceIO = {
+      write: vi.fn(async () => ({
+        changeType: "created",
+        resourceKey: "local_fs:/workspace/notes/a.md",
+        resource: { kind: "local-file", path: "/workspace/notes/a.md" },
+      })),
+      stat: vi.fn(async () => ({ exists: false, isDirectory: false })),
+    };
+    const ops = createResourceIoToolOperations({
+      cwd: tmpDir,
+      resourceIO: resourceIO as any,
+      getSessionPath: () => "/sessions/a.jsonl",
+    });
+    const filePath = path.join(tmpDir, "notes", "a.md");
+
+    await ops.write.writeFile(filePath, "# A\n");
+
+    expect(resourceIO.write).toHaveBeenCalledWith(
+      { kind: "local-file", path: filePath },
+      "# A\n",
+      expect.objectContaining({
+        source: "agent_tool",
+        reason: "agent_write",
+        sessionPath: "/sessions/a.jsonl",
+      }),
+    );
   });
 
   it("fails closed instead of delegating to legacy file tools when ResourceIO is unavailable", async () => {

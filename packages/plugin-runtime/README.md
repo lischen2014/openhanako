@@ -118,6 +118,38 @@ private-network targets, timeout, cache TTL, and response byte limit. Keep API
 keys in plugin configuration and read them from route or lifecycle code; do not
 ship secrets in iframe assets.
 
+## User resource access
+
+Use `ctx.resources` when runtime plugin code needs user resources such as local
+workspace files, mounted files, `SessionFile` references, Resource records, or
+URLs.
+
+```json
+{
+  "capabilities": ["resource.read", "resource.search", "resource.write"]
+}
+```
+
+```ts
+export const updateNote = defineTool({
+  name: 'update_note',
+  description: 'Update a mounted note',
+  async execute(input: { mountId: string; path: string }, ctx) {
+    const ref = { kind: 'mount' as const, mountId: input.mountId, path: input.path };
+    const file = await ctx.resources.read(ref);
+    await ctx.resources.write(ref, file.content.toString() + '\nupdated\n');
+    return 'updated';
+  },
+});
+```
+
+`resource.read` covers `stat`, `read`, and `list`; `resource.search` covers
+search; `resource.write` covers `write`, `edit`, `mkdir`, `delete`, and `copy`;
+`resource.materialize` is required before asking the host for a concrete local
+path; `resource.watch` resolves watch targets. URL resources are read-only.
+Plugin-generated artifacts can still be written under `ctx.dataDir` and returned
+with `stageFile()`, but user resource edits should go through `ctx.resources`.
+
 ## Session, Agent, model, and media helpers
 
 Plugins that need their own chat surface should use the typed helpers instead of

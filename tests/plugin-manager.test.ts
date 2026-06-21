@@ -695,6 +695,49 @@ describe("tool loading", () => {
     }]);
   });
 
+  it("passes ResourceIO-backed resources into plugin tool context", async () => {
+    const resourceIO = {
+      read: vi.fn(async (ref) => ({
+        resourceKey: "mount:docs:note.md",
+        resource: ref,
+        content: Buffer.from("mounted note"),
+      })),
+    };
+    const dir = path.join(pluginsDir, "resource-tool-plugin");
+    fs.mkdirSync(path.join(dir, "tools"), { recursive: true });
+    fs.writeFileSync(path.join(dir, "manifest.json"), JSON.stringify({
+      id: "resource-tool-plugin",
+      capabilities: ["resource.read"],
+    }));
+    fs.writeFileSync(path.join(dir, "tools", "read-resource.js"), `
+      export const name = "read_resource";
+      export const description = "Read a resource";
+      export const parameters = {};
+      export async function execute(input, ctx) {
+        const result = await ctx.resources.read(input.resource);
+        return result.content.toString("utf-8");
+      }
+    `);
+    const pm = new PluginManager({
+      pluginsDir,
+      dataDir,
+      bus: await makeBus(),
+      resourceIO,
+    } as any);
+    pm.scan();
+    await pm.loadAll();
+
+    const tool = pm.getAllTools()[0];
+    const result = await tool.execute("call-1", {
+      resource: { kind: "mount", mountId: "docs", path: "note.md" },
+    }, {
+      sessionPath: "/sessions/plugin.jsonl",
+    });
+
+    expect(result.content[0].text).toBe("mounted note");
+    expect(resourceIO.read).toHaveBeenCalledWith({ kind: "mount", mountId: "docs", path: "note.md" });
+  });
+
   it("passes sessionId-first runtime context into plugin tools and staged files", async () => {
     const registerSessionFile = vi.fn(({ sessionId, sessionPath, sessionRef, filePath, label, origin, storageKind }) => ({
       id: "sf_plugin_identity",

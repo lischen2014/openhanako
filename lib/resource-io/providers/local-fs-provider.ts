@@ -1,5 +1,6 @@
 import fs from "fs";
 import path from "path";
+import { resourceAccessDenied } from "../errors.ts";
 import { normalizeResourceRef, resourceKeyForRef } from "../resource-refs.ts";
 import type {
   MaterializeResult,
@@ -241,7 +242,7 @@ export class LocalFsProvider {
   assertAllowed(filePath: string, operation: "read" | "write" | "delete"): void {
     if (!this.guard) return;
     const result = this.guard.check(filePath, operation);
-    if (!result?.allowed) throw new Error(result?.reason || `resource ${operation} denied: ${filePath}`);
+    if (!result?.allowed) throw resourceAccessDenied(operation, filePath, result?.reason);
   }
 }
 

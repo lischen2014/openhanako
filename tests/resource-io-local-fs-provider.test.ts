@@ -45,7 +45,13 @@ describe("LocalFsProvider", () => {
   it("denies writes outside the guard", async () => {
     const { provider } = makeProvider(vi.fn(() => ({ allowed: false, reason: "denied by test" })));
 
-    await expect(provider.write({ kind: "local-file", path: "blocked.md" }, "x")).rejects.toThrow("denied by test");
+    await expect(provider.write({ kind: "local-file", path: "blocked.md" }, "x"))
+      .rejects.toMatchObject({
+        code: "resource_access_denied",
+        status: 403,
+        operation: "write",
+        message: "denied by test",
+      });
   });
 
   it("reads, lists, searches, copies, deletes, and materializes local files", async () => {

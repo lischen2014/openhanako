@@ -1,13 +1,9 @@
-import fs from "fs";
-import path from "path";
-import { deriveSandboxPolicy } from "../sandbox/policy.ts";
-import { PathGuard } from "../sandbox/path-guard.ts";
-import { createManagedConfigWriteGuard } from "../sandbox/managed-config-guard.ts";
 import { LocalFsProvider } from "./providers/local-fs-provider.ts";
 import { MountProvider } from "./providers/mount-provider.ts";
 import { ResourceProvider } from "./providers/resource-provider.ts";
 import { SessionFileResolverProvider } from "./providers/session-file-resolver.ts";
 import { UrlProvider } from "./providers/url-provider.ts";
+import { ResourceAccessPolicy } from "./resource-access-policy.ts";
 import { ResourceEventBus } from "./resource-event-bus.ts";
 import { ResourceIO } from "./resource-io.ts";
 
@@ -48,41 +44,18 @@ export function createSandboxResourceIO({
   studioId,
   urlMaterializeRoot,
 }: Options) {
-  const resolveAuthorizedFolders = () => {
-    if (typeof getAuthorizedFolders === "function") {
-      const folders = getAuthorizedFolders();
-      return Array.isArray(folders) ? folders : [];
-    }
-    return Array.isArray(authorizedFolders) ? authorizedFolders : [];
-  };
-  const makePolicy = () => deriveSandboxPolicy({
+  const resourceAccessGuard = new ResourceAccessPolicy({
     agentDir,
     cwd,
     workspace,
-    workspaceFolders: [
-      ...(Array.isArray(workspaceFolders) ? workspaceFolders : []),
-      ...resolveAuthorizedFolders(),
-    ],
+    workspaceFolders,
     hanakoHome,
-    mode: "standard",
+    getAuthorizedFolders: typeof getAuthorizedFolders === "function"
+      ? getAuthorizedFolders
+      : () => Array.isArray(authorizedFolders) ? authorizedFolders : [],
+    getSandboxEnabled: typeof getSandboxEnabled === "function" ? getSandboxEnabled : () => false,
+    getExternalReadPaths,
   });
-  const pathGuard = {
-    check: (absolutePath, operation) => new PathGuard(makePolicy()).check(absolutePath, operation),
-  };
-  const checkManagedConfigWrite = createManagedConfigWriteGuard({ hanakoHome });
-  const resourceAccessGuard = {
-    check: (absolutePath, operation) => {
-      const managedConfigCheck = checkManagedConfigWrite(absolutePath, operation);
-      if (!managedConfigCheck.allowed) return managedConfigCheck;
-      if (typeof getSandboxEnabled === "function" && !getSandboxEnabled()) return { allowed: true };
-      const result = pathGuard.check(absolutePath, operation);
-      if (result.allowed) return result;
-      if (operation === "read" && hasExternalReadGrant(absolutePath, { getExternalReadPaths })) {
-        return { allowed: true };
-      }
-      return result;
-    },
-  };
 
   const localFsProviderFactory = ({ cwd: providerCwd, guard }) => new LocalFsProvider({ cwd: providerCwd, guard });
   const providers: Record<string, any> = {
@@ -111,39 +84,4 @@ export function createSandboxResourceIO({
     }),
     getSessionPath: () => getSessionPath?.() || null,
   });
-}
-
-function normalizeExistingOrResolvedPath(filePath) {
-  const resolved = path.resolve(filePath);
-  try {
-    return fs.realpathSync(resolved);
-  } catch {
-    return resolved;
-  }
-}
-
-function isInsideRoot(filePath, root) {
-  const rel = path.relative(root, filePath);
-  return rel === "" || (!!rel && !rel.startsWith("..") && !path.isAbsolute(rel));
-}
-
-function externalReadGrantCovers(targetPath, grantPath) {
-  const target = normalizeExistingOrResolvedPath(targetPath);
-  const grant = normalizeExistingOrResolvedPath(grantPath);
-  if (target === grant) return true;
-  try {
-    return fs.statSync(grant).isDirectory() && isInsideRoot(target, grant);
-  } catch {
-    return false;
-  }
-}
-
-function hasExternalReadGrant(absolutePath, { getExternalReadPaths }: { getExternalReadPaths?: any } = {}) {
-  if (!absolutePath || typeof getExternalReadPaths !== "function") return false;
-  try {
-    const grants = getExternalReadPaths() || [];
-    return Array.isArray(grants) && grants.some((grantPath) => grantPath && externalReadGrantCovers(absolutePath, grantPath));
-  } catch {
-    return false;
-  }
 }
