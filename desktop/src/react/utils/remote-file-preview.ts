@@ -130,12 +130,54 @@ async function blobToBase64(blob: Blob): Promise<string> {
   return btoa(binary);
 }
 
-async function readContentForPreview(contentPath: string, previewType: string): Promise<string> {
-  const res = await hanaFetch(contentPath);
-  if (BINARY_PREVIEW_TYPES.has(previewType)) {
-    return blobToBase64(await res.blob());
+interface PreviewContentSnapshot {
+  content: string;
+  fileVersion?: FileVersion;
+}
+
+function fileVersionFromContentHeaders(headers: Headers): FileVersion | undefined {
+  const mtimeMs = Number(headers.get('X-Hana-File-MtimeMs'));
+  const size = Number(headers.get('X-Hana-File-Size'));
+  if (!Number.isFinite(mtimeMs) || !Number.isFinite(size)) return undefined;
+  return { mtimeMs, size };
+}
+
+function newestKnownFileVersion(
+  ...versions: Array<FileVersion | null | undefined>
+): FileVersion | undefined {
+  let newest: FileVersion | undefined;
+  for (const version of versions) {
+    if (!version || !Number.isFinite(version.mtimeMs) || !Number.isFinite(version.size)) continue;
+    if (!newest || version.mtimeMs > newest.mtimeMs) {
+      newest = version;
+      continue;
+    }
+    if (version.mtimeMs === newest.mtimeMs && version.size > newest.size) newest = version;
   }
-  return res.text();
+  return newest;
+}
+
+function remoteContentRefWithVersion(
+  ref: RemoteWorkbenchContentRef | undefined,
+  version: FileVersion | undefined,
+): RemoteWorkbenchContentRef | undefined {
+  if (!ref) return ref;
+  return {
+    ...ref,
+    version,
+  };
+}
+
+async function readContentForPreview(contentPath: string, previewType: string): Promise<PreviewContentSnapshot> {
+  const res = await hanaFetch(contentPath);
+  const fileVersion = fileVersionFromContentHeaders(res.headers);
+  let content: string;
+  if (BINARY_PREVIEW_TYPES.has(previewType)) {
+    content = await blobToBase64(await res.blob());
+  } else {
+    content = await res.text();
+  }
+  return { content, fileVersion };
 }
 
 const REMOTE_REFRESH_RETRY_DELAYS_MS = [80, 240, 600] as const;
@@ -154,18 +196,18 @@ async function readRemotePreviewContentWithRetry(
   contentPath: string,
   item: PreviewItem,
   options: RemoteWorkbenchRefreshOptions,
-): Promise<string> {
+): Promise<PreviewContentSnapshot> {
   const retryDelaysMs = options.retryDelaysMs ?? REMOTE_REFRESH_RETRY_DELAYS_MS;
-  let lastContent = '';
+  let lastRead: PreviewContentSnapshot = { content: '' };
   for (let attempt = 0; ; attempt += 1) {
-    const nextContent = await readContentForPreview(appendCacheBustQuery(contentPath, attempt), item.type);
+    const nextRead = await readContentForPreview(appendCacheBustQuery(contentPath, attempt), item.type);
     const canRetry = attempt < retryDelaysMs.length;
-    const shouldRetryUnchanged = options.retryUnchanged && nextContent === item.content;
-    if (!canRetry || !shouldRetryUnchanged) return nextContent;
-    lastContent = nextContent;
+    const shouldRetryUnchanged = options.retryUnchanged && nextRead.content === item.content;
+    if (!canRetry || !shouldRetryUnchanged) return nextRead;
+    lastRead = nextRead;
     await delay(retryDelaysMs[attempt] ?? 0);
   }
-  return lastContent;
+  return lastRead;
 }
 
 async function openRemoteContentPreview({
@@ -193,17 +235,18 @@ async function openRemoteContentPreview({
 
   const previewType = PREVIEWABLE_EXTS[ext];
   if (previewType && previewType !== 'docx' && previewType !== 'xlsx') {
-    const content = await readContentForPreview(contentPath, previewType);
+    const read = await readContentForPreview(contentPath, previewType);
+    const fileVersion = read.fileVersion;
     const previewItem: PreviewItem = {
       id,
       type: previewType,
       title,
-      content,
+      content: read.content,
       ext,
       language: previewType === 'code' ? ext : undefined,
       storageKind: 'remote-content',
-      fileVersion: remoteContentRef?.version ?? undefined,
-      remoteContentRef,
+      fileVersion,
+      remoteContentRef: remoteContentRefWithVersion(remoteContentRef, fileVersion),
     };
     openPreview(previewItem);
     return;
@@ -269,8 +312,13 @@ export async function refreshPreviewItemsFromRemoteWorkbenchTarget(
     refsPointToSameWorkbenchFile(item.remoteContentRef, normalized));
   for (const item of matching) {
     const contentPath = item.remoteContentRef?.contentPath || encodeWorkbenchContentPath(normalized);
-    const content = await readRemotePreviewContentWithRetry(contentPath, item, options);
-    const nextVersion = normalized.version ?? item.remoteContentRef?.version ?? item.fileVersion;
+    const read = await readRemotePreviewContentWithRetry(contentPath, item, options);
+    const nextVersion = newestKnownFileVersion(
+      read.fileVersion,
+      item.fileVersion,
+      normalized.version ?? undefined,
+      item.remoteContentRef?.version ?? undefined,
+    );
     const remoteContentRef = item.remoteContentRef
       ? {
           ...item.remoteContentRef,
@@ -279,7 +327,7 @@ export async function refreshPreviewItemsFromRemoteWorkbenchTarget(
       : item.remoteContentRef;
     upsertPreviewItem({
       ...item,
-      content,
+      content: read.content,
       fileVersion: nextVersion,
       remoteContentRef,
       status: 'available',

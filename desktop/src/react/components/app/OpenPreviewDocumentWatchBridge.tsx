@@ -13,10 +13,11 @@ export function OpenPreviewDocumentWatchBridge() {
   const deskBasePath = useStore(s => s.deskBasePath);
   const deskWorkspaceMountId = useStore(s => s.deskWorkspaceMountId);
   const deskWorkspaceNativeRoot = useStore(s => s.deskWorkspaceNativeRoot);
+  const studioWorkspaces = useStore(s => s.studioWorkspaces);
   const subscriptionsRef = useRef<Map<string, () => void>>(new Map());
   const watchResources = useMemo(
     () => openPreviewDocumentWatchResources(),
-    [previewItems, openTabs, deskBasePath, deskWorkspaceMountId, deskWorkspaceNativeRoot],
+    [previewItems, openTabs, deskBasePath, deskWorkspaceMountId, deskWorkspaceNativeRoot, studioWorkspaces],
   );
   const watchResourcesKey = watchResources.map(item => resourceWatchKey(item.ref)).join('\n');
 

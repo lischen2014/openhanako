@@ -115,6 +115,8 @@ describe("mobile workbench route", () => {
     const content = await app.request("/api/workbench/content?name=note.md");
     expect(content.status).toBe(200);
     expect(await content.text()).toBe("old");
+    expect(Number(content.headers.get("X-Hana-File-MtimeMs"))).toBeGreaterThan(0);
+    expect(content.headers.get("X-Hana-File-Size")).toBe(String(Buffer.byteLength("old")));
 
     const write = await app.request("/api/workbench/actions", {
       method: "POST",
@@ -642,6 +644,8 @@ describe("mobile workbench route", () => {
     const content = await app.request("/api/workbench/content?mountId=mount_docs&name=mounted.md");
     expect(content.status).toBe(200);
     expect(await content.text()).toBe("mount body");
+    expect(Number(content.headers.get("X-Hana-File-MtimeMs"))).toBeGreaterThan(0);
+    expect(content.headers.get("X-Hana-File-Size")).toBe(String(Buffer.byteLength("mount body")));
 
     const write = await app.request("/api/workbench/actions", {
       method: "POST",

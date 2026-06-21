@@ -363,4 +363,37 @@ describe('preview document refresh', () => {
       PREVIEW_DOCUMENT_CHANGE_REFRESH_OPTIONS,
     );
   });
+
+  it('matches mounted workbench preview documents by mount registry when another mount is active', async () => {
+    const openRemote = remoteRef('note.md', 'mount_docs');
+    useStore.setState({
+      deskBasePath: 'studio:mount_other',
+      deskWorkspaceMountId: 'mount_other',
+      deskWorkspaceNativeRoot: '/Users/me/Other',
+      studioWorkspaces: [
+        { mountId: 'mount_docs', label: 'Docs', nativeRootPath: '/Users/me/Documents' },
+        { mountId: 'mount_other', label: 'Other', nativeRootPath: '/Users/me/Other' },
+      ],
+      previewItems: [
+        remoteItem('open-remote', openRemote),
+      ],
+      openTabs: ['open-remote'],
+    } as Partial<StoreState>);
+    const {
+      PREVIEW_DOCUMENT_CHANGE_REFRESH_OPTIONS,
+      openPreviewDocumentWatchFilePaths,
+      refreshOpenPreviewDocumentsForFilePath,
+    } = await import('../../utils/preview-document-refresh');
+
+    expect(openPreviewDocumentWatchFilePaths()).toEqual(['/Users/me/Documents/notes/note.md']);
+
+    await refreshOpenPreviewDocumentsForFilePath('/Users/me/Documents/notes/note.md');
+
+    expect(mocks.refreshPreviewItemsFromFile).not.toHaveBeenCalled();
+    expect(mocks.refreshPreviewItemsFromRemoteWorkbenchTarget).toHaveBeenCalledTimes(1);
+    expect(mocks.refreshPreviewItemsFromRemoteWorkbenchTarget).toHaveBeenCalledWith(
+      openRemote,
+      PREVIEW_DOCUMENT_CHANGE_REFRESH_OPTIONS,
+    );
+  });
 });

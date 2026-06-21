@@ -141,14 +141,23 @@ export function filePathForPreviewDocumentTarget(target: PreviewDocumentTarget, 
   const activeMountId = activeMountIdValue
     ? activeMountIdValue
     : 'default';
-  if (targetMountId !== activeMountId) return null;
-
-  const basePath = activeMountIdValue
-    ? (typeof state.deskWorkspaceNativeRoot === 'string' ? state.deskWorkspaceNativeRoot : '')
-    : (typeof state.deskBasePath === 'string' ? state.deskBasePath : '');
+  const basePath = targetMountId === activeMountId
+    ? (activeMountIdValue
+        ? (typeof state.deskWorkspaceNativeRoot === 'string' ? state.deskWorkspaceNativeRoot : '')
+        : (typeof state.deskBasePath === 'string' ? state.deskBasePath : ''))
+    : nativeRootForWorkbenchMount(state, targetMountId);
   if (!basePath) return null;
 
   return joinWorkspaceFilePath(basePath, normalized.subdir || '', normalized.name);
+}
+
+function nativeRootForWorkbenchMount(state: ReturnType<typeof useStore.getState>, mountId: string): string {
+  const workspaces = Array.isArray((state as any).studioWorkspaces)
+    ? (state as any).studioWorkspaces
+    : [];
+  const match = workspaces.find((workspace: any) =>
+    typeof workspace?.mountId === 'string' && workspace.mountId === mountId);
+  return typeof match?.nativeRootPath === 'string' ? match.nativeRootPath : '';
 }
 
 function resourceRefForPreviewDocumentTarget(
@@ -175,6 +184,7 @@ function resourceRefKey(ref: ResourceRef): string {
   if (ref.kind === 'local-file') return `local:${normalizeComparablePath(ref.path)}`;
   return `mount:${ref.mountId}:${normalizeSubdir(ref.path)}`;
 }
+
 export function openPreviewDocumentWatchFilePaths(): string[] {
   const state = useStore.getState();
   const targets = openPreviewDocumentTargets();
