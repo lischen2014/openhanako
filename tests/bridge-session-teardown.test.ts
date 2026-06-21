@@ -109,20 +109,20 @@ function makeTool(name) {
   };
 }
 
-function makeDepsWithTools(agent) {
-  const coreTools = CORE_TOOL_NAMES.map(makeTool);
-  const customTools = [makeTool("todo_write")];
+function makeDepsWithTools(agent, options: { toolNames?: string[]; customToolNames?: string[] } = {}) {
+  const toolNames = options.toolNames || CORE_TOOL_NAMES;
+  const customToolNames = options.customToolNames || ["todo_write"];
+  const coreTools = toolNames.map(makeTool);
+  const customTools = customToolNames.map(makeTool);
   return {
     ...makeDeps(agent),
     buildTools: () => ({ tools: coreTools, customTools }),
   };
 }
 
-function repairedBridgeToolSnapshot(names) {
-  return [
-    ...names,
-    ...CORE_TOOL_NAMES.filter((name) => !names.includes(name)),
-  ];
+function bridgeLiveToolSnapshot(names) {
+  const denied = new Set(["computer"]);
+  return names.filter((name) => !denied.has(name));
 }
 
 let rootDir;
@@ -506,9 +506,19 @@ describe("BridgeSessionManager teardown", () => {
     expect(index["tg_dm_fresh@agent-a"].name).toBe("Owner");
   });
 
-  it("repairs restored owner bridge tool snapshots before applying active tools", async () => {
+  it("recomputes restored owner bridge tools from live tools and applies the Bridge deny-list", async () => {
     const agent = makeAgent(rootDir);
-    const manager = new BridgeSessionManager(makeDepsWithTools(agent));
+    const liveToolNames = [
+      ...CORE_TOOL_NAMES,
+      "todo_write",
+      "media_generate-image",
+      "media_generate-video",
+      "computer",
+    ];
+    const manager = new BridgeSessionManager(makeDepsWithTools(agent, {
+      toolNames: liveToolNames,
+      customToolNames: [],
+    }));
     const sessionFile = path.join(agent.sessionDir, "bridge", "owner", "restore-tools.jsonl");
     fs.mkdirSync(path.dirname(sessionFile), { recursive: true });
     fs.writeFileSync(sessionFile, "{}\n", "utf-8");
@@ -538,15 +548,28 @@ describe("BridgeSessionManager teardown", () => {
 
     await manager.executeExternalMessage("hello", "tg_dm_restore_tools@agent-a", null, { agentId: "agent-a" });
 
-    expect(setActiveToolsByName).toHaveBeenCalledWith(repairedBridgeToolSnapshot(["todo_write"]));
+    const expected = bridgeLiveToolSnapshot(liveToolNames);
+    expect(setActiveToolsByName).toHaveBeenCalledWith(expected);
     expect(setActiveToolsByName.mock.calls[0][0]).not.toContain("retired_tool");
+    expect(setActiveToolsByName.mock.calls[0][0]).toContain("media_generate-image");
+    expect(setActiveToolsByName.mock.calls[0][0]).toContain("media_generate-video");
+    expect(setActiveToolsByName.mock.calls[0][0]).not.toContain("computer");
     expect(manager.readIndex(agent)["tg_dm_restore_tools@agent-a"].toolNames)
-      .toEqual(repairedBridgeToolSnapshot(["todo_write"]));
+      .toEqual(expected);
   });
 
-  it("repairs bridge compact tool snapshots before reopening temporary owner sessions", async () => {
+  it("recomputes bridge compact tool snapshots from live tools before reopening temporary owner sessions", async () => {
     const agent = makeAgent(rootDir);
-    const manager = new BridgeSessionManager(makeDepsWithTools(agent));
+    const liveToolNames = [
+      ...CORE_TOOL_NAMES,
+      "todo_write",
+      "media_generate-image",
+      "computer",
+    ];
+    const manager = new BridgeSessionManager(makeDepsWithTools(agent, {
+      toolNames: liveToolNames,
+      customToolNames: [],
+    }));
     const sessionFile = path.join(agent.sessionDir, "bridge", "owner", "compact-tools.jsonl");
     fs.mkdirSync(path.dirname(sessionFile), { recursive: true });
     fs.writeFileSync(sessionFile, "{}\n", "utf-8");
@@ -578,9 +601,10 @@ describe("BridgeSessionManager teardown", () => {
 
     await manager.compactSession("tg_dm_compact_tools@agent-a", { agentId: "agent-a" });
 
-    expect(setActiveToolsByName).toHaveBeenCalledWith(repairedBridgeToolSnapshot(["todo_write"]));
+    const expected = bridgeLiveToolSnapshot(liveToolNames);
+    expect(setActiveToolsByName).toHaveBeenCalledWith(expected);
     const indexEntry = manager.readIndex(agent)["tg_dm_compact_tools@agent-a"];
-    expect(indexEntry.toolNames).toEqual(repairedBridgeToolSnapshot(["todo_write"]));
+    expect(indexEntry.toolNames).toEqual(expected);
   });
 
   it("freshCompactSession records daily freshness when the bridge session is already compacted", async () => {
