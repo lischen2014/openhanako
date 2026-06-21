@@ -835,6 +835,17 @@ export class Hub {
       const { agent: fresh } = resolveAgentForBus(engine, agentId);
       return { config: fresh?.config || agent.config };
     }));
+
+    this._sessionHandlerCleanups.push(bus.handle("session:capability-drift:mark-stale", async (payload: any = {}) => {
+      if (typeof engine.markCapabilitySnapshotsStale !== "function") {
+        return { error: "capability_drift_unavailable" };
+      }
+      try {
+        return engine.markCapabilitySnapshotsStale(payload);
+      } catch (err) {
+        return { error: err.message || String(err) };
+      }
+    }));
   }
 
   _setupDmHandler() {

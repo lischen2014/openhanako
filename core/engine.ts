@@ -1107,6 +1107,7 @@ export class HanaEngine {
   async reloadSessionRuntime(p, opts = {}) { return this._sessionCoord.reloadSessionRuntime(p, opts); }
   /** #1624：当前应展示的"工具能力有更新"提示（无漂移 / 已 dismiss → null） */
   getSessionCapabilityDriftNotice(p) { return this._sessionCoord.getSessionCapabilityDriftNotice(p); }
+  markCapabilitySnapshotsStale(opts = {}) { return this._sessionCoord.markCapabilitySnapshotsStale(opts); }
   /** #1624：记录当前 fingerprint 已被用户关闭，持久化到 session-meta */
   async dismissSessionCapabilityDrift(p, fingerprint) { return this._sessionCoord.dismissSessionCapabilityDrift(p, fingerprint); }
   isSessionStreaming(p) { return this._sessionCoord.isSessionStreaming(p); }

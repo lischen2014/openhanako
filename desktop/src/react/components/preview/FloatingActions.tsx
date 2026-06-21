@@ -13,9 +13,11 @@ import { Tooltip } from '../../ui';
 import { extOfName, inferKindByExt } from '../../utils/file-kind';
 import type { RemoteContentRef, RemoteWorkbenchContentRef } from '../../types';
 import {
+  encodeWorkbenchContentPath,
   isRemoteWorkbenchContentRef,
   normalizeWorkbenchContentRef,
 } from '../../utils/remote-file-preview';
+import { refreshPreviewDocumentTarget } from '../../utils/preview-document-refresh';
 import type {
   MarkdownCoverImageInput,
   MarkdownCoverTargetInput,
@@ -143,6 +145,29 @@ function readBrowserFileAsBase64(file: File): Promise<string> {
   });
 }
 
+async function refreshCoverTargetPreview(target: MarkdownCoverTargetInput): Promise<void> {
+  if ('filePath' in target && target.filePath) {
+    await refreshPreviewDocumentTarget({ kind: 'local-file', filePath: target.filePath });
+    return;
+  }
+  if ('target' in target && target.target) {
+    const normalized = {
+      kind: 'workbench-file' as const,
+      mountId: target.target.mountId || target.target.rootId || 'default',
+      rootId: target.target.rootId,
+      subdir: target.target.subdir || '',
+      name: target.target.name,
+    };
+    await refreshPreviewDocumentTarget({
+      kind: 'workbench-file',
+      target: {
+        ...normalized,
+        contentPath: encodeWorkbenchContentPath(normalized),
+      },
+    });
+  }
+}
+
 export function FloatingActions({
   content,
   filePath,
@@ -251,6 +276,7 @@ export function FloatingActions({
         result.ok ? '已应用上传图片为 cover。' : `Cover 应用失败：${result.error}`,
         result.ok ? 'success' : 'error',
       );
+      if (result.ok) await refreshCoverTargetPreview(coverTarget);
     } catch (err) {
       dispatchCoverNotice(`Cover 应用失败：${err instanceof Error ? err.message : String(err)}`, 'error');
     } finally {
@@ -331,7 +357,10 @@ export function FloatingActions({
         result.ok ? `已应用「${item.title}」为 cover。` : `Cover 应用失败：${result.error}`,
         result.ok ? 'success' : 'error',
       );
-      if (result.ok) setCoverGalleryOpen(false);
+      if (result.ok) {
+        await refreshCoverTargetPreview(coverTarget);
+        setCoverGalleryOpen(false);
+      }
     } catch (err) {
       dispatchCoverNotice(`Cover 应用失败：${err instanceof Error ? err.message : String(err)}`, 'error');
     } finally {

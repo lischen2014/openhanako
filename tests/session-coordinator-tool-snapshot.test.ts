@@ -1057,6 +1057,39 @@ describe("session-coordinator tool snapshot (createSession)", () => {
       const meta = JSON.parse(await fsp.readFile(path.join(sessionDir, "session-meta.json"), "utf-8"));
       expect(meta[path.basename(fakeSessionPath)].capabilityDriftDismissedFingerprint).toBe(notice.fingerprint);
     });
+
+    it("marks cached sessions stale when current agent tools gain MCP tools", async () => {
+      currentAgentConfig = { tools: { disabled: [] } };
+      await fsp.writeFile(
+        path.join(sessionDir, "session-meta.json"),
+        JSON.stringify({
+          [path.basename(fakeSessionPath)]: {
+            toolNames: restoredSnapshot(allNames()),
+            promptSnapshot: promptSnapshotEntry("mock-prompt"),
+          },
+        }, null, 2),
+      );
+
+      const { sessionPath } = await coord.createSession(null, tmpDir, true, null, { restore: true });
+      expect(coord.getSessionCapabilityDriftNotice(sessionPath)).toBeNull();
+
+      const mcpTool = { ...makeTool("mcp_github_search"), _pluginId: "mcp" };
+      coord._d.buildTools = () => ({
+        tools: SDK_BUILTIN_OBJS,
+        customTools: [...HANAKO_CUSTOM_OBJS, mcpTool],
+      });
+
+      const result = coord.markCapabilitySnapshotsStale({
+        agentId: "test",
+        reason: "mcp.agent.tool.enable",
+      });
+
+      expect(result).toMatchObject({ ok: true, marked: 1 });
+      const notice = coord.getSessionCapabilityDriftNotice(sessionPath);
+      expect(notice).not.toBeNull();
+      expect(notice.addedToolNames).toEqual(["mcp_github_search"]);
+      expect(notice.promptChanged).toBe(false);
+    });
   });
 
   // ── #1624: explicit refresh (fresh compact rebuilds both snapshots) ──

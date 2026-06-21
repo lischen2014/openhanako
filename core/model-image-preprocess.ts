@@ -183,6 +183,71 @@ function throwIfAborted(signal) {
   throw error;
 }
 
+export async function prepareSingleModelImageInputForPrompt({
+  image,
+  index = 0,
+  imageCount = 1,
+  imagePolicy,
+  resizeImage,
+  formatDimensionNote,
+  signal,
+}: {
+  image?: any;
+  index?: number;
+  imageCount?: number;
+  imagePolicy?: any;
+  resizeImage?: any;
+  formatDimensionNote?: any;
+  signal?: AbortSignal;
+} = {}) {
+  const effectiveResizeImage = resizeImage ?? piSdk.resizeModelImageInput;
+  const effectiveFormatDimensionNote = formatDimensionNote ?? piSdk.formatModelImageDimensionNote;
+  if (typeof effectiveResizeImage !== "function") {
+    throw imagePreprocessError("image resize adapter unavailable");
+  }
+  if (typeof effectiveFormatDimensionNote !== "function") {
+    throw imagePreprocessError("image dimension-note adapter unavailable");
+  }
+
+  const policy = normalizePolicy(imagePolicy);
+  const safeImageCount = Math.max(1, Math.floor(Number(imageCount) || 1));
+  const perImageMaxBytes = Math.max(
+    1,
+    Math.floor(Math.min(policy.maxImageBase64Bytes, policy.totalBase64BudgetBytes / safeImageCount))
+  );
+  const resizeOptions = {
+    maxWidth: policy.maxWidth,
+    maxHeight: policy.maxHeight,
+    maxBytes: perImageMaxBytes,
+    jpegQuality: policy.jpegQuality,
+  };
+
+  throwIfAborted(signal);
+  const normalized = normalizeModelImageInput(image, index);
+  const resized = await effectiveResizeImage(normalized, resizeOptions);
+  throwIfAborted(signal);
+
+  if (!resized?.data) {
+    throw imagePreprocessError(
+      `image ${index + 1} could not be compressed below ${perImageMaxBytes} base64 bytes`
+    );
+  }
+
+  const preparedImage = normalizeModelImageInput({
+    ...normalized,
+    type: "image",
+    data: resized.data,
+    mimeType: resized.mimeType || normalized.mimeType,
+  }, index);
+
+  return {
+    image: preparedImage,
+    note: await effectiveFormatDimensionNote(resized),
+    resizeOptions,
+    resizeResult: resized,
+  };
+}
+
 /**
  * Normalize image payloads before they reach Pi SDK's AgentSession.prompt().
  *
@@ -220,51 +285,24 @@ export async function prepareModelImageInputsForPrompt({
   if (opts.modelImageInputsPrepared) {
     return { text, opts };
   }
-  const effectiveResizeImage = resizeImage ?? piSdk.resizeModelImageInput;
-  const effectiveFormatDimensionNote = formatDimensionNote ?? piSdk.formatModelImageDimensionNote;
-  if (typeof effectiveResizeImage !== "function") {
-    throw imagePreprocessError("image resize adapter unavailable");
-  }
-  if (typeof effectiveFormatDimensionNote !== "function") {
-    throw imagePreprocessError("image dimension-note adapter unavailable");
-  }
 
   const policy = normalizePolicy(imagePolicy);
-  const perImageMaxBytes = Math.max(
-    1,
-    Math.floor(Math.min(policy.maxImageBase64Bytes, policy.totalBase64BudgetBytes / opts.images.length))
-  );
-  const resizeOptions = {
-    maxWidth: policy.maxWidth,
-    maxHeight: policy.maxHeight,
-    maxBytes: perImageMaxBytes,
-    jpegQuality: policy.jpegQuality,
-  };
-
   const nextImages = [];
   const dimensionNotes = [];
 
   for (let index = 0; index < opts.images.length; index += 1) {
-    throwIfAborted(signal);
-    const image = normalizeModelImageInput(opts.images[index], index);
-    const resized = await effectiveResizeImage(image, resizeOptions);
-    throwIfAborted(signal);
+    const prepared = await prepareSingleModelImageInputForPrompt({
+      image: opts.images[index],
+      index,
+      imageCount: opts.images.length,
+      imagePolicy: policy,
+      resizeImage,
+      formatDimensionNote,
+      signal,
+    });
+    nextImages.push(prepared.image);
 
-    if (!resized?.data) {
-      throw imagePreprocessError(
-        `image ${index + 1} could not be compressed below ${perImageMaxBytes} base64 bytes`
-      );
-    }
-
-    const normalizedResized = normalizeModelImageInput({
-      ...image,
-      type: "image",
-      data: resized.data,
-      mimeType: resized.mimeType || image.mimeType,
-    }, index);
-    nextImages.push(normalizedResized);
-
-    const note = await effectiveFormatDimensionNote(resized);
+    const note = prepared.note;
     if (note) {
       dimensionNotes.push({
         note,

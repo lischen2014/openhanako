@@ -758,6 +758,9 @@ export function handleServerMessage(msg: any): void {
       if (sp === useStore.getState().currentSessionPath && typeof metadata.thinkingLevel === 'string') {
         useStore.getState().setThinkingLevel(metadata.thinkingLevel);
       }
+      if (Object.prototype.hasOwnProperty.call(metadata, 'capabilityDrift')) {
+        useStore.getState().setSessionCapabilityDrift(sp, metadata.capabilityDrift || null);
+      }
       break;
     }
 

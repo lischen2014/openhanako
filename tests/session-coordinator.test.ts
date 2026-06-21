@@ -2023,11 +2023,13 @@ describe("SessionCoordinator", () => {
         },
       }),
     );
+    const setThinkingLevel = vi.fn();
     createAgentSessionMock.mockResolvedValueOnce({
       session: {
         sessionManager: { getSessionFile: () => sessionFile },
         subscribe: vi.fn(() => vi.fn()),
         setActiveToolsByName: vi.fn(),
+        setThinkingLevel,
         model: { id: "deepseek-v4-pro", provider: "deepseek", name: "DeepSeek V4 Pro" },
       },
     });
@@ -2078,6 +2080,10 @@ describe("SessionCoordinator", () => {
     expect(createAgentSessionMock).toHaveBeenCalledOnce();
     expect(createAgentSessionMock.mock.calls[0][0].thinkingLevel).toBe("high");
     expect(createAgentSessionMock.mock.calls[0][0].resourceLoader.getSystemPrompt()).toBe("FROZEN BASE");
+    expect(setThinkingLevel).toHaveBeenCalledWith("xhigh");
+
+    const meta = JSON.parse(fs.readFileSync(path.join(agent.sessionDir, "session-meta.json"), "utf-8"));
+    expect(meta[path.basename(sessionFile)].thinkingLevel).toBe("xhigh");
   });
 
   it("stores skill pointers for a session and omits restored skills whose source was deleted", async () => {

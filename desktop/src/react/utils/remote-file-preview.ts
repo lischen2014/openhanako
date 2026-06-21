@@ -37,7 +37,7 @@ function getErrorMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
 }
 
-function encodeWorkbenchContentPath({
+export function encodeWorkbenchContentPath({
   mountId = 'default',
   rootId,
   subdir,

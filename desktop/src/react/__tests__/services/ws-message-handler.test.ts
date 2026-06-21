@@ -634,6 +634,16 @@ describe('ws-message-handler session-scoped desktop events', () => {
       metadata: {
         pinnedAt: '2026-04-29T08:00:00.000Z',
         thinkingLevel: 'high',
+        capabilityDrift: {
+          version: 1,
+          hasDrift: true,
+          fingerprint: 'fp-live',
+          frozenFingerprint: 'fp-frozen',
+          addedToolNames: ['mcp_github_search'],
+          removedToolNames: [],
+          invalidToolNames: [],
+          promptChanged: false,
+        },
       },
     });
 
@@ -645,16 +655,22 @@ describe('ws-message-handler session-scoped desktop events', () => {
       { path: '/session/b.jsonl', pinnedAt: null },
     ]);
     expect(useStore.getState().thinkingLevel).toBe('high');
+    expect(useStore.getState().capabilityDriftBySession['/session/a.jsonl']).toMatchObject({
+      fingerprint: 'fp-live',
+      addedToolNames: ['mcp_github_search'],
+    });
 
     handleServerMessage({
       type: 'session_metadata_updated',
       sessionPath: '/session/b.jsonl',
       metadata: {
         thinkingLevel: 'off',
+        capabilityDrift: null,
       },
     });
 
     expect(useStore.getState().thinkingLevel).toBe('high');
+    expect(useStore.getState().capabilityDriftBySession['/session/b.jsonl']).toBeUndefined();
   });
 });
 

@@ -90,6 +90,7 @@ import {
 } from "../lib/llm/cache-prefix-contract.ts";
 import { buildSessionCacheSnapshot as buildSessionCacheSnapshotValue } from "./session-cache-snapshot.ts";
 import { repairRestoredToolSnapshotDetailed, sameToolNames } from "./tool-snapshot-repair.ts";
+import { buildSessionCapabilityDrift } from "./session-capability-drift.ts";
 import {
   SESSION_PROMPT_SNAPSHOT_VERSION,
   freezeAgentsFilesResult,
@@ -1360,7 +1361,7 @@ export class SessionCoordinator {
       log.warn(`session model fallback: ${modelFallbackMessage}`);
     }
     const resolvedModel = session.model;
-    const actualThinkingLevel = normalizeThinkingLevelForModel(initialThinkingLevel, resolvedModel);
+    const actualThinkingLevel = normalizeThinkingLevelForModel(requestedThinkingLevel, resolvedModel);
     if (actualThinkingLevel !== initialThinkingLevel) {
       initialThinkingLevel = actualThinkingLevel;
       resolvedThinkingLevel = models.resolveThinkingLevel(initialThinkingLevel);
@@ -1679,6 +1680,9 @@ export class SessionCoordinator {
     } else if (restore && sessionPath) {
       const metaPatch: any = {};
       if (!restoredPromptSnapshot) metaPatch.promptSnapshot = promptSnapshotToWrite;
+      if (restoredThinkingLevel !== initialThinkingLevel) {
+        metaPatch.thinkingLevel = initialThinkingLevel;
+      }
       if (shouldPersistRestoredToolNames && snapshotToolNames !== null) {
         metaPatch.toolNames = snapshotToolNames;
       }
@@ -3456,6 +3460,96 @@ export class SessionCoordinator {
       removedToolNames: [...drift.removedToolNames],
       invalidToolNames: [...drift.invalidToolNames],
     };
+  }
+
+  _computeLiveToolSnapshotForEntry(entry: any, sessionPath: any) {
+    const agent = this._d.getAgentById?.(entry?.agentId) || this._d.getAgent?.();
+    if (!agent) return null;
+    const cwd = entry?.cwd || entry?.session?.sessionManager?.getCwd?.() || this._d.getHomeCwd?.(agent.id) || process.cwd();
+    const models = this._d.getModels?.() || {};
+    const model = entry?.session?.model
+      || (entry?.modelId && entry?.modelProvider && Array.isArray(models.availableModels)
+        ? findModel(models.availableModels, entry.modelId, entry.modelProvider)
+        : null)
+      || models.currentModel
+      || null;
+    const toolSnapshotOptions: any = {
+      forceMemoryEnabled: entry?.memoryEnabled !== false,
+      model,
+    };
+    if (typeof agent.experienceEnabled === "boolean") {
+      toolSnapshotOptions.forceExperienceEnabled = entry?.experienceEnabled === true;
+    }
+    const agentToolsSnapshot = typeof agent.getToolsSnapshot === "function"
+      ? agent.getToolsSnapshot(toolSnapshotOptions)
+      : agent.tools;
+    const workspaceScope = normalizeWorkspaceScope({
+      primaryCwd: cwd,
+      workspaceFolders: Array.isArray(entry?.workspaceFolders) ? entry.workspaceFolders : [],
+    });
+    const folderScope = normalizeSessionFolderScope({
+      primaryCwd: cwd,
+      workspaceFolders: workspaceScope.workspaceFolders,
+      authorizedFolders: Array.isArray(entry?.authorizedFolders) ? entry.authorizedFolders : [],
+    });
+    const built = this._d.buildTools?.(cwd, agentToolsSnapshot, {
+      workspace: cwd,
+      workspaceFolders: workspaceScope.workspaceFolders,
+      authorizedFolders: folderScope.authorizedFolders,
+      getAuthorizedFolders: () => this.getSessionAuthorizedFolders(sessionPath),
+      agentDir: agent.agentDir,
+    }) || { tools: [], customTools: [] };
+    const allToolObjects = [
+      ...(built.tools || []),
+      ...(built.customTools || []),
+    ];
+    const allToolNames = toolNamesFromObjects(allToolObjects);
+    const channelsEnabled = this._d.getPrefs?.()?.getChannelsEnabled?.();
+    const extraDisabledToolNames = [
+      ...getStableFeatureDisabledToolNames({ channelsEnabled }),
+      ...computeRuntimeDisabledToolNames(
+        allToolObjects,
+        agent.config,
+        { agentId: entry?.agentId, restore: false, channelsEnabled },
+        { warn: (msg) => log.warn(msg) },
+      ),
+    ];
+    const disabled = agent.config?.tools?.disabled ?? DEFAULT_DISABLED_TOOL_NAMES;
+    return computeToolSnapshot(allToolNames, disabled, {
+      extraDisabled: extraDisabledToolNames,
+    });
+  }
+
+  markCapabilitySnapshotsStale({ agentId = null, reason = "capability_changed" }: any = {}) {
+    const targetAgentId = typeof agentId === "string" && agentId ? agentId : null;
+    let scanned = 0;
+    let marked = 0;
+    for (const entry of this._sessions.values()) {
+      if (!entry?.sessionPath || !entry?.session) continue;
+      if (targetAgentId && entry.agentId !== targetAgentId) continue;
+      scanned += 1;
+      const frozenToolNames = Array.isArray(entry.toolNames)
+        ? entry.toolNames
+        : (entry.activeToolDefinitions || []).map((tool) => tool?.name).filter(Boolean);
+      const liveToolNames = this._computeLiveToolSnapshotForEntry(entry, entry.sessionPath);
+      if (!liveToolNames) continue;
+      const drift = buildSessionCapabilityDrift({
+        frozenToolNames,
+        liveToolNames,
+        frozenSystemPrompt: "",
+        liveSystemPrompt: "",
+      });
+      entry.capabilityDrift = drift.hasDrift ? { ...drift, reason } : null;
+      if (drift.hasDrift) {
+        marked += 1;
+        this._emitSessionMetadataUpdated(entry.sessionPath, {
+          capabilityDrift: this.getSessionCapabilityDriftNotice(entry.sessionPath),
+        });
+      } else {
+        this._emitSessionMetadataUpdated(entry.sessionPath, { capabilityDrift: null });
+      }
+    }
+    return { ok: true, scanned, marked };
   }
 
   /**

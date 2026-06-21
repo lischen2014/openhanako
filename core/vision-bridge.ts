@@ -2,7 +2,9 @@ import crypto from "crypto";
 import fs from "fs";
 import path from "path";
 import { callText as defaultCallText } from "./llm-client.ts";
-import { normalizeModelImageInput } from "./model-image-preprocess.ts";
+import {
+  prepareSingleModelImageInputForPrompt,
+} from "./model-image-preprocess.ts";
 import { modelSupportsImage } from "./message-sanitizer.ts";
 import { getVisionCapabilities, modelSupportsDirectImageInput } from "../shared/model-capabilities.ts";
 
@@ -392,9 +394,12 @@ export class VisionBridge {
   declare _getActiveAgentId: any;
   declare _getSessionIdForPath: any;
   declare _getUsageLedger: any;
+  declare _imagePolicy: any;
   declare _maxCacheEntries: any;
   declare _noteByPath: any;
   declare _now: any;
+  declare _resizeImage: any;
+  declare _formatDimensionNote: any;
   declare _resolveVisionConfig: any;
   constructor({
     resolveVisionConfig,
@@ -402,6 +407,9 @@ export class VisionBridge {
     getUsageLedger = null,
     getActiveAgentId = null,
     getSessionIdForPath = null,
+    imagePolicy = null,
+    resizeImage = null,
+    formatDimensionNote = null,
     now = () => Date.now(),
     maxCacheEntries = MAX_CACHE_ENTRIES,
   }: any = {}) {
@@ -410,6 +418,9 @@ export class VisionBridge {
     this._getUsageLedger = typeof getUsageLedger === "function" ? getUsageLedger : () => null;
     this._getActiveAgentId = typeof getActiveAgentId === "function" ? getActiveAgentId : () => null;
     this._getSessionIdForPath = typeof getSessionIdForPath === "function" ? getSessionIdForPath : () => null;
+    this._imagePolicy = imagePolicy || null;
+    this._resizeImage = typeof resizeImage === "function" ? resizeImage : null;
+    this._formatDimensionNote = typeof formatDimensionNote === "function" ? formatDimensionNote : null;
     this._now = now;
     this._maxCacheEntries = maxCacheEntries;
     this._analysisByPrompt = new Map();
@@ -717,7 +728,16 @@ export class VisionBridge {
   }
 
   async _analyzeImage(config, img, index, userRequest, signal, sessionPath = null) {
-    const normalizedImg = normalizeModelImageInput(img, index);
+    const prepared = await prepareSingleModelImageInputForPrompt({
+      image: img,
+      index,
+      imageCount: 1,
+      imagePolicy: this._imagePolicy,
+      resizeImage: this._resizeImage,
+      formatDimensionNote: this._formatDimensionNote,
+      signal,
+    });
+    const normalizedImg = prepared.image;
     const visionCapabilities = getVisionCapabilities(config.model);
     const key = imagePromptCacheKey(
       normalizedImg,

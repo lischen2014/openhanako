@@ -9,6 +9,18 @@ const tempDirs = [];
 const PNG_BYTES = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 const PNG_BASE64 = PNG_BYTES.toString("base64");
 
+async function passthroughResizeImage(input) {
+  return {
+    data: input.data,
+    mimeType: input.mimeType,
+    originalWidth: 100,
+    originalHeight: 100,
+    width: 100,
+    height: 100,
+    wasResized: false,
+  };
+}
+
 function makeTempDir() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hana-visual-context-"));
   tempDirs.push(dir);
@@ -35,6 +47,8 @@ function makeBridge() {
         base_url: "https://example.test/v1",
       }),
       callText,
+      resizeImage: passthroughResizeImage,
+      formatDimensionNote: () => undefined,
     }),
   };
 }
