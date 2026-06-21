@@ -13,14 +13,13 @@ describe("ResourceIO agent tools", () => {
     vi.unstubAllGlobals();
   });
 
-  it("normalizes local path aliases before delegating write and emits a resource change", async () => {
+  it("normalizes local path aliases before delegating write through the ResourceIO-backed tool", async () => {
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "hana-resource-io-tools-"));
     const execute = vi.fn(async (_toolCallId, params) => {
       fs.mkdirSync(path.dirname(params.path), { recursive: true });
       fs.writeFileSync(params.path, params.content, "utf-8");
       return { content: [{ type: "text", text: "ok" }] };
     });
-    const emitEvent = vi.fn();
     const [write] = wrapResourceIoFileTools([
       {
         name: "write",
@@ -37,7 +36,7 @@ describe("ResourceIO agent tools", () => {
     ], {
       cwd: tmpDir,
       getSessionPath: () => "/sessions/a.jsonl",
-      emitEvent,
+      resourceIO: {},
     });
 
     const result = await write.execute("write-1", {
@@ -52,17 +51,28 @@ describe("ResourceIO agent tools", () => {
       expect.objectContaining({ path: absolutePath, content: "# A\n" }),
     );
     expect(fs.readFileSync(absolutePath, "utf-8")).toBe("# A\n");
-    expect(emitEvent).toHaveBeenCalledWith(expect.objectContaining({
-      type: "resource.changed",
-      source: "agent_tool",
-      reason: "agent_write",
-      sessionPath: "/sessions/a.jsonl",
-      filePath: absolutePath,
-      resource: expect.objectContaining({
-        provider: "local_fs",
-        path: absolutePath,
-      }),
-    }), "/sessions/a.jsonl");
+  });
+
+  it("fails closed instead of delegating to legacy file tools when ResourceIO is unavailable", async () => {
+    const execute = vi.fn(async () => ({ content: [{ type: "text", text: "legacy write" }] }));
+    const [write] = wrapResourceIoFileTools([
+      {
+        name: "write",
+        parameters: { type: "object", required: ["path", "content"], properties: {} },
+        execute,
+      },
+    ], {
+      cwd: "/workspace",
+      getSessionPath: () => "/sessions/a.jsonl",
+    });
+
+    const result = await write.execute("write-1", {
+      path: "notes/a.md",
+      content: "# A\n",
+    });
+
+    expect(execute).not.toHaveBeenCalled();
+    expect(result.content[0].text).toContain("ResourceIO kernel");
   });
 
   it("passes SessionFile references to read and rejects SessionFile writes explicitly", async () => {

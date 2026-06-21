@@ -1,4 +1,3 @@
-import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import { normalizeWin32ShellPath } from "../sandbox/win32-path.ts";
@@ -172,44 +171,6 @@ function addResourceParameters(parameters, toolName) {
   };
 }
 
-function statSnapshot(filePath) {
-  try {
-    const stat = fs.statSync(filePath);
-    return {
-      mtimeMs: stat.mtimeMs,
-      size: stat.size,
-      version: `${Math.round(stat.mtimeMs)}:${stat.size}`,
-    };
-  } catch {
-    return null;
-  }
-}
-
-function snapshotChanged(before, after) {
-  if (!after) return false;
-  if (!before) return true;
-  return before.mtimeMs !== after.mtimeMs || before.size !== after.size;
-}
-
-function emitResourceChanged(options, target, reason) {
-  if (typeof options.emitEvent !== "function" || !target?.path) return;
-  const sessionPath = options.getSessionPath?.() || null;
-  const stat = statSnapshot(target.path);
-  options.emitEvent({
-    type: "resource.changed",
-    source: "agent_tool",
-    reason,
-    sessionPath,
-    filePath: target.path,
-    resource: {
-      kind: "local-file",
-      provider: "local_fs",
-      path: target.path,
-    },
-    ...(stat ? { mtimeMs: stat.mtimeMs, size: stat.size, version: stat.version } : {}),
-  }, sessionPath);
-}
-
 async function readUrlAsText(url, resourceIO) {
   if (!resourceIO || typeof resourceIO.read !== "function") {
     return textResult("ResourceIO URL reads require the ResourceIO kernel.");
@@ -234,6 +195,10 @@ function wrapResourceIoTool(tool, options) {
     ...tool,
     parameters: addResourceParameters(tool.parameters, toolName),
     execute: async (toolCallId, params = {}, ...rest) => {
+      if (!options.resourceIO) {
+        return textResult(`ResourceIO kernel unavailable; ${toolName} cannot run through legacy file tools.`);
+      }
+
       const target: any = resolveToolTarget(params, options.cwd);
       if (!target) return tool.execute(toolCallId, params, ...rest);
 
@@ -264,13 +229,7 @@ function wrapResourceIoTool(tool, options) {
         return tool.execute(toolCallId, normalizedParams, ...rest);
       }
 
-      const before = statSnapshot(target.path);
-      const result = await tool.execute(toolCallId, normalizedParams, ...rest);
-      const after = statSnapshot(target.path);
-      if (!options.resourceIO && snapshotChanged(before, after)) {
-        emitResourceChanged(options, target, toolName === "write" ? "agent_write" : "agent_edit");
-      }
-      return result;
+      return tool.execute(toolCallId, normalizedParams, ...rest);
     },
   };
 }
