@@ -181,12 +181,22 @@ describe('editor typography settings', () => {
   it('uses the same page-header spacing in the markdown editor', () => {
     const theme = readEditorTheme();
 
-    expect(theme).toMatch(/padding:\s*'calc\(var\(--space-xl\) \+ var\(--space-lg\)\) 0 var\(--space-md\)'/);
+    expect(theme).toMatch(/padding:\s*'calc\(var\(--space-xl\) \+ var\(--space-lg\)\) 0 var\(--preview-markdown-editor-bottom-space, var\(--space-md\)\)'/);
     expect(theme).toMatch(/'&\.cm-markdown-has-top-cover \.cm-scroller':\s*\{[\s\S]*paddingTop:\s*'0'/);
     expect(theme).toMatch(/'\.cm-markdown-cover':\s*\{[\s\S]*margin:\s*'0 auto'/);
     expect(theme).toMatch(/'\.cm-markdown-cover':\s*\{[\s\S]*paddingBottom:\s*'var\(--space-lg\)'/);
     expect(theme).toMatch(/'\.cm-markdown-cover':\s*\{[\s\S]*boxSizing:\s*'content-box'/);
     expect(theme).toMatch(/'\.cm-markdown-cover-resize':\s*\{[\s\S]*bottom:\s*'var\(--space-lg\)'/);
+  });
+
+  it('keeps markdown editor and preview bottoms away from the card edge', () => {
+    const css = readPreviewStyles();
+    const theme = readEditorTheme();
+
+    expect(css).toMatch(/\.previewPanelBody\s*\{[\s\S]*--preview-markdown-bottom-space:\s*calc\(var\(--space-xl\)\s*\+\s*var\(--space-xl\)\s*\+\s*var\(--space-lg\)\s*\+\s*var\(--space-lg\)\)/);
+    expect(css).toMatch(/\.markdownPreviewDocument\s*\{[\s\S]*padding-bottom:\s*var\(--preview-markdown-bottom-space\)/);
+    expect(css).toMatch(/:global\(\.preview-editor\.mode-markdown\)\s*\{[\s\S]*--preview-markdown-editor-bottom-space:\s*var\(--preview-markdown-bottom-space,\s*calc\(var\(--space-xl\)\s*\+\s*var\(--space-xl\)\s*\+\s*var\(--space-lg\)\s*\+\s*var\(--space-lg\)\)\)/);
+    expect(theme).toMatch(/var\(--preview-markdown-editor-bottom-space,\s*var\(--space-md\)\)/);
   });
 
   it('constrains markdown tables while allowing horizontal scroll', () => {

@@ -46,6 +46,7 @@
 }
 
 .previewPanelBody {
+    --preview-markdown-bottom-space: calc(var(--space-xl) + var(--space-xl) + var(--space-lg) + var(--space-lg));
     height: 100%;
     overflow: auto;
     position: relative;
@@ -53,6 +54,12 @@
     background: var(--panel-card-bg);
     border: var(--panel-card-border);
     box-shadow: var(--panel-card-shadow);
+}
+
+.markdownPreviewDocument {
+    min-height: 100%;
+    box-sizing: border-box;
+    padding-bottom: var(--preview-markdown-bottom-space);
 }
 
 .previewUnavailable {
@@ -434,6 +441,10 @@
 :global(.preview-editor) {
     height: 100%;
     overflow: hidden;
+}
+
+:global(.preview-editor.mode-markdown) {
+    --preview-markdown-editor-bottom-space: var(--preview-markdown-bottom-space, calc(var(--space-xl) + var(--space-xl) + var(--space-lg) + var(--space-lg)));
 }
 
 :global(.preview-editor .cm-editor) {

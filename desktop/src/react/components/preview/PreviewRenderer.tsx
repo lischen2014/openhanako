@@ -552,42 +552,44 @@ function MarkdownPreview({ previewItem }: { previewItem: PreviewItem }) {
 
   return (
     <>
-      {cover && <MarkdownCoverView previewItem={previewItem} cover={cover} />}
-      {cover ? (
-        <>
-          <MarkdownPropertiesBlock content={previewItem.content} />
-          <div
-            ref={divRef}
-            className="preview-markdown md-content markdown-has-cover"
-            onClick={handleLinkClick}
-            onContextMenu={handleLinkContextMenu}
-            dangerouslySetInnerHTML={{
-              __html: renderMarkdownPreview(body, {
-                filePath: previewItem.filePath,
-                getFileUrl: window.platform?.getFileUrl,
-              }),
-            }}
-          />
-          <DocumentReferencesBlock previewItem={previewItem} />
-        </>
-      ) : (
-        <MarkdownNoCoverDropHost coverTarget={coverTarget}>
-          <MarkdownPropertiesBlock content={previewItem.content} />
-          <div
-            ref={divRef}
-            className="preview-markdown md-content"
-            onClick={handleLinkClick}
-            onContextMenu={handleLinkContextMenu}
-            dangerouslySetInnerHTML={{
-              __html: renderMarkdownPreview(body, {
-                filePath: previewItem.filePath,
-                getFileUrl: window.platform?.getFileUrl,
-              }),
-            }}
-          />
-          <DocumentReferencesBlock previewItem={previewItem} />
-        </MarkdownNoCoverDropHost>
-      )}
+      <div className={previewStyles.markdownPreviewDocument}>
+        {cover && <MarkdownCoverView previewItem={previewItem} cover={cover} />}
+        {cover ? (
+          <>
+            <MarkdownPropertiesBlock content={previewItem.content} />
+            <div
+              ref={divRef}
+              className="preview-markdown md-content markdown-has-cover"
+              onClick={handleLinkClick}
+              onContextMenu={handleLinkContextMenu}
+              dangerouslySetInnerHTML={{
+                __html: renderMarkdownPreview(body, {
+                  filePath: previewItem.filePath,
+                  getFileUrl: window.platform?.getFileUrl,
+                }),
+              }}
+            />
+            <DocumentReferencesBlock previewItem={previewItem} />
+          </>
+        ) : (
+          <MarkdownNoCoverDropHost coverTarget={coverTarget}>
+            <MarkdownPropertiesBlock content={previewItem.content} />
+            <div
+              ref={divRef}
+              className="preview-markdown md-content"
+              onClick={handleLinkClick}
+              onContextMenu={handleLinkContextMenu}
+              dangerouslySetInnerHTML={{
+                __html: renderMarkdownPreview(body, {
+                  filePath: previewItem.filePath,
+                  getFileUrl: window.platform?.getFileUrl,
+                }),
+              }}
+            />
+            <DocumentReferencesBlock previewItem={previewItem} />
+          </MarkdownNoCoverDropHost>
+        )}
+      </div>
       {linkMenu && (
         <LinkContextMenu
           state={linkMenu}
