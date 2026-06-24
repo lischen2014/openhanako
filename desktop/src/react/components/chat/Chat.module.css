@@ -1660,6 +1660,20 @@
     outline: none;
 }
 
+/* 仅在支持 hover 的设备（桌面鼠标）上：下载按钮默认隐藏，hover 卡片或键盘聚焦
+   卡片内时才浮现。触屏设备无 hover，保持常显（opacity 0.84），否则手机上无法下载。 */
+@media (hover: hover) {
+    .imageOutputDownloadButton {
+        opacity: 0;
+        pointer-events: none;
+    }
+    .imageOutputCard:hover .imageOutputDownloadButton,
+    .imageOutputCard:focus-within .imageOutputDownloadButton {
+        opacity: 0.84;
+        pointer-events: auto;
+    }
+}
+
 .imageOutputPreview {
     display: block;
     max-width: 100%;
