@@ -1,7 +1,11 @@
 import crypto from "crypto";
+import { TextDecoder } from "util";
 import { Hono } from "hono";
 import { safeJson } from "../hono-helpers.ts";
 import { createApiResourceOperationContext, requestIdFromHono } from "../http/resource-operation-context.ts";
+
+const UTF8_DECODER = new TextDecoder("utf-8", { fatal: true });
+const BASE64_PATTERN = /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/;
 
 export function createResourceIoRoute(engine) {
   const route = new Hono();
@@ -79,13 +83,7 @@ export function createResourceIoRoute(engine) {
   route.post("/resource-io/read", async (c) => resourceJson(c, engine, async (resourceIO, body) => {
     const resource = body?.resource || body?.ref || body?.target || body;
     const result = await resourceIO.read(resource);
-    return {
-      ...result,
-      content: Buffer.isBuffer(result.content)
-        ? result.content.toString("utf-8")
-        : Buffer.from(result.content || "").toString("utf-8"),
-      encoding: "utf-8",
-    };
+    return encodeReadResult(result, body);
   }));
 
   route.post("/resource-io/list", async (c) => resourceJson(c, engine, async (resourceIO, body) => {
@@ -100,14 +98,14 @@ export function createResourceIoRoute(engine) {
 
   route.post("/resource-io/write", async (c) => resourceJson(c, engine, async (resourceIO, body) => {
     const resource = body?.resource || body?.ref || body?.target;
-    return resourceIO.write(resource, String(body?.content ?? ""), operationContextFromBody(body, c));
+    return resourceIO.write(resource, decodeWriteContent(body), operationContextFromBody(body, c));
   }));
 
   route.post("/resource-io/write-expected-version", async (c) => resourceJson(c, engine, async (resourceIO, body) => {
     const resource = body?.resource || body?.ref || body?.target;
     return resourceIO.writeExpectedVersion(
       resource,
-      String(body?.content ?? ""),
+      decodeWriteContent(body),
       body?.expectedVersion,
       operationContextFromBody(body, c),
     );
@@ -144,6 +142,69 @@ function operationContextFromBody(body, c) {
       credentialKind: body?.credentialKind ?? principal.credentialKind,
     },
   });
+}
+
+function encodeReadResult(result, body) {
+  const encoding = encodingFromBody(body, ["encoding", "responseEncoding"]);
+  const content = bufferFromResourceContent(result?.content);
+  return {
+    ...result,
+    content: encodeBufferForJson(content, encoding),
+    encoding,
+  };
+}
+
+function decodeWriteContent(body) {
+  const encoding = encodingFromBody(body, ["encoding", "contentEncoding"]);
+  if (encoding === "base64") {
+    return decodeBase64Content(body?.content);
+  }
+  return String(body?.content ?? "");
+}
+
+function encodingFromBody(body, fields) {
+  for (const field of fields) {
+    if (body?.[field] !== undefined) return normalizeContentEncoding(body[field]);
+  }
+  return "utf-8";
+}
+
+function normalizeContentEncoding(value) {
+  const raw = String(value ?? "utf-8").trim().toLowerCase();
+  if (raw === "utf-8" || raw === "utf8") return "utf-8";
+  if (raw === "base64") return "base64";
+  throw resourceContentEncodingError(`Unsupported resource content encoding: ${String(value)}`);
+}
+
+function bufferFromResourceContent(content) {
+  if (Buffer.isBuffer(content)) return content;
+  if (content instanceof ArrayBuffer) return Buffer.from(content);
+  if (ArrayBuffer.isView(content)) {
+    return Buffer.from(content.buffer, content.byteOffset, content.byteLength);
+  }
+  if (typeof content === "string") return Buffer.from(content, "utf-8");
+  if (content == null) return Buffer.alloc(0);
+  return Buffer.from(String(content), "utf-8");
+}
+
+function encodeBufferForJson(content, encoding) {
+  if (encoding === "base64") return content.toString("base64");
+  try {
+    return UTF8_DECODER.decode(content);
+  } catch {
+    throw resourceContentEncodingError("Resource content is not valid UTF-8; request encoding \"base64\" for binary content");
+  }
+}
+
+function decodeBase64Content(content) {
+  if (typeof content !== "string") {
+    throw resourceContentEncodingError("Resource base64 content must be a string");
+  }
+  const compact = content.replace(/\s+/g, "");
+  if (!BASE64_PATTERN.test(compact)) {
+    throw resourceContentEncodingError("Resource content is not valid base64");
+  }
+  return Buffer.from(compact, "base64");
 }
 
 async function resourceJson(c, engine, handler) {
@@ -196,4 +257,12 @@ function errorJson(c, err, fallbackStatus = 400) {
     ...(err?.code ? { code: err.code } : {}),
     ...(safeMessage ? { safeMessage } : {}),
   }, err?.status || fallbackStatus);
+}
+
+function resourceContentEncodingError(message) {
+  const err: any = new Error(message);
+  err.code = "invalid_resource_encoding";
+  err.status = 400;
+  err.safeMessage = message;
+  return err;
 }

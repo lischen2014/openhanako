@@ -169,6 +169,135 @@ describe("resource-io route", () => {
     expect(resourceIO.search).toHaveBeenCalledWith({ kind: "local-file", path: "/tmp" }, { query: "hello" });
   });
 
+  it("returns binary resource reads as base64 when requested", async () => {
+    const binary = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x00, 0xff, 0xfe, 0xfd]);
+    const resourceIO = {
+      read: vi.fn(async () => ({
+        content: binary,
+        version: { size: binary.byteLength },
+        resourceKey: "local_fs:/tmp/pixel.bin",
+      })),
+    };
+    const app = new Hono();
+    app.route("/api", createResourceIoRoute({ resourceIO }));
+
+    const readRes = await app.request("/api/resource-io/read", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        resource: { kind: "local-file", path: "/tmp/pixel.bin" },
+        encoding: "base64",
+      }),
+    });
+
+    expect(readRes.status).toBe(200);
+    expect(await readRes.json()).toEqual({
+      content: binary.toString("base64"),
+      encoding: "base64",
+      version: { size: binary.byteLength },
+      resourceKey: "local_fs:/tmp/pixel.bin",
+    });
+  });
+
+  it("rejects invalid UTF-8 reads instead of returning replacement-corrupted content", async () => {
+    const resourceIO = {
+      read: vi.fn(async () => ({ content: Buffer.from([0xff, 0xfe, 0xfd]) })),
+    };
+    const app = new Hono();
+    app.route("/api", createResourceIoRoute({ resourceIO }));
+
+    const readRes = await app.request("/api/resource-io/read", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ resource: { kind: "local-file", path: "/tmp/pixel.bin" } }),
+    });
+
+    expect(readRes.status).toBe(400);
+    expect(await readRes.json()).toEqual({
+      error: "Resource content is not valid UTF-8; request encoding \"base64\" for binary content",
+      code: "invalid_resource_encoding",
+      safeMessage: "Resource content is not valid UTF-8; request encoding \"base64\" for binary content",
+    });
+  });
+
+  it("decodes base64 writes into Buffer before calling ResourceIO", async () => {
+    const binary = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x00, 0xff, 0xfe, 0xfd]);
+    const write = vi.fn(async (_resource: unknown, _content: unknown, _context?: unknown) => ({
+      changeType: "modified",
+      resourceKey: "a",
+    }));
+    const writeExpectedVersion = vi.fn(async (
+      _resource: unknown,
+      _content: unknown,
+      _expectedVersion: unknown,
+      _context?: unknown,
+    ) => ({ ok: false, conflict: true, version: { size: 5 } }));
+    const resourceIO = {
+      write,
+      writeExpectedVersion,
+    };
+    const app = new Hono();
+    app.route("/api", createResourceIoRoute({ resourceIO }));
+
+    await app.request("/api/resource-io/write", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        resource: { kind: "local-file", path: "/tmp/pixel.bin" },
+        content: binary.toString("base64"),
+        encoding: "base64",
+      }),
+    });
+
+    const writeContent = resourceIO.write.mock.calls[0][1];
+    expect(Buffer.isBuffer(writeContent)).toBe(true);
+    if (!Buffer.isBuffer(writeContent)) throw new Error("expected Buffer write content");
+    expect(writeContent.equals(binary)).toBe(true);
+
+    const writeRes = await app.request("/api/resource-io/write-expected-version", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        resource: { kind: "local-file", path: "/tmp/pixel.bin" },
+        content: binary.toString("base64"),
+        encoding: "base64",
+        expectedVersion: { mtimeMs: 1, size: 5 },
+      }),
+    });
+
+    expect(writeRes.status).toBe(409);
+    const expectedVersionContent = resourceIO.writeExpectedVersion.mock.calls[0][1];
+    expect(Buffer.isBuffer(expectedVersionContent)).toBe(true);
+    if (!Buffer.isBuffer(expectedVersionContent)) throw new Error("expected Buffer writeExpectedVersion content");
+    expect(expectedVersionContent.equals(binary)).toBe(true);
+  });
+
+  it("rejects malformed base64 writes without calling ResourceIO", async () => {
+    const resourceIO = {
+      write: vi.fn(async () => ({ changeType: "modified", resourceKey: "a" })),
+    };
+    const app = new Hono();
+    app.route("/api", createResourceIoRoute({ resourceIO }));
+
+    const res = await app.request("/api/resource-io/write", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        resource: { kind: "local-file", path: "/tmp/pixel.bin" },
+        content: "%%%not-base64%%%",
+        encoding: "base64",
+      }),
+    });
+
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({
+      error: "Resource content is not valid base64",
+      code: "invalid_resource_encoding",
+      safeMessage: "Resource content is not valid base64",
+    });
+    expect(resourceIO.write).not.toHaveBeenCalled();
+  });
+
   it("routes route-grade mutations through engine ResourceIO with API principal context", async () => {
     const resourceIO = {
       write: vi.fn(async () => ({ changeType: "modified", resourceKey: "a" })),
