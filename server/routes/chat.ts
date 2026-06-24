@@ -20,7 +20,7 @@ import {
 import { debugLog, createModuleLogger } from "../../lib/debug-log.ts";
 import { t } from "../../lib/i18n.ts";
 import { getLastAssistantUsage } from "../../lib/pi-sdk/index.ts";
-import { compactSessionWithCachePreservation, isStaleExtensionContextError } from "../../core/session-compactor.ts";
+import { compactSessionWithCachePreservationRecoveringRuntime } from "../../core/session-compactor.ts";
 import { submitDesktopSessionInterjection } from "../../core/desktop-session-submit.ts";
 import { logLlmUsage } from "../../lib/llm/usage-observer.ts";
 import { BrowserManager } from "../../lib/browser/browser-manager.ts";
@@ -1622,14 +1622,13 @@ export function createChatRoute(engine: any, hub: any, { upgradeWebSocket }: any
                 return;
               }
               try {
-                try {
-                  await compactSessionWithCachePreservation(session, undefined);
-                } catch (err) {
-                  if (!isStaleExtensionContextError(err)) throw err;
-                  session = await engine.reloadSessionRuntime?.(compactPath);
-                  if (!session) throw err;
-                  await compactSessionWithCachePreservation(session, undefined);
-                }
+                const compacted = await compactSessionWithCachePreservationRecoveringRuntime({
+                  session,
+                  sessionPath: compactPath,
+                  customInstructions: undefined,
+                  reloadSessionRuntime: (path) => engine.reloadSessionRuntime?.(path),
+                });
+                session = compacted.session;
               } catch (err) {
                 const errMsg = err.message || "";
                 if (!errMsg.includes("Already compacted") && !errMsg.includes("Nothing to compact")) {

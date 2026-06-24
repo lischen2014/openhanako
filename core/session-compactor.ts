@@ -259,6 +259,19 @@ export function isStaleExtensionContextError(error) {
   return message.includes("This extension ctx is stale after session replacement or reload");
 }
 
+export const CACHE_PRESERVING_COMPACTION_EXTENSION_MISSING_MESSAGE =
+  "Cache-preserving compaction extension is not installed for this session";
+
+export function isMissingCachePreservingCompactionExtensionError(error) {
+  const message = error instanceof Error ? error.message : String(error || "");
+  return message.includes(CACHE_PRESERVING_COMPACTION_EXTENSION_MISSING_MESSAGE);
+}
+
+function isRecoverableCachePreservingCompactionRuntimeError(error) {
+  return isStaleExtensionContextError(error)
+    || isMissingCachePreservingCompactionExtensionError(error);
+}
+
 export function estimateCachePreservingCompactionRequest({
   preparation,
   systemPrompt = "",
@@ -643,7 +656,29 @@ export async function runCachePreservingCompactionForSession(session: any, {
 export async function compactSessionWithCachePreservation(session, customInstructions) {
   session?.extensionRunner?.assertActive?.();
   if (!session?.extensionRunner?.hasHandlers?.("session_before_compact")) {
-    throw new Error("Cache-preserving compaction extension is not installed for this session");
+    throw new Error(CACHE_PRESERVING_COMPACTION_EXTENSION_MISSING_MESSAGE);
   }
   return await session.compact(customInstructions);
+}
+
+export async function compactSessionWithCachePreservationRecoveringRuntime({
+  session,
+  sessionPath,
+  customInstructions,
+  reloadSessionRuntime,
+  onRuntimeReload,
+}: any) {
+  try {
+    const result = await compactSessionWithCachePreservation(session, customInstructions);
+    return { result, session, recovered: false };
+  } catch (error) {
+    if (!isRecoverableCachePreservingCompactionRuntimeError(error) || typeof reloadSessionRuntime !== "function") {
+      throw error;
+    }
+    const reloadedSession = await reloadSessionRuntime(sessionPath);
+    if (!reloadedSession) throw error;
+    await onRuntimeReload?.({ error, session: reloadedSession });
+    const result = await compactSessionWithCachePreservation(reloadedSession, customInstructions);
+    return { result, session: reloadedSession, recovered: true };
+  }
 }

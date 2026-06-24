@@ -33,6 +33,17 @@ describe("server transport ownership", () => {
     expect(identityIndex).toBeLessThan(engineIndex);
   });
 
+  it("registers compaction framework extensions before plugin startup lifecycles", () => {
+    const source = fs.readFileSync(path.join(root, "server", "index.ts"), "utf-8");
+
+    const compactionIndex = source.indexOf("await engine.registerExtensionFactory(createCompactionGuardExtension");
+    const pluginInitIndex = source.indexOf("await engine.initPlugins(");
+
+    expect(compactionIndex).toBeGreaterThan(-1);
+    expect(pluginInitIndex).toBeGreaterThan(-1);
+    expect(compactionIndex).toBeLessThan(pluginInitIndex);
+  });
+
   it("reports PORT_IN_USE with host, port, network mode, and recovery suggestions", () => {
     const source = fs.readFileSync(path.join(root, "server", "index.ts"), "utf-8");
 

@@ -307,12 +307,11 @@ import { BrowserManager } from "../lib/browser/browser-manager.ts";
 BrowserManager.setHanakoHome(engine.hanakoHome);
 BrowserManager.setSessionIdResolver((sessionPath: string) => engine.getSessionIdForPath?.(sessionPath) || null);
 
-// 注：createSession 必须在所有 Pi SDK extension factory 都注册完之后
-// (framework extension via registerExtensionFactory + plugin extension via
-//  initPlugins)。否则 ExtensionRunner 在 session 构造时只绑定当时已有的
-// factories。运行期插件热操作后，engine.syncPluginExtensions() 会 reload
-// 已加载且空闲的 session，让 ExtensionRunner 重新绑定最新 factories。
-// 实际 createSession 调用下移到 initPlugins + registerExtensionFactory 之后。
+// 注：任何 createSession 都必须在相关 Pi SDK extension factory 注册完之后。
+// framework extension 在插件 onStartup 之前注册，避免启动插件通过 session:send
+// 抢先创建缺少核心 handler 的 session；plugin extension 由 initPlugins() 同步。
+// 运行期插件热操作后，engine.syncPluginExtensions() 会 reload 已加载且空闲的
+// session，让 ExtensionRunner 重新绑定最新 factories。
 
 // 写日志头部
 dlog.header(appVersion, {
@@ -327,6 +326,57 @@ if (process.platform === "win32") engine.startWin32LegacySandboxMaintenance();
 
 // ── 初始化 Hub（调度中枢，包装 engine） ──
 const hub = new Hub({ engine });
+
+// Framework Pi SDK extensions must be registered before plugin onStartup
+// lifecycles can create or resume sessions through session:send.
+const deferredResultStore = new DeferredResultStore(
+  hub.eventBus,
+  path.join(hanakoHome, ".ephemeral", "deferred-tasks.json"),
+  { getSessionIdForPath: (sessionPath: string) => engine.getSessionIdForPath?.(sessionPath) || null },
+);
+engine.setDeferredResultStore(deferredResultStore);
+registerDeferredResultBusHandlers(hub.eventBus, deferredResultStore);
+
+await engine.registerExtensionFactory(createDeferredResultExtension(deferredResultStore));
+await engine.registerExtensionFactory(createCompactionGuardExtension({
+  usageLedger: engine.usageLedger,
+  getCompactionMode: () => getResolvedCompactionMode(engine.preferences),
+  buildSessionCacheSnapshot: (sessionPath, options) => engine.buildSessionCacheSnapshot(sessionPath, options),
+  buildUsageContext: ({ ctx }) => {
+    const sessionPath = ctx?.sessionManager?.getSessionFile?.() || null;
+    const bridgeContext = sessionPath ? engine.getBridgeContextForSessionPath(sessionPath) : null;
+    if (bridgeContext?.isBridgeSession) {
+      const conversationType = bridgeContext.chatType === "channel" ? "channel" : "dm";
+      return {
+        source: {
+          subsystem: "compaction",
+          operation: "fresh_compact",
+          surface: conversationType,
+          trigger: "threshold",
+        },
+        attribution: {
+          kind: "phone_conversation",
+          agentId: bridgeContext.agentId || null,
+          conversationId: bridgeContext.sessionKey || bridgeContext.chatId || sessionPath,
+          conversationType,
+          ...sessionUsageFields(sessionPath),
+        },
+      };
+    }
+    return {
+      source: {
+        subsystem: "compaction",
+        operation: "compact",
+        surface: "desktop",
+        trigger: "threshold",
+      },
+      attribution: sessionUsageAttribution(
+        sessionPath,
+        sessionPath ? engine.agentIdFromSessionPath?.(sessionPath) || null : null,
+      ),
+    };
+  },
+}));
 
 // ── 初始化插件系统 ──
 await engine.initPlugins(hub.eventBus);
@@ -484,14 +534,6 @@ const confirmStore = new ConfirmStore({
 });
 engine.setConfirmStore(confirmStore);
 
-// --- Deferred Result Store ---
-const deferredResultStore = new DeferredResultStore(
-  hub.eventBus,
-  path.join(hanakoHome, ".ephemeral", "deferred-tasks.json"),
-  { getSessionIdForPath: (sessionPath: string) => engine.getSessionIdForPath?.(sessionPath) || null },
-);
-engine.setDeferredResultStore(deferredResultStore);
-
 const subagentRunStore = new SubagentRunStore(
   path.join(hanakoHome, "subagent-runs.json"),
   { getSessionIdForPath: (sessionPath: string) => engine.getSessionIdForPath?.(sessionPath) || null },
@@ -519,9 +561,6 @@ const activityHub = new ActivityHub(
   { getSessionIdForPath: (sessionPath: string) => engine.getSessionIdForPath?.(sessionPath) || null },
 );
 engine.setActivityHub(activityHub);
-
-// Bus handlers for plugin access
-registerDeferredResultBusHandlers(hub.eventBus, deferredResultStore);
 
 // Task registry bus handlers (plugin access)
 registerTaskRegistryBusHandlers(hub.eventBus, engine.taskRegistry);
@@ -630,49 +669,6 @@ hub.eventBus.handle("model:sample-text", async (payload: any = {}) => {
 hub.eventBus.handle("usage:list", (filter = {}) => {
   return engine.usageLedger.list(filter);
 });
-
-// Register Pi SDK extension factory
-await engine.registerExtensionFactory(createDeferredResultExtension(deferredResultStore));
-// Cache-preserving compaction — 接管 Pi auto/manual compact，避免原生 summarizer 冷读上下文
-await engine.registerExtensionFactory(createCompactionGuardExtension({
-  usageLedger: engine.usageLedger,
-  getCompactionMode: () => getResolvedCompactionMode(engine.preferences),
-  buildSessionCacheSnapshot: (sessionPath, options) => engine.buildSessionCacheSnapshot(sessionPath, options),
-  buildUsageContext: ({ ctx }) => {
-    const sessionPath = ctx?.sessionManager?.getSessionFile?.() || null;
-    const bridgeContext = sessionPath ? engine.getBridgeContextForSessionPath(sessionPath) : null;
-    if (bridgeContext?.isBridgeSession) {
-      const conversationType = bridgeContext.chatType === "channel" ? "channel" : "dm";
-      return {
-        source: {
-          subsystem: "compaction",
-          operation: "fresh_compact",
-          surface: conversationType,
-          trigger: "threshold",
-        },
-        attribution: {
-          kind: "phone_conversation",
-          agentId: bridgeContext.agentId || null,
-          conversationId: bridgeContext.sessionKey || bridgeContext.chatId || sessionPath,
-          conversationType,
-          ...sessionUsageFields(sessionPath),
-        },
-      };
-    }
-    return {
-      source: {
-        subsystem: "compaction",
-        operation: "compact",
-        surface: "desktop",
-        trigger: "threshold",
-      },
-      attribution: sessionUsageAttribution(
-        sessionPath,
-        sessionPath ? engine.agentIdFromSessionPath?.(sessionPath) || null : null,
-      ),
-    };
-  },
-}));
 
 // ── 启动默认 session ──
 // Desktop 会显式跳过：renderer 首屏就是 pending-new-session，首次发送消息时

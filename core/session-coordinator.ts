@@ -1008,11 +1008,13 @@ export class SessionCoordinator {
         continue;
       }
       if (session.isStreaming || session.isCompacting || entry._switching) {
+        this._markExtensionRunnerDirty(entry, reason);
         summary.skipped += 1;
         continue;
       }
       try {
         await session.reload();
+        this._clearExtensionRunnerDirty(entry);
         entry.lastTouchedAt = Date.now();
         summary.reloaded += 1;
       } catch (err) {
@@ -1021,6 +1023,37 @@ export class SessionCoordinator {
       }
     }
     return summary;
+  }
+
+  _markExtensionRunnerDirty(entry: any, reason = "extension_factories_changed") {
+    if (!entry) return;
+    entry.extensionRunnerDirty = true;
+    entry.extensionRunnerDirtyReason = reason;
+    entry.extensionRunnerDirtyAt = Date.now();
+  }
+
+  _clearExtensionRunnerDirty(entry: any) {
+    if (!entry) return;
+    entry.extensionRunnerDirty = false;
+    entry.extensionRunnerDirtyReason = null;
+    entry.extensionRunnerDirtyAt = null;
+  }
+
+  async _reloadDirtyExtensionRunnerIfPossible(entry: any, sessionPath: any, reason = "session_operation") {
+    if (!entry?.extensionRunnerDirty) return false;
+    const session = entry.session;
+    if (!session || typeof session.reload !== "function") return false;
+    if (session.isStreaming || session.isCompacting || entry._switching) return false;
+    try {
+      await session.reload();
+      this._clearExtensionRunnerDirty(entry);
+      entry.lastTouchedAt = Date.now();
+      log.log(`dirty extension runner reloaded for ${path.basename(sessionPath)} (${reason})`);
+      return true;
+    } catch (err) {
+      log.warn(`dirty extension runner reload failed for ${path.basename(sessionPath)} (${reason}): ${err?.message || err}`);
+      return false;
+    }
   }
 
   // ── Session 创建 / 切换 ──
@@ -2474,6 +2507,7 @@ export class SessionCoordinator {
     if (sessionPath === this.currentSessionPath && this._session !== entry.session) {
       this._session = entry.session;
     }
+    await this._reloadDirtyExtensionRunnerIfPossible(entry, sessionPath, "prompt_session");
     entry.lastTouchedAt = Date.now();
     if (entry.sessionVisibility !== "plugin_private" && entry.sessionVisibility !== "private") {
       entry.visibleInSessionList = true;

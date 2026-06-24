@@ -29,6 +29,7 @@ vi.mock("../lib/pi-sdk/index.js", () => ({
 
 import {
   compactSessionWithCachePreservation,
+  compactSessionWithCachePreservationRecoveringRuntime,
   createCachePreservingCompactionResult,
   runCachePreservingCompactionForSession,
 } from "../core/session-compactor.ts";
@@ -498,6 +499,29 @@ describe("session-compactor", () => {
       "Cache-preserving compaction extension is not installed",
     );
     expect(session.compact).not.toHaveBeenCalled();
+  });
+
+  it("reloads the session runtime once when the compaction hook is missing", async () => {
+    const staleSession = {
+      compact: vi.fn(),
+      extensionRunner: { hasHandlers: vi.fn(() => false) },
+    };
+    const reloadedSession = {
+      compact: vi.fn(async () => "ok"),
+      extensionRunner: { hasHandlers: vi.fn((event) => event === "session_before_compact") },
+    };
+    const reloadSessionRuntime = vi.fn(async () => reloadedSession);
+
+    await expect(compactSessionWithCachePreservationRecoveringRuntime({
+      session: staleSession,
+      sessionPath: "/sessions/a.jsonl",
+      customInstructions: "focus",
+      reloadSessionRuntime,
+    })).resolves.toMatchObject({ result: "ok", session: reloadedSession, recovered: true });
+
+    expect(staleSession.compact).not.toHaveBeenCalled();
+    expect(reloadSessionRuntime).toHaveBeenCalledWith("/sessions/a.jsonl");
+    expect(reloadedSession.compact).toHaveBeenCalledWith("focus");
   });
 
   it("reports stale extension runners before invoking manual compaction", async () => {

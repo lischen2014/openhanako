@@ -32,7 +32,7 @@ import { PluginManager } from "./plugin-manager.ts";
 import { PluginDevService } from "./plugin-dev-service.ts";
 import { createPluginDevTools } from "./plugin-dev-tools.ts";
 import { DefaultResourceLoader, SettingsManager } from "../lib/pi-sdk/index.ts";
-import { compactSessionWithCachePreservation, isStaleExtensionContextError } from "./session-compactor.ts";
+import { compactSessionWithCachePreservationRecoveringRuntime } from "./session-compactor.ts";
 import { getFreshCompactNoopReason } from "../lib/fresh-compact/policy.ts";
 import { DeferredResultCoordinator } from "../lib/deferred-result-coordinator.ts";
 import { getToolSessionPath, normalizeToolRuntimeContext } from "../lib/tools/tool-session.ts";
@@ -1506,16 +1506,17 @@ export class HanaEngine {
     if (!session) throw new Error("compactDesktopSession: session not found");
     if (session.isCompacting) throw new Error("compactDesktopSession: already compacting");
     let before = session.getContextUsage?.() ?? null;
-    try {
-      await compactSessionWithCachePreservation(session, undefined);
-    } catch (error) {
-      if (!isStaleExtensionContextError(error)) throw error;
-      session = await this.reloadSessionRuntime(sessionPath);
-      if (!session) throw error;
-      if (session.isCompacting) throw new Error("compactDesktopSession: already compacting");
-      before = session.getContextUsage?.() ?? before;
-      await compactSessionWithCachePreservation(session, undefined);
-    }
+    const compacted = await compactSessionWithCachePreservationRecoveringRuntime({
+      session,
+      sessionPath,
+      customInstructions: undefined,
+      reloadSessionRuntime: (path) => this.reloadSessionRuntime(path),
+      onRuntimeReload: ({ session: reloadedSession }) => {
+        if (reloadedSession.isCompacting) throw new Error("compactDesktopSession: already compacting");
+        before = reloadedSession.getContextUsage?.() ?? before;
+      },
+    });
+    session = compacted.session;
     const after = session.getContextUsage?.() ?? null;
     return {
       tokensBefore: before?.tokens ?? null,
@@ -1542,23 +1543,20 @@ export class HanaEngine {
     let before = session.getContextUsage?.() ?? null;
     let noopReason = null;
     try {
-      await compactSessionWithCachePreservation(session, undefined);
+      const compacted = await compactSessionWithCachePreservationRecoveringRuntime({
+        session,
+        sessionPath,
+        customInstructions: undefined,
+        reloadSessionRuntime: (path) => this.reloadSessionRuntime(path),
+        onRuntimeReload: ({ session: reloadedSession }) => {
+          if (reloadedSession.isCompacting) throw new Error("freshCompactDesktopSession: already compacting");
+          before = reloadedSession.getContextUsage?.() ?? before;
+        },
+      });
+      session = compacted.session;
     } catch (error) {
-      if (isStaleExtensionContextError(error)) {
-        session = await this.reloadSessionRuntime(sessionPath);
-        if (!session) throw error;
-        if (session.isCompacting) throw new Error("freshCompactDesktopSession: already compacting");
-        before = session.getContextUsage?.() ?? before;
-        try {
-          await compactSessionWithCachePreservation(session, undefined);
-        } catch (retryError) {
-          noopReason = getFreshCompactNoopReason(retryError);
-          if (!noopReason) throw retryError;
-        }
-      } else {
-        noopReason = getFreshCompactNoopReason(error);
-        if (!noopReason) throw error;
-      }
+      noopReason = getFreshCompactNoopReason(error);
+      if (!noopReason) throw error;
     }
     const after = session.getContextUsage?.() ?? null;
     // 压缩完成后整体重建 runtime：restore 路径按当前配置重算 prompt/tool 快照并写回 session-meta
