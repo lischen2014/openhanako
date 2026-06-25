@@ -85,7 +85,7 @@
     --editor-markdown-h5-font-size: 15px;
     --editor-markdown-h6-font-size: 14px;
     --editor-markdown-line-height: 1.72;
-    --editor-markdown-content-padding-x: 24px;
+    --editor-markdown-content-padding-x: var(--space-24);
     --editor-markdown-content-width: 720px;
 
     /* 纸质纹理：卡片层默认提亮纸纹，深色主题可关闭补偿 */
@@ -264,7 +264,7 @@ option,
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 0 12px;
+    padding: 0 var(--space-12);
     background-color: var(--bg);
     border-bottom: 1px solid var(--overlay-light);
 }
@@ -590,7 +590,7 @@ html[data-platform="linux"] .tb-toggle-right {
     gap: 8px;
     width: calc(100% - var(--space-8) * 2);
     margin: 2px var(--space-8) 4px;
-    padding: 6px 12px;
+    padding: var(--space-6) var(--space-12);
     border-radius: var(--radius-sm);
     font-family: inherit;
     font-size: var(--fs-caption);
@@ -624,7 +624,7 @@ html[data-platform="linux"] .tb-toggle-right {
     color: var(--sidebar-bridge-card-text, var(--text-muted));
     width: calc(100% - var(--space-16) * 2);
     margin: 4px auto 6px;
-    padding: 7px 12px;
+    padding: 7px var(--space-12);
     justify-content: center;
 }
 .sidebar-bridge-card:hover {
@@ -768,7 +768,7 @@ html[data-platform="linux"] .tb-toggle-right {
     transform: translateX(-50%) translateY(10px);
     background: var(--danger);
     color: #fff;
-    padding: 6px 16px;
+    padding: var(--space-6) var(--space-16);
     border-radius: 6px;
     font-size: 12px;
     opacity: 0;
@@ -1625,7 +1625,7 @@ html[data-platform="linux"] .tb-toggle-right {
 }
 
 .devtools-buttons {
-    padding: 12px 16px 4px;
+    padding: var(--space-12) var(--space-16) var(--space-4);
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 6px;
@@ -1676,7 +1676,7 @@ html[data-platform="linux"] .tb-toggle-right {
     font-size: var(--fs-hint);
     color: var(--accent);
     text-align: center;
-    padding: 3px 16px;
+    padding: 3px var(--space-16);
     min-height: 18px;
     flex-shrink: 0;
 }
@@ -1689,7 +1689,7 @@ html[data-platform="linux"] .tb-toggle-right {
     display: flex;
     gap: 0;
     flex-shrink: 0;
-    padding: 0 16px;
+    padding: 0 var(--space-16);
     border-bottom: 1px solid var(--border);
 }
 
@@ -1721,7 +1721,7 @@ html[data-platform="linux"] .tb-toggle-right {
     min-height: 0;
     display: flex;
     flex-direction: column;
-    padding: 8px 16px 12px;
+    padding: var(--space-8) var(--space-16) var(--space-12);
 }
 
 .devtools-log-panel {
@@ -1883,7 +1883,7 @@ html[data-platform="linux"] .tb-toggle-right {
     height: 44px;
     display: flex;
     align-items: center;
-    padding: 0 16px;
+    padding: 0 var(--space-16);
     border-bottom: 1px solid var(--border);
     flex-shrink: 0;
 }
@@ -1934,7 +1934,7 @@ html[data-platform="linux"] .tb-toggle-right {
 }
 
 .sv-btn {
-    padding: 5px 12px;
+    padding: 5px var(--space-12);
     font-size: 12px;
     font-family: inherit;
     border: 1px solid var(--border);
@@ -1982,7 +1982,7 @@ html[data-platform="linux"] .tb-toggle-right {
     display: flex;
     align-items: center;
     gap: 6px;
-    padding: 5px 12px 5px 16px;
+    padding: 5px var(--space-12) 5px var(--space-16);
     font-size: 13px;
     color: var(--text);
     cursor: default;
@@ -2012,14 +2012,14 @@ html[data-platform="linux"] .tb-toggle-right {
 .sv-icon svg { width: 15px; height: 15px; }
 .sv-label { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .sv-tree-folder > .sv-tree-item { font-weight: 500; }
-.sv-tree-children { padding-left: 12px; }
+.sv-tree-children { padding-left: var(--space-12); }
 
 .sv-content {
     flex: 1;
     min-width: 0;
     min-height: 0;
     overflow-y: auto;
-    padding: 24px 32px;
+    padding: var(--space-24) var(--space-32);
 }
 
 .sv-content .md-content {
@@ -2030,7 +2030,7 @@ html[data-platform="linux"] .tb-toggle-right {
 .sv-content .md-content h1 { text-align: center; }
 
 .sv-description {
-    padding: 14px 16px;
+    padding: 14px var(--space-16);
     margin-bottom: 20px;
     background: var(--tool-bg, rgba(0,0,0,0.025));
     border-radius: 8px;
@@ -2057,7 +2057,7 @@ html[data-platform="linux"] .tb-toggle-right {
 .sv-content pre {
     background: var(--tool-bg, var(--overlay-light));
     border-radius: 8px;
-    padding: 16px;
+    padding: var(--space-16);
     overflow-x: auto;
     font-size: 13px;
     line-height: 1.5;
@@ -2395,7 +2395,7 @@ body.resizing .channel-inspector-rail {
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 5px 12px;
+    padding: 5px var(--space-12);
     font-size: var(--fs-hint);
     color: var(--text);
     cursor: default;
@@ -2485,7 +2485,7 @@ body.resizing .channel-inspector-rail {
 /* Toast 通知 */
 .hana-toast {
     position: fixed;
-    top: calc(var(--titlebar-h) + 12px);
+    top: calc(var(--titlebar-h) + var(--space-12));
     left: 50%;
     transform: translateX(-50%) translateY(-10px);
     display: flex;
@@ -2493,7 +2493,7 @@ body.resizing .channel-inspector-rail {
     gap: 10px;
     background: var(--bg-card, #fff);
     color: var(--text, var(--text-primary, #3f3a34));
-    padding: 8px 12px 8px 20px;
+    padding: var(--space-8) var(--space-12) var(--space-8) 20px;
     border: 1px solid var(--overlay-light, rgba(0, 0, 0, 0.08));
     border-radius: 8px;
     font-size: 13px;
@@ -2551,8 +2551,8 @@ body.resizing .channel-inspector-rail {
    ======================================== */
 .connection-status {
     position: fixed;
-    top: 12px;
-    right: 16px;
+    top: var(--space-12);
+    right: var(--space-16);
     display: flex;
     align-items: center;
     gap: 0.3rem;
@@ -2839,7 +2839,7 @@ body.resizing .channel-inspector-rail {
     box-shadow: 0 4px 16px rgba(0,0,0,0.09), 0 2px 6px rgba(0,0,0,0.06);
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: var(--space-12);
     cursor: default;
     transition: box-shadow var(--duration-fast);
     -webkit-app-region: no-drag;
@@ -3010,7 +3010,7 @@ body.resizing .channel-inspector-rail {
     display: flex;
     flex-direction: column;
     align-items: center;
-    padding: 48px 40px 32px;
+    padding: 48px var(--space-40) var(--space-32);
     -webkit-app-region: drag;
 }
 
@@ -3098,14 +3098,14 @@ html[data-platform="linux"] .onboarding {
 /* ── Buttons ── */
 .onboarding-actions {
     display: flex;
-    gap: 12px;
+    gap: var(--space-12);
     margin-top: auto;
-    padding-top: 16px;
+    padding-top: var(--space-16);
 }
 
 .ob-remote-connect {
     width: 100%;
-    margin-top: 12px;
+    margin-top: var(--space-12);
     text-align: center;
 }
 
@@ -3194,7 +3194,7 @@ html[data-platform="linux"] .onboarding {
     width: min(100%, 360px);
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: var(--space-12);
 }
 
 .ob-name-field {
@@ -3210,7 +3210,7 @@ html[data-platform="linux"] .onboarding {
     justify-content: space-between;
     gap: 14px;
     width: 100%;
-    padding: 12px 0 0;
+    padding: var(--space-12) 0 0;
     border-top: 1px solid var(--border);
 }
 
@@ -3240,7 +3240,7 @@ html[data-platform="linux"] .onboarding {
     width: 100%;
 }
 .provider-card {
-    padding: 10px 12px;
+    padding: 10px var(--space-12);
     border-radius: var(--radius-md, 8px);
     border: 1px solid var(--border);
     background-color: var(--bg-card);
@@ -3766,7 +3766,7 @@ html[data-platform="linux"] .onboarding {
     grid-template-columns: 44px minmax(0, 1fr);
     gap: 14px;
     align-items: start;
-    padding: 16px;
+    padding: var(--space-16);
     border: 1px solid var(--border);
     border-radius: var(--radius-md, 8px);
     background: var(--bg-card);
@@ -3830,7 +3830,7 @@ html[data-platform="linux"] .onboarding {
     width: 100%;
 }
 .tutorial-card {
-    padding: 14px 16px;
+    padding: 14px var(--space-16);
     border-radius: var(--radius-lg, 12px);
     background-color: var(--bg-card);
     box-shadow: 0 1px 4px var(--shadow, rgba(0,0,0,0.06));
@@ -3922,21 +3922,21 @@ html[data-platform="linux"] .onboarding {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 0.75rem;
-    margin-top: 0.5rem;
+    gap: var(--space-12);
+    margin-top: var(--space-8);
 }
 
 .yuan-chips {
     display: flex;
     justify-content: center;
-    gap: 0.75rem;
+    gap: var(--space-12);
 }
 
 .yuan-chip {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 0.5rem;
+    gap: var(--space-8);
     flex: 0 0 100px;
     padding: 1rem 0.6rem;
     border-radius: var(--radius-lg, 12px);

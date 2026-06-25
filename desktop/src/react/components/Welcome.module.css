@@ -122,7 +122,7 @@
     align-items: center;
     gap: 0.35rem;
     min-height: 30px;
-    padding: 6px 12px;
+    padding: var(--space-6) var(--space-12);
     font-size: var(--fs-caption);
     color: var(--text);
     cursor: default;
@@ -156,7 +156,7 @@
 }
 
 .folderHistorySectionLabel {
-    padding: 4px 12px 2px;
+    padding: var(--space-4) var(--space-12) 2px;
     font-size: var(--fs-hint);
     color: var(--text-muted);
     opacity: 0.78;
@@ -193,7 +193,7 @@
     align-items: center;
     gap: 0.35rem;
     min-height: 30px;
-    padding: 6px 12px;
+    padding: var(--space-6) var(--space-12);
     font-size: var(--fs-caption);
     color: var(--text-muted);
     cursor: default;
@@ -253,7 +253,7 @@
 /* Agent 选择器 */
 .welcomeAgentSelector {
     display: flex;
-    gap: 0.5rem;
+    gap: var(--space-8);
     justify-content: center;
     flex-wrap: wrap;
     margin-top: var(--space-8);

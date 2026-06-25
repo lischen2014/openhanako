@@ -127,7 +127,7 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 8px 12px;
+    padding: var(--space-8) var(--space-12);
     background: var(--bg);
     border-top: 1px solid var(--overlay-light);
     z-index: 6;
@@ -144,7 +144,7 @@
     font-weight: 600;
     color: var(--text-muted);
     letter-spacing: 0.04em;
-    padding: 12px 12px 4px;
+    padding: var(--space-12) var(--space-12) var(--space-4);
     user-select: none;
     display: flex;
     align-items: baseline;
@@ -290,7 +290,7 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 12px var(--space-24);
+    padding: var(--space-12) var(--space-24);
     border-bottom: 1px solid var(--overlay-light);
     flex-shrink: 0;
 }
@@ -418,7 +418,7 @@
 /* 他人消息：左侧气泡 */
 .channelMsg:not(.channelMsgSelf) .channelMsgText {
     background: var(--overlay-light);
-    padding: 8px 12px;
+    padding: var(--space-8) var(--space-12);
     border-radius: 14px 14px 14px 2px;
     display: inline-block;
     max-width: 70%;
@@ -437,7 +437,7 @@
 
 .channelMsgSelf .channelMsgText {
     background: rgba(var(--accent-rgb), 0.1);
-    padding: 8px 12px;
+    padding: var(--space-8) var(--space-12);
     border-radius: 14px 14px 2px 14px;
     display: inline-block;
     max-width: 70%;
@@ -449,14 +449,14 @@
 
 .channelNewMessagesBtn {
     position: sticky;
-    bottom: 12px;
+    bottom: var(--space-12);
     display: flex;
     align-items: center;
     justify-content: center;
     gap: 6px;
     width: fit-content;
     margin-top: var(--space-8);
-    padding: 6px 12px;
+    padding: var(--space-6) var(--space-12);
     border: 1px solid rgba(var(--accent-rgb), 0.18);
     border-radius: var(--radius-sm);
     background: var(--bg-card);
@@ -514,7 +514,7 @@
     display: flex;
     align-items: center;
     gap: var(--space-8);
-    padding: 6px 12px;
+    padding: var(--space-6) var(--space-12);
     cursor: default;
     font-size: 13px;
     color: var(--text-primary);

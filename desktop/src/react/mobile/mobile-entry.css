@@ -50,7 +50,7 @@
     --editor-markdown-h5-font-size: 15px;
     --editor-markdown-h6-font-size: 14px;
     --editor-markdown-line-height: 1.72;
-    --editor-markdown-content-padding-x: 24px;
+    --editor-markdown-content-padding-x: var(--space-24);
     --editor-markdown-content-width: 720px;
     --paper-texture-card-blend-mode: lighten;
     --sidebar-width: 240px;
@@ -198,7 +198,7 @@ option,
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 0 12px;
+    padding: 0 var(--space-12);
     background-color: var(--bg);
     border-bottom: 1px solid var(--overlay-light);
 }
@@ -312,7 +312,7 @@ html[data-platform="linux"] .tb-toggle-right {
     display: flex;
     flex-direction: column;
     overflow: hidden;
-    padding-top: 40px;
+    padding-top: var(--space-40);
     background-color: var(--sidebar-bg, var(--bg));
     border-right: 1px solid var(--overlay-light);
     z-index: 10;
@@ -389,7 +389,7 @@ html[data-platform="linux"] .tb-toggle-right {
     gap: 8px;
     width: calc(100% - var(--space-8) * 2);
     margin: 2px var(--space-8) 4px;
-    padding: 6px 12px;
+    padding: var(--space-6) var(--space-12);
     border: none;
     border-radius: var(--radius-sm);
     background: none;
@@ -414,7 +414,7 @@ html[data-platform="linux"] .tb-toggle-right {
 .sidebar-bridge-card {
     width: calc(100% - var(--space-16) * 2);
     margin: 4px auto 6px;
-    padding: 7px 12px;
+    padding: 7px var(--space-12);
     justify-content: center;
     background: rgba(255, 255, 255, 0.5);
     border: 1px solid rgba(0, 0, 0, 0.05);
@@ -871,7 +871,7 @@ html[data-platform="linux"] .tb-toggle-right {
     display: flex;
     flex-direction: column;
     overflow: hidden;
-    padding-top: 40px;
+    padding-top: var(--space-40);
     z-index: 10;
     transition: width var(--duration-slow) var(--ease-out);
 }
@@ -969,13 +969,13 @@ body.resizing .jian-sidebar-inner {
 
 .hana-toast {
     position: fixed;
-    top: calc(var(--titlebar-h) + 12px);
+    top: calc(var(--titlebar-h) + var(--space-12));
     left: 50%;
     z-index: 9999;
     display: flex;
     align-items: center;
     gap: 10px;
-    padding: 8px 12px 8px 20px;
+    padding: var(--space-8) var(--space-12) var(--space-8) 20px;
     border: 1px solid var(--overlay-light, rgba(0, 0, 0, 0.08));
     border-radius: 8px;
     background: var(--bg-card, #fff);
@@ -1035,8 +1035,8 @@ body.resizing .jian-sidebar-inner {
 
 .connection-status {
     position: fixed;
-    top: 12px;
-    right: 16px;
+    top: var(--space-12);
+    right: var(--space-16);
     z-index: 50;
     display: flex;
     align-items: center;
@@ -1108,7 +1108,7 @@ body.resizing .jian-sidebar-inner {
     z-index: 50;
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: var(--space-12);
     width: min(320px, calc(100% - 24px));
     margin: 0 auto;
     padding: 10px 14px;
@@ -1240,7 +1240,7 @@ body.resizing .jian-sidebar-inner {
     display: flex;
     flex-direction: column;
     align-items: center;
-    padding: 48px 40px 32px;
+    padding: 48px var(--space-40) var(--space-32);
     -webkit-app-region: drag;
 }
 
@@ -1297,9 +1297,9 @@ body.resizing .jian-sidebar-inner {
 
 .onboarding-actions {
     display: flex;
-    gap: 12px;
+    gap: var(--space-12);
     margin-top: auto;
-    padding-top: 16px;
+    padding-top: var(--space-16);
 }
 
 .ob-btn {
@@ -1361,7 +1361,7 @@ body.resizing .jian-sidebar-inner {
 }
 
 .provider-card {
-    padding: 10px 12px;
+    padding: 10px var(--space-12);
     border: 1px solid var(--border);
     border-radius: var(--radius-md, 8px);
     background-color: var(--bg-card);

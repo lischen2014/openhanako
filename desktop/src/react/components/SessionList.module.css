@@ -730,7 +730,7 @@
 
 .projectNameDialog {
     width: min(280px, calc(100vw - 32px));
-    padding: 12px;
+    padding: var(--space-12);
     border: 1px solid var(--overlay-light);
     border-radius: var(--radius-sm);
     background: var(--bg-card, var(--bg));
@@ -796,7 +796,7 @@
     z-index: 9998;
     width: min(320px, calc(100vw - 12px));
     max-height: min(340px, calc(100vh - 12px));
-    padding: 10px 12px;
+    padding: 10px var(--space-12);
     background: var(--bg-card, var(--bg));
     border: 1px solid var(--overlay-light);
     border-radius: var(--radius-md);
@@ -832,7 +832,7 @@
 
 .sessionSummaryBody ul {
     margin: 0 0 7px;
-    padding-left: 1rem;
+    padding-left: var(--space-16);
 }
 
 .sessionSummaryBody li {

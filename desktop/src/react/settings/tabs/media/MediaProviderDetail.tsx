@@ -362,8 +362,8 @@ export function MediaProviderDetail({ providerId, provider, capability = 'imageG
             {t('settings.media.providerDefaults')}
           </div>
           {schemaDrivenDefaults ? (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              <div style={{ display: 'grid', gridTemplateColumns: modelModes.length > 1 ? '1fr 1fr' : '1fr', gap: '12px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-12)' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: modelModes.length > 1 ? '1fr 1fr' : '1fr', gap: 'var(--space-12)' }}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                   <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                     {capability === 'videoGeneration' ? t('settings.media.videoModels') : t('settings.media.models')}
@@ -393,12 +393,12 @@ export function MediaProviderDetail({ providerId, provider, capability = 'imageG
                   </div>
                 )}
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-12)' }}>
                 {schemaEntries.map(([key, property]) => renderSchemaControl(key, property))}
               </div>
             </div>
           ) : (
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-12)' }}>
               {capability === 'imageGeneration' && fallbackResolutions.length > 0 && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                   <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>

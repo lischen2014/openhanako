@@ -481,7 +481,7 @@
     overflow: auto;
     max-width: 360px;
     max-height: 420px;
-    padding: 12px 14px;
+    padding: var(--space-12) 14px;
     color: var(--text);
     background: var(--bg-card, #fff);
     border: 1px solid var(--overlay-light, rgba(0, 0, 0, 0.08));
@@ -629,7 +629,7 @@
 }
 
 .cronConfirmBtn {
-    padding: 3px 12px;
+    padding: 3px var(--space-12);
     border: none;
     border-radius: var(--radius-sm);
     font-size: var(--fs-caption);
@@ -678,7 +678,7 @@
     display: flex;
     flex-direction: column;
     gap: var(--space-16);
-    padding: 22px 24px 18px;
+    padding: 22px var(--space-24) 18px;
     border-radius: var(--radius-chat-card);
     border: 1px solid rgba(0, 0, 0, 0.045);
     background: var(--bg-card, var(--bg));
@@ -981,7 +981,7 @@
 
 .settingsConfirmInput {
     width: 100%;
-    padding: 8px 12px;
+    padding: var(--space-8) var(--space-12);
     border: 1px solid var(--hana-border);
     border-radius: var(--radius-sm);
     background: var(--hana-bg);
@@ -1290,7 +1290,7 @@
 .toolIndicator {
     display: flex;
     align-items: center;
-    gap: 0.5rem;
+    gap: var(--space-8);
     min-width: 0;
     font-size: var(--fs-caption);
     color: var(--tool-text);
@@ -1555,7 +1555,7 @@
     z-index: 1;
     width: 100%;
     min-width: 0;
-    padding: 0 1rem;
+    padding: 0 var(--space-16);
     text-align: center;
 }
 
@@ -1882,7 +1882,7 @@
 
 .loadMoreHint {
     text-align: center;
-    padding: 0.5rem 0;
+    padding: var(--space-8) 0;
     font-size: var(--fs-caption);
     color: var(--text-tertiary, #999);
     min-height: 1.5rem;

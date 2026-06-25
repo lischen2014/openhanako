@@ -98,7 +98,7 @@
   min-height: 0;
   flex: 1 1 auto;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: var(--space-8);
   -webkit-app-region: no-drag;
 }
 
@@ -196,7 +196,7 @@
 }
 
 .rightControls {
-  gap: 0.25rem;
+  gap: var(--space-4);
 }
 
 .lockedPlanMode {

@@ -41,7 +41,7 @@
 .emptyText {
     font-size: var(--fs-body);
     color: var(--text);
-    margin: 0 0 0.5rem;
+    margin: 0 0 var(--space-8);
 }
 
 .emptyHint {
@@ -49,7 +49,7 @@
     line-height: 1.7;
     color: var(--text-muted);
     text-align: center;
-    margin: 0 0 1rem;
+    margin: 0 0 var(--space-16);
     max-width: 240px;
 }
 
@@ -600,7 +600,7 @@
 .cwdCtxMenu button {
     display: block;
     width: 100%;
-    padding: 6px 12px;
+    padding: var(--space-6) var(--space-12);
     font-family: inherit;
     font-size: var(--fs-caption);
     color: var(--text);

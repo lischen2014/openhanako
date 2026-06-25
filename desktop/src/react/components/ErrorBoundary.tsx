@@ -78,14 +78,14 @@ export class ErrorBoundary extends Component<Props, State> {
           textAlign: 'center',
         }}>
           <p style={{ marginBottom: '4px', fontWeight: 500 }}>{title}</p>
-          <p style={{ marginBottom: '12px', fontSize: '12px', opacity: 0.7 }}>{hint}</p>
+          <p style={{ marginBottom: 'var(--space-12)', fontSize: '12px', opacity: 0.7 }}>{hint}</p>
           <button
             onClick={this.handleRetry}
             style={{
               background: 'none',
               border: '1px solid var(--border-light, #ddd)',
               borderRadius: '4px',
-              padding: '4px 12px',
+              padding: 'var(--space-4) var(--space-12)',
               cursor: 'default',
               color: 'inherit',
               fontSize: '12px',

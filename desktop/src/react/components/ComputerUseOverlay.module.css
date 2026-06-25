@@ -17,7 +17,7 @@
   align-items: center;
   gap: 10px;
   max-width: min(680px, calc(100% - 40px));
-  padding: 8px 12px;
+  padding: var(--space-8) var(--space-12);
   border: 1px solid color-mix(in srgb, var(--accent, #537d96) 34%, var(--border, #ded8cf));
   background:
     linear-gradient(180deg,
