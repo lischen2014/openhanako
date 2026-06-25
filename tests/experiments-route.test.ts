@@ -19,6 +19,7 @@ function makeEngine() {
   const prefsState: any = {};
   return {
     root,
+    prefsState,
     engine: {
       agentsDir,
       preferences: {
@@ -45,8 +46,7 @@ describe("experiments route", () => {
 
     expect(status).toBe(200);
     const entry = body.experiments.find((item) => item.id === CACHE_SNAPSHOT_EXPERIMENT_ID);
-    expect(entry.value).toBe("off");
-    expect(entry.valueSchema.presentation.type).toBe("paired_toggles");
+    expect(entry).toBeUndefined();
     const compactionEntry = body.experiments.find((item) => item.id === COMPACTION_MODE_EXPERIMENT_ID);
     expect(compactionEntry.value).toBe("auto");
     expect(compactionEntry.valueSchema.presentation.type).toBe("select");
@@ -55,8 +55,8 @@ describe("experiments route", () => {
     expect(deepseekEntry.valueSchema.presentation.type).toBe("toggle");
   });
 
-  it("updates known experiment ids and rejects unknown ids", async () => {
-    const { engine } = makeEngine();
+  it("updates known active experiment ids, hard-disables retired ids, and rejects unknown ids", async () => {
+    const { engine, prefsState } = makeEngine();
     const route = createExperimentsRoute(engine);
 
     const ok = await routeFetch(route, `/experiments/${encodeURIComponent(CACHE_SNAPSHOT_EXPERIMENT_ID)}`, {
@@ -65,7 +65,8 @@ describe("experiments route", () => {
       body: JSON.stringify({ value: "shadow" }),
     });
     expect(ok.status).toBe(200);
-    expect(ok.body.value).toBe("shadow");
+    expect(ok.body.value).toBe("off");
+    expect(prefsState[CACHE_SNAPSHOT_EXPERIMENT_ID]).toBe("off");
 
     const mode = await routeFetch(route, `/experiments/${encodeURIComponent(COMPACTION_MODE_EXPERIMENT_ID)}`, {
       method: "PATCH",

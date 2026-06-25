@@ -49,6 +49,29 @@ import { createModuleLogger } from "../lib/debug-log.ts";
 import { normalizeSessionThinkingLevel } from "./session-thinking-level.ts";
 
 const log = createModuleLogger("preferences");
+const RETIRED_EXPERIMENT_IDS = new Set([
+  "memory.cache_snapshot_reflection",
+]);
+
+function stripRetiredExperimentValues(prefs) {
+  const experiments = prefs?.experiments;
+  if (!experiments || typeof experiments !== "object" || Array.isArray(experiments)) {
+    return prefs;
+  }
+
+  let nextExperiments = experiments;
+  for (const id of RETIRED_EXPERIMENT_IDS) {
+    if (!Object.prototype.hasOwnProperty.call(nextExperiments, id)) continue;
+    if (nextExperiments === experiments) nextExperiments = { ...experiments };
+    delete nextExperiments[id];
+  }
+  if (nextExperiments === experiments) return prefs;
+
+  const next = { ...prefs };
+  if (Object.keys(nextExperiments).length === 0) delete next.experiments;
+  else next.experiments = nextExperiments;
+  return next;
+}
 
 export class PreferencesManager {
   declare _agentsDir: any;
@@ -65,8 +88,15 @@ export class PreferencesManager {
     this._agentsDir = agentsDir;
     this._path = path.join(userDir, "preferences.json");
     this._cache = this._readFromDisk();
+    this._migrateRetiredExperiments();
     this._migrateLegacyDefaults();
     this.gcWorkspaceUiState();
+  }
+
+  _migrateRetiredExperiments() {
+    const next = stripRetiredExperimentValues(this._cache);
+    if (next === this._cache) return;
+    this.savePreferences(next);
   }
 
   /**
@@ -95,7 +125,7 @@ export class PreferencesManager {
 
   /** 写入全局 preferences（更新缓存 + 原子写磁盘） */
   savePreferences(prefs) {
-    const next = this._preserveDiskSetupComplete(structuredClone(prefs));
+    const next = this._preserveDiskSetupComplete(stripRetiredExperimentValues(structuredClone(prefs)));
     fs.mkdirSync(this._userDir, { recursive: true });
     try {
       atomicWriteSync(this._path, JSON.stringify(next, null, 2) + "\n");
