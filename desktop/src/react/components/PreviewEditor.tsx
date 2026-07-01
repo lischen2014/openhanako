@@ -65,8 +65,12 @@ export interface PreviewEditorHandle {
   getScrollSnapshot(contentHash?: string): PreviewScrollSnapshot | null;
   restoreScrollSnapshot(snapshot: PreviewScrollSnapshot | null | undefined): void;
   scrollToLine(line: number): void;
-  scrollToOffset(from: number, to?: number): void;
+  scrollToOffset(from: number, to?: number, options?: PreviewEditorScrollOptions): void;
   getTopVisibleLine(): number;
+}
+
+export interface PreviewEditorScrollOptions {
+  focus?: boolean;
 }
 
 export interface PreviewEditorStats {
@@ -197,7 +201,7 @@ function topVisibleLine(view: EditorView): number {
   return Math.max(0, view.state.doc.lineAt(pos).number - 1);
 }
 
-function scrollEditorToOffset(view: EditorView, from: number, to = from): void {
+function scrollEditorToOffset(view: EditorView, from: number, to = from, options: PreviewEditorScrollOptions = {}): void {
   const length = view.state.doc.length;
   const safeFrom = clampPos(from, length);
   const safeTo = clampPos(to, length);
@@ -205,7 +209,7 @@ function scrollEditorToOffset(view: EditorView, from: number, to = from): void {
     selection: EditorSelection.single(safeFrom, safeTo),
     effects: EditorView.scrollIntoView(safeFrom, { y: 'start', yMargin: 64 }),
   });
-  view.focus();
+  if (options.focus !== false) view.focus();
 }
 
 function restoreScrollPosition(view: EditorView, scrollTop: number, scrollLeft: number): void {
@@ -514,8 +518,8 @@ export const PreviewEditor = forwardRef<PreviewEditorHandle, PreviewEditorProps>
         const docLine = view.state.doc.line(Math.min(view.state.doc.lines, Math.max(1, line + 1)));
         scrollEditorToOffset(view, docLine.from);
       },
-      scrollToOffset: (from, to) => {
-        if (viewRef.current) scrollEditorToOffset(viewRef.current, from, to);
+      scrollToOffset: (from, to, options) => {
+        if (viewRef.current) scrollEditorToOffset(viewRef.current, from, to, options);
       },
       getTopVisibleLine: () => viewRef.current ? topVisibleLine(viewRef.current) : 0,
     }));

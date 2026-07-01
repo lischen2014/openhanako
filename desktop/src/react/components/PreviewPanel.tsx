@@ -371,7 +371,7 @@ export function PreviewPanel() {
       const matches = sourceFindMatches(previewItem.content, findQuery);
       setFindCount(matches.length);
       const match = matches[Math.min(findIndex, Math.max(0, matches.length - 1))];
-      if (match) editorRef.current?.scrollToOffset(match.from, match.to);
+      if (match) editorRef.current?.scrollToOffset(match.from, match.to, { focus: false });
       return undefined;
     }
     const marks = applyPreviewFindMarks(previewBodyRef.current, findQuery);
