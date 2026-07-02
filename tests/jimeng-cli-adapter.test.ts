@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   createJimengImageAdapter,
   createJimengVideoAdapter,
+  dreaminaCandidatePaths,
   parseDreaminaTaskOutput,
   resolveDreaminaCommand,
 } from "../plugins/jimeng-cli/adapters/dreamina.ts";
@@ -25,6 +26,39 @@ describe("Jimeng CLI command resolution", () => {
       platform: "linux",
     })).toBe("/opt/dreamina");
     expect(exists).toHaveBeenCalledWith("/opt/dreamina");
+  });
+
+  it("accepts DREAMINA_CLI_PATH as an install directory", () => {
+    expect(resolveDreaminaCommand({
+      env: { DREAMINA_CLI_PATH: "/opt/dreamina-cli", PATH: "/usr/bin" },
+      exists: (filePath: string) => filePath === "/opt/dreamina-cli/dreamina",
+      which: () => null,
+      homeDir: "/home/hana",
+      platform: "linux",
+    })).toBe("/opt/dreamina-cli/dreamina");
+  });
+
+  it("checks the official user install directory even when GUI app PATH is minimal", () => {
+    expect(resolveDreaminaCommand({
+      env: { PATH: "/usr/bin:/bin" },
+      exists: (filePath: string) => filePath === "/Users/hana/.local/bin/dreamina",
+      which: () => null,
+      homeDir: "/Users/hana",
+      platform: "darwin",
+    })).toBe("/Users/hana/.local/bin/dreamina");
+  });
+
+  it("documents common GUI app lookup paths", () => {
+    expect(dreaminaCandidatePaths({
+      env: {},
+      homeDir: "/Users/hana",
+      platform: "darwin",
+    })).toEqual(expect.arrayContaining([
+      "/Users/hana/.local/bin/dreamina",
+      "/Users/hana/bin/dreamina",
+      "/usr/local/bin/dreamina",
+      "/opt/homebrew/bin/dreamina",
+    ]));
   });
 
   it("returns null when dreamina is not installed", () => {
@@ -376,6 +410,46 @@ describe("Jimeng CLI adapters", () => {
       code: "cli_missing",
       installCommand: "curl -s https://jimeng.jianying.com/cli | bash",
       message: expect.stringContaining("dreamina"),
+    });
+  });
+
+  it("reports execFile ENOENT during auth as a missing CLI instead of unavailable CLI", async () => {
+    const adapter = createJimengVideoAdapter({
+      resolveCommand: () => "/Users/hana/.local/bin/dreamina",
+      runCommand: vi.fn(async () => {
+        throw Object.assign(new Error("spawn /Users/hana/.local/bin/dreamina ENOENT"), {
+          code: "ENOENT",
+          path: "/Users/hana/.local/bin/dreamina",
+        });
+      }),
+    });
+
+    await expect(adapter.checkAuth({} as any)).resolves.toMatchObject({
+      ok: false,
+      code: "cli_missing",
+      installCommand: "curl -s https://jimeng.jianying.com/cli | bash",
+      message: expect.stringContaining("DREAMINA_CLI_PATH"),
+    });
+  });
+
+  it("translates execFile ENOENT during video submit into actionable CLI guidance", async () => {
+    const adapter = createJimengVideoAdapter({
+      resolveCommand: () => "/Users/hana/.local/bin/dreamina",
+      runCommand: vi.fn(async () => {
+        throw Object.assign(new Error("spawn /Users/hana/.local/bin/dreamina ENOENT"), {
+          code: "ENOENT",
+          path: "/Users/hana/.local/bin/dreamina",
+        });
+      }),
+    });
+
+    await expect(adapter.submit({
+      prompt: "雨夜街道",
+      model: "seedance2.0fast",
+    }, { generatedDir: "/tmp/out" } as any)).rejects.toMatchObject({
+      code: "cli_missing",
+      installCommand: "curl -s https://jimeng.jianying.com/cli | bash",
+      message: expect.stringContaining("DREAMINA_CLI_PATH"),
     });
   });
 });

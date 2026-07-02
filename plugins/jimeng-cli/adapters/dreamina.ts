@@ -43,12 +43,45 @@ function pathEntries(envPath = "") {
   return String(envPath || "").split(path.delimiter).filter(Boolean);
 }
 
+function pushUnique(items, value) {
+  if (typeof value !== "string") return;
+  const trimmed = value.trim();
+  if (!trimmed || items.includes(trimmed)) return;
+  items.push(trimmed);
+}
+
 function defaultWhich(command, envPath = process.env.PATH || "", exists = fs.existsSync) {
   for (const dir of pathEntries(envPath)) {
     const candidate = path.join(dir, command);
     if (exists(candidate)) return candidate;
   }
   return null;
+}
+
+export function dreaminaCandidateDirs({
+  env = process.env,
+  homeDir = os.homedir(),
+  platform = process.platform,
+}: any = {}) {
+  const dirs = [];
+  pushUnique(dirs, env.DREAMINA_INSTALL_DIR);
+  pushUnique(dirs, env.DREAMINA_CLI_INSTALL_DIR);
+
+  if (platform === "win32") {
+    pushUnique(dirs, path.join(homeDir, "bin"));
+    pushUnique(dirs, env.LOCALAPPDATA ? path.join(env.LOCALAPPDATA, "Programs", "dreamina") : "");
+  } else {
+    pushUnique(dirs, path.join(homeDir, ".local", "bin"));
+    pushUnique(dirs, path.join(homeDir, "bin"));
+    pushUnique(dirs, "/usr/local/bin");
+    if (platform === "darwin") pushUnique(dirs, "/opt/homebrew/bin");
+  }
+  return dirs;
+}
+
+export function dreaminaCandidatePaths(options: any = {}) {
+  const command = executableName(options.platform || process.platform);
+  return dreaminaCandidateDirs(options).map((dir) => path.join(dir, command));
 }
 
 export function resolveDreaminaCommand({
@@ -59,19 +92,17 @@ export function resolveDreaminaCommand({
   platform = process.platform,
 }: any = {}) {
   const explicit = typeof env.DREAMINA_CLI_PATH === "string" ? env.DREAMINA_CLI_PATH.trim() : "";
-  if (explicit && exists(explicit)) return explicit;
-
   const command = executableName(platform);
+  if (explicit) {
+    const explicitCommand = path.join(explicit, command);
+    if (exists(explicitCommand)) return explicitCommand;
+    if (exists(explicit)) return explicit;
+  }
+
   const fromPath = which(command, env.PATH || "");
   if (fromPath) return fromPath;
 
-  const installDirs = [
-    env.DREAMINA_INSTALL_DIR,
-    env.DREAMINA_CLI_INSTALL_DIR,
-    platform === "win32" ? path.join(homeDir, "bin") : path.join(homeDir, ".local", "bin"),
-  ].filter((value) => typeof value === "string" && value.trim());
-  for (const dir of installDirs) {
-    const candidate = path.join(String(dir), command);
+  for (const candidate of dreaminaCandidatePaths({ env, homeDir, platform })) {
     if (exists(candidate)) return candidate;
   }
   return null;
@@ -143,13 +174,44 @@ export function parseDreaminaTaskOutput(stdout) {
   };
 }
 
+function cliMissingMessage(detail = "") {
+  const suffix = detail ? `（${detail}）` : "";
+  return `未检测到 dreamina CLI${suffix}。请先执行：${JIMENG_INSTALL_COMMAND}。如果已安装，请设置 DREAMINA_CLI_PATH 为 dreamina 可执行文件绝对路径，或设置 DREAMINA_INSTALL_DIR 为安装目录。`;
+}
+
+function createCliMissingError(detail = "") {
+  const err: any = new Error(cliMissingMessage(detail));
+  err.code = "cli_missing";
+  err.installCommand = JIMENG_INSTALL_COMMAND;
+  return err;
+}
+
+function isMissingExecutableError(err, command = "") {
+  if (err?.code !== "ENOENT") return false;
+  const errPath = typeof err?.path === "string" ? err.path : "";
+  if (!errPath || !command) return true;
+  return errPath === command || path.basename(errPath) === path.basename(command);
+}
+
+function normalizeRunCommandError(err, command) {
+  if (isMissingExecutableError(err, command)) {
+    throw createCliMissingError(`执行 ${command} 失败：${err?.message || "ENOENT"}`);
+  }
+  throw err;
+}
+
+async function runDreaminaCommand(runCommand, command, args, options) {
+  try {
+    return await runCommand(command, args, options);
+  } catch (err) {
+    normalizeRunCommandError(err, command);
+  }
+}
+
 function ensureCommand(resolveCommand) {
   const command = resolveCommand();
   if (!command) {
-    const err: any = new Error(`未检测到 dreamina CLI。请先执行：${JIMENG_INSTALL_COMMAND}`);
-    err.code = "cli_missing";
-    err.installCommand = JIMENG_INSTALL_COMMAND;
-    throw err;
+    throw createCliMissingError();
   }
   return command;
 }
@@ -352,12 +414,15 @@ function createJimengAdapter({
     async checkAuth(_ctx: any = {}) {
       const command = resolveCommand();
       if (!command) {
-        return createAuthFailure("cli_missing", `未检测到 dreamina CLI。请先执行：${JIMENG_INSTALL_COMMAND}`);
+        return createAuthFailure("cli_missing", cliMissingMessage());
       }
       try {
-        await runCommand(command, ["user_credit"], commandOptions({ timeout: 30_000 }));
+        await runDreaminaCommand(runCommand, command, ["user_credit"], commandOptions({ timeout: 30_000 }));
         return { ok: true };
       } catch (err: any) {
+        if (err?.code === "cli_missing") {
+          return createAuthFailure("cli_missing", err.message || cliMissingMessage());
+        }
         const output = `${err?.stdout || ""}\n${err?.stderr || ""}\n${err?.message || ""}`;
         if (output.includes("未检测到有效登录态")) {
           return createAuthFailure("login_required", "即梦 CLI 尚未登录，请先执行 dreamina login。");
@@ -369,7 +434,7 @@ function createJimengAdapter({
     async submit(params: any = {}, ctx: any = {}) {
       const command = ensureCommand(resolveCommand);
       const args = buildSubmitArgs(params, ctx);
-      const { stdout } = await runCommand(command, args, commandOptions({
+      const { stdout } = await runDreaminaCommand(runCommand, command, args, commandOptions({
         cwd: ctx.generatedDir || ctx.dataDir,
         timeout: 120_000,
       }));
@@ -381,7 +446,7 @@ function createJimengAdapter({
       const outputDir = ctx.generatedDir || path.join(ctx.dataDir, "generated");
       fs.mkdirSync(outputDir, { recursive: true });
       const before = new Set(listResultFiles(outputDir));
-      const { stdout } = await runCommand(command, [
+      const { stdout } = await runDreaminaCommand(runCommand, command, [
         "query_result",
         "--submit_id",
         String(providerTaskId),
