@@ -91,7 +91,7 @@ describe("session permission modes", () => {
   });
 
   it("auto mode reviews only unsandboxed or long-lived boundary changes", () => {
-    for (const toolName of ["write", "edit", "bash", "exec_command", "file", "todo_write", "subagent", "workflow"]) {
+    for (const toolName of ["write", "edit", "bash", "exec_command", "file", "todo_write", "subagent", "workflow", "install_skill"]) {
       expect(classifySessionPermission({ mode: "auto", toolName, params: { action: "copy" } }), toolName)
         .toEqual({ action: "allow" });
     }
@@ -100,12 +100,14 @@ describe("session permission modes", () => {
       terminal: { action: "start" },
       write_stdin: { process_id: "term_1" },
     };
-    for (const toolName of ["browser", "terminal", "write_stdin", "install_skill", "update_settings", "dm", "channel", "notify", "present_files", "stage_files", "pin_memory", "unpin_memory", "record_experience", "automation"]) {
+    for (const toolName of ["browser", "terminal", "write_stdin", "update_settings", "dm", "channel", "notify", "present_files", "stage_files", "pin_memory", "unpin_memory", "record_experience", "automation"]) {
       expect(classifySessionPermission({ mode: "auto", toolName, params: reviewerBoundParams[toolName] || { action: "start" } }), toolName)
         .toMatchObject({ action: "review", kind: "tool_action_approval" });
     }
     expect(classifySessionPermission({ mode: "auto", toolName: "computer", params: { action: "start" } }))
       .toEqual({ action: "allow" });
+    expect(classifySessionPermission({ mode: "read_only", toolName: "install_skill", params: { source: "github:user/skill" } }))
+      .toMatchObject({ action: "deny", code: "ACTION_BLOCKED_BY_READ_ONLY" });
   });
 
   it("blocks subagent tool inside a subagent (anti-recursion), independent of mode", () => {

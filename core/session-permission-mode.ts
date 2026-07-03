@@ -60,7 +60,6 @@ const AUTO_REVIEW_TOOLS = new Set([
   "browser",
   "channel",
   "dm",
-  "install_skill",
   "notify",
   "pin_memory",
   "present_files",
