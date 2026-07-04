@@ -1,7 +1,10 @@
 /**
  * MarkdownContent — 渲染预处理好的 markdown HTML
  *
- * 用 dangerouslySetInnerHTML 设置内容，
+ * 首次挂载走 dangerouslySetInnerHTML；此后每次 html 变化改走顶层子节点
+ * 级 reconcile（见 reconcileTopLevelChildren），只替换 HTML 真的变了的
+ * 顶层块，未变的块（典型如流式追加时已经说完的前几段）原地保留 DOM 节点，
+ * 不打断用户在其中已建立的原生文字选区。
  * 在渲染前补齐代码块工具栏，并用根事件代理处理工具栏交互。
  */
 
@@ -76,6 +79,60 @@ function applyTailFade(root: HTMLElement, count: number): void {
       fragment.appendChild(span);
     }
     item.node.parentNode?.replaceChild(fragment, item.node);
+  }
+}
+
+/**
+ * 把新的 HTML 字符串解析成一批顶层节点，逐个与当前 root 的顶层子节点按下标
+ * 比较原始 HTML 是否相同；相同则保留 root 里那个节点原样不动（不管它后来
+ * 被 mermaid 渲染 / 代码块工具栏点击等就地 DOM 副作用改成了什么样），不同
+ * 才替换成新节点。多出的旧节点整体裁掉，多出的新节点整体追加。
+ *
+ * 目的：流式追加只应让"正在变化的那一小块"重新挂载 DOM，已经说完的段落
+ * 保持节点身份不变，浏览器原生 Selection 才不会因为宿主节点被摘除而坍缩。
+ *
+ * 用 outerHTML（元素）/ textContent（文本节点）逐项比较，而不是比较 root
+ * 当前的 innerHTML，因为 root 的实际子节点可能已经被副作用就地改写过
+ * （mermaid 注入 svg、代码块工具栏切换 data-wrap、复制按钮闪一下
+ * data-copied）——这些改写不应被当成"内容变了"从而触发不必要的替换。
+ */
+function reconcileTopLevelChildren(root: HTMLElement, html: string): void {
+  // eslint-disable-next-line no-restricted-syntax -- 需要一个脱离文档树的容器来解析新 HTML 并逐个顶层节点比较，不能用 JSX
+  const template = document.createElement('template');
+  template.innerHTML = html;
+  const nextNodes = Array.from(template.content.childNodes);
+  const prevNodes = Array.from(root.childNodes);
+
+  const nodeSignature = (node: ChildNode): string => {
+    if (node instanceof Element) return node.outerHTML;
+    return `#text:${node.textContent ?? ''}`;
+  };
+
+  const prevSignatures = prevNodes.map(nodeSignature);
+  const length = Math.max(prevNodes.length, nextNodes.length);
+
+  for (let i = 0; i < length; i += 1) {
+    const prev = prevNodes[i] ?? null;
+    const next = nextNodes[i] ?? null;
+
+    if (next === null) {
+      // 新内容比旧的短（理论上流式追加不会发生，但兜底防御）：裁掉多余旧节点。
+      prev?.remove();
+      continue;
+    }
+
+    if (prev === null) {
+      root.appendChild(next);
+      continue;
+    }
+
+    if (prevSignatures[i] === nodeSignature(next)) {
+      // 该顶层块的源 HTML 没变——保留 root 里现有节点，不做任何替换，
+      // 哪怕它已经被 mermaid / 工具栏等副作用就地改写过。
+      continue;
+    }
+
+    root.replaceChild(next, prev);
   }
 }
 
@@ -181,8 +238,17 @@ export const MarkdownContent = memo(function MarkdownContent({ html, className, 
   }, [findAnchor, linkContext]);
 
   useLayoutEffect(() => {
-    if (!ref.current) return;
-    applyTailFade(ref.current, tailFadeCount);
+    const root = ref.current;
+    if (!root) return;
+    if (root.childNodes.length === 0) {
+      // 首次挂载：root 是空的，直接整体写入最快，也无需保护任何既有节点/选区。
+      root.innerHTML = renderedHtml;
+    } else {
+      // 后续更新（典型如流式追加）：只替换真正变化的顶层块，未变的块保留
+      // DOM 节点身份，用户在其中的原生文字选区不会被打断。
+      reconcileTopLevelChildren(root, renderedHtml);
+    }
+    applyTailFade(root, tailFadeCount);
   }, [renderedHtml, tailFadeCount]);
 
   useMermaidDiagrams(ref, [renderedHtml]);
@@ -194,7 +260,6 @@ export const MarkdownContent = memo(function MarkdownContent({ html, className, 
         className={classes}
         onClick={handleClick}
         onContextMenu={handleContextMenu}
-        dangerouslySetInnerHTML={{ __html: renderedHtml }}
       />
       {linkMenu && (
         <LinkContextMenu
