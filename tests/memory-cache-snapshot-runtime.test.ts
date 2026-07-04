@@ -5,12 +5,15 @@ import path from "path";
 
 vi.mock("../lib/memory/compile.js", () => ({
   compileToday: vi.fn().mockResolvedValue("compiled"),
-  compileWeek: vi.fn().mockResolvedValue("compiled"),
+  compileDaily: vi.fn().mockResolvedValue("compiled"),
+  assembleWeekFromDaily: vi.fn(),
+  rollDailyWindow: vi.fn().mockResolvedValue({ folded: [], failed: [] }),
   compileLongterm: vi.fn().mockResolvedValue("compiled"),
   compileEditableFacts: vi.fn().mockResolvedValue("compiled"),
   assemble: vi.fn(),
   ensureEditableFactsBaseline: vi.fn(),
   migrateLegacyEditableFacts: vi.fn(() => ({ migrated: false, reason: "no-legacy-file" })),
+  migrateLegacyWeekToLongterm: vi.fn().mockResolvedValue({ migrated: false }),
 }));
 
 vi.mock("../lib/memory/deep-memory.js", () => ({

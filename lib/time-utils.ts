@@ -50,3 +50,27 @@ export function getLogicalDayForDate(dateString) {
   rangeEnd.setDate(rangeEnd.getDate() + 1);
   return { logicalDate: dateString, rangeStart, rangeEnd };
 }
+
+/**
+ * 把 YYYY-MM-DD 形式的逻辑日期按天数偏移（可为负数，即往回推）。
+ * 纯日期算术，不涉及日界线小时数——用于"翻页到下一天时回填前一天"
+ * 这类相对昨天/前几天的场景。非法输入原样返回。
+ * @param {string} dateString
+ * @param {number} days
+ * @returns {string}
+ */
+export function shiftLogicalDate(dateString, days) {
+  const match = typeof dateString === "string" ? dateString.match(DATE_RE) : null;
+  if (!match) return dateString;
+
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const shifted = new Date(year, month - 1, day);
+  shifted.setDate(shifted.getDate() + Number(days || 0));
+
+  const yyyy = shifted.getFullYear();
+  const mm = String(shifted.getMonth() + 1).padStart(2, "0");
+  const dd = String(shifted.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+}

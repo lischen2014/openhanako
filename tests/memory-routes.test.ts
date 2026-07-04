@@ -122,8 +122,8 @@ describe("memory routes", () => {
     const health = {
       rollingSummary: { lastSuccessAt: "2026-06-01T10:00:00.000Z", lastErrorAt: null, lastErrorMsg: null, failCount: 0 },
       compileToday: { lastSuccessAt: "2026-06-01T10:05:00.000Z", lastErrorAt: null, lastErrorMsg: null, failCount: 0 },
-      compileWeek: { lastSuccessAt: null, lastErrorAt: null, lastErrorMsg: null, failCount: 0 },
-      compileLongterm: { lastSuccessAt: null, lastErrorAt: null, lastErrorMsg: null, failCount: 0 },
+      compileDaily: { lastSuccessAt: null, lastErrorAt: null, lastErrorMsg: null, failCount: 0 },
+      rollDailyWindow: { lastSuccessAt: null, lastErrorAt: null, lastErrorMsg: null, failCount: 0 },
       compileFacts: { lastSuccessAt: null, lastErrorAt: null, lastErrorMsg: null, failCount: 0 },
       deepMemory: { lastSuccessAt: null, lastErrorAt: "2026-06-01T10:10:00.000Z", lastErrorMsg: "LLM timeout", failCount: 2 },
     };

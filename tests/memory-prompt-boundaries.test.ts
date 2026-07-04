@@ -13,7 +13,7 @@ vi.mock("../core/llm-client.js", () => ({
 
 import { callText } from "../core/llm-client.ts";
 import { SessionSummaryManager } from "../lib/memory/session-summary.ts";
-import { compileToday, compileWeek, compileLongterm } from "../lib/memory/compile.ts";
+import { compileToday, compileDaily, compileLongterm } from "../lib/memory/compile.ts";
 import { processDirtySessions } from "../lib/memory/deep-memory.ts";
 
 const RESOLVED_MODEL = {
@@ -79,7 +79,7 @@ describe("memory prompt boundaries", () => {
     expect(request.maxTokens).toBeGreaterThan(150);
   });
 
-  it("today and week prompts keep broad work themes but reject work details", async () => {
+  it("today and daily prompts keep broad work themes but reject work details", async () => {
     const summaries = [
       {
         session_id: "s1",
@@ -90,11 +90,11 @@ describe("memory prompt boundaries", () => {
     const manager = makeFakeSummaryManager(summaries);
 
     await compileToday(manager, path.join(tmpDir, "today.md"), RESOLVED_MODEL);
-    await compileWeek(manager, path.join(tmpDir, "week.md"), RESOLVED_MODEL);
+    await compileDaily(manager, path.join(tmpDir, "daily"), "2026-07-03", RESOLVED_MODEL);
 
     const todayPrompt = (callText as any).mock.calls[0][0].systemPrompt;
-    const weekPrompt = (callText as any).mock.calls[1][0].systemPrompt;
-    for (const prompt of [todayPrompt, weekPrompt]) {
+    const dailyPrompt = (callText as any).mock.calls[1][0].systemPrompt;
+    for (const prompt of [todayPrompt, dailyPrompt]) {
       expect(prompt).toContain("工作相关内容只允许保留到大主题层级");
       expect(prompt).toContain("领域/项目/主题");
       expect(prompt).toContain("不要记录执行步骤、文件名、工具、命令、检查顺序、协作偏好、工作细节");
@@ -124,11 +124,9 @@ describe("memory prompt boundaries", () => {
   });
 
   it("longterm prompt keeps durable user profile instead of work patterns", async () => {
-    const weekPath = path.join(tmpDir, "week.md");
     const longtermPath = path.join(tmpDir, "longterm.md");
-    fs.writeFileSync(weekPath, "用户最近在关注记忆系统。", "utf-8");
 
-    await compileLongterm(weekPath, longtermPath, RESOLVED_MODEL);
+    await compileLongterm("用户最近在关注记忆系统。", longtermPath, RESOLVED_MODEL);
 
     const prompt = (callText as any).mock.calls[0][0].systemPrompt;
     expect(prompt).toContain("记忆不是工作日志");

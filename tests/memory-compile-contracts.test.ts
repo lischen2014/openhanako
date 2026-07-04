@@ -28,7 +28,7 @@ vi.mock("../lib/i18n.js", () => ({
 
 import {
   compileToday,
-  compileWeek,
+  compileDaily,
   compileLongterm,
   compileEditableFacts,
   assemble,
@@ -142,43 +142,9 @@ describe("compileToday empty-sessions fingerprint trap fix", () => {
   });
 });
 
-describe("compileWeek empty-sessions fingerprint trap fix", () => {
-  let tmpDir;
-  let weekPath;
-  let fpPath;
-
-  beforeEach(() => {
-    vi.clearAllMocks();
-    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "hana-compile-week-"));
-    weekPath = path.join(tmpDir, "week.md");
-    fpPath = weekPath + ".fingerprint";
-  });
-
-  afterEach(() => {
-    fs.rmSync(tmpDir, { recursive: true, force: true });
-  });
-
-  it("does not write fingerprint when sessions are empty", async () => {
-    const mgr = makeFakeSummaryManager([]);
-    await compileWeek(mgr, weekPath, RESOLVED_MODEL);
-
-    expect(fs.existsSync(fpPath)).toBe(false);
-    expect(callText).not.toHaveBeenCalled();
-  });
-
-  it("removes stale fingerprint when sessions become empty", async () => {
-    const mgrWith = makeFakeSummaryManager([
-      { session_id: "s1", updated_at: "2026-04-17T10:00:00Z", summary: "week summary" },
-    ]);
-    await compileWeek(mgrWith, weekPath, RESOLVED_MODEL);
-    expect(fs.existsSync(fpPath)).toBe(true);
-
-    const mgrEmpty = makeFakeSummaryManager([]);
-    await compileWeek(mgrEmpty, weekPath, RESOLVED_MODEL);
-
-    expect(fs.existsSync(fpPath)).toBe(false);
-  });
-});
+// compileWeek 已退役（week 段改由 assembleWeekFromDaily 纯文件装配，零 LLM）。
+// 其"空 sessions 不留 fingerprint"契约的等价覆盖见 compileDaily，
+// 详见 tests/memory-daily-conveyor.test.ts。
 
 // ---------------------------------------------------------------------------
 // 2. Compiled section formatting
@@ -213,16 +179,16 @@ describe("compiled section formatting", () => {
       .mockResolvedValueOnce("<think>先整理内部推理</think>\n用户关注记忆系统。")
       .mockResolvedValueOnce("<thinking>先整理内部推理</thinking>\n用户关注长期记忆。");
     const todayPath = path.join(tmpDir, "today.md");
-    const weekPath = path.join(tmpDir, "week.md");
+    const dailyDir = path.join(tmpDir, "daily");
     const mgr = makeFakeSummaryManager([
       { session_id: "s1", updated_at: "2026-04-29T08:30:00.000Z", summary: "用户关注记忆系统。" },
     ]);
 
     await compileToday(mgr, todayPath, RESOLVED_MODEL);
-    await compileWeek(mgr, weekPath, RESOLVED_MODEL);
+    await compileDaily(mgr, dailyDir, "2026-04-29", RESOLVED_MODEL);
 
     expect(fs.readFileSync(todayPath, "utf-8")).toBe("用户关注记忆系统。");
-    expect(fs.readFileSync(weekPath, "utf-8")).toBe("用户关注长期记忆。");
+    expect(fs.readFileSync(path.join(dailyDir, "2026-04-29.md"), "utf-8")).toBe("## 2026-04-29\n\n用户关注长期记忆。\n");
   });
 
   it("rejects dangling leading thinking blocks without overwriting memory or fingerprinting the bad output", async () => {
@@ -396,20 +362,18 @@ describe("compiled section formatting", () => {
     });
   });
 
-  it("asks the model to rewrite longterm from previous and weekly inputs within a word limit", async () => {
+  it("asks the model to rewrite longterm from previous and newly settled content within a word limit", async () => {
     (callText as any).mockResolvedValueOnce("用户长期关注记忆系统。");
-    const weekPath = path.join(tmpDir, "week.md");
     const longtermPath = path.join(tmpDir, "longterm.md");
-    fs.writeFileSync(weekPath, "用户本周关注记忆系统。", "utf-8");
     fs.writeFileSync(longtermPath, "用户喜欢清晰边界。", "utf-8");
 
-    await compileLongterm(weekPath, longtermPath, RESOLVED_MODEL);
+    await compileLongterm("用户本周关注记忆系统。", longtermPath, RESOLVED_MODEL);
 
     expect(callText).toHaveBeenCalledOnce();
     const request = (callText as any).mock.calls[0][0];
     expect(request.messages[0].content).toContain("## 上一份长期情况");
     expect(request.messages[0].content).toContain("用户喜欢清晰边界。");
-    expect(request.messages[0].content).toContain("## 本周新增");
+    expect(request.messages[0].content).toContain("## 新沉淀内容");
     expect(request.messages[0].content).toContain("用户本周关注记忆系统。");
     expect(request.systemPrompt).toContain("必须控制在 400 字以内");
     expect(request.systemPrompt).toContain("综合");
@@ -646,14 +610,14 @@ describe("compiled memory reset watermark filtering", () => {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
 
-  it("passes since to summary range queries for today and week", async () => {
+  it("passes since to summary range queries for today and daily", async () => {
     const summaries = [
       { session_id: "new", updated_at: "2026-04-29T08:30:00.000Z", summary: "new summary" },
     ];
     const mgr = makeFakeSummaryManager(summaries);
 
     await compileToday(mgr, path.join(tmpDir, "today.md"), RESOLVED_MODEL, { since: "2026-04-29T08:00:00.000Z" });
-    await compileWeek(mgr, path.join(tmpDir, "week.md"), RESOLVED_MODEL, { since: "2026-04-29T08:00:00.000Z" });
+    await compileDaily(mgr, path.join(tmpDir, "daily"), "2026-04-29", RESOLVED_MODEL, { since: "2026-04-29T08:00:00.000Z" });
 
     expect(mgr.getSummariesInRange.mock.calls[0][2]).toEqual({ since: "2026-04-29T08:00:00.000Z" });
     expect(mgr.getSummariesInRange.mock.calls[1][2]).toEqual({ since: "2026-04-29T08:00:00.000Z" });

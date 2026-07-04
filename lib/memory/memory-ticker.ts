@@ -1,16 +1,24 @@
 /**
- * memory-ticker.js — 记忆调度器（v3）
+ * memory-ticker.js — 记忆调度器（v4：按天滚动记忆传送带）
  *
  * 触发机制改为 turn-based：
  * - 每 10 轮：滚动摘要 + compileToday + assemble
  * - session 结束：final 滚动摘要 + compileToday + assemble
- * - 每天一次（日期变化时触发）：compileWeek + compileLongterm + compileEditableFacts + assemble + deep-memory
+ * - 每天一次（日期变化时触发）：compileDaily（编译昨天）+ rollDailyWindow（滚出
+ *   窗口的 daily 条目 fold 进 longterm）+ compileEditableFacts + assemble（含
+ *   assembleWeekFromDaily 纯文件装配 week.md）+ deep-memory
  *
  * session 关闭记忆时，整条记忆流水线都应跳过，避免被写入 summary/facts。
  *
  * facts.md 是唯一的 facts 产物：曾经的 `memory.editable_facts` 实验已毕业，
  * 增量编译（compileEditableFacts）是唯一路径。创建 ticker 时会先跑一次幂等的
  * 读时迁移，把 alpha 阶段遗留的 editable-facts.md 并入 facts.md。
+ *
+ * week 段不再是独立 LLM 编译产物：旧版 compileWeek（过去 7 天摘要整周编译）已
+ * 退役，week.md 改为从 memory/daily/ 目录纯文件装配最近 6-7 天的日记条目
+ * （assembleWeekFromDaily，零 LLM）。创建 ticker 时会先跑一次幂等的读时迁移
+ * （migrateLegacyWeekToLongterm），把旧版 week.md 整段 fold 进 longterm 一次，
+ * daily 传送带自迁移日起独立积累。
  */
 
 import fs from "fs";
@@ -19,15 +27,17 @@ import crypto from "crypto";
 import { debugLog, createModuleLogger } from "../debug-log.ts";
 import {
   compileToday,
-  compileWeek,
-  compileLongterm,
+  compileDaily,
+  assembleWeekFromDaily,
+  rollDailyWindow,
   compileEditableFacts,
   assemble,
   ensureEditableFactsBaseline,
   migrateLegacyEditableFacts,
+  migrateLegacyWeekToLongterm,
 } from "./compile.ts";
 import { processDirtySessions } from "./deep-memory.ts";
-import { getLogicalDay } from "../time-utils.ts";
+import { getLogicalDay, shiftLogicalDate } from "../time-utils.ts";
 import { readCompiledResetAt } from "./compiled-memory-state.ts";
 import { listSessionFiles, readSessionMessages, sessionIdFromFilename } from "../session-jsonl.ts";
 import { isAgentPhoneSessionPath } from "../conversations/agent-phone-session.ts";
@@ -43,11 +53,12 @@ const log = createModuleLogger("memory-ticker");
 const TURNS_PER_SUMMARY = 10;   // 每隔多少轮触发一次滚动摘要
 const CACHE_SNAPSHOT_PREVIEW_LIMIT = 16_000;
 const DAILY_STATE_FILE = "daily-state.json";
-// v2：facts 转正后 compileFacts 步骤恒走 compileEditableFacts，daily-state.json
-// 不再需要 factsMode 字段；版本号提升让旧 schema 的持久化状态被判定为不匹配，
+// v3：week 段 LLM 编译（compileWeek/compileLongterm-from-week）退役，
+// 换成 compileDaily（编译昨天）+ rollDailyWindow（滚出窗口的 daily fold 进
+// longterm）。步骤名变化，版本号提升让旧 schema 的持久化状态被判定为不匹配，
 // 走一次性重算（幂等，不会重复计费）。
-const DAILY_STATE_SCHEMA_VERSION = 2;
-const DAILY_STEP_KEYS = ["compileToday", "compileWeek", "compileLongterm", "compileFacts", "deepMemory"];
+const DAILY_STATE_SCHEMA_VERSION = 3;
+const DAILY_STEP_KEYS = ["compileToday", "compileDaily", "rollDailyWindow", "compileFacts", "deepMemory"];
 
 // ── 主调度器 ──
 
@@ -134,6 +145,7 @@ export function createMemoryTicker(opts) {
     });
     return factsMdPath;
   };
+  const _dailyDir = () => path.join(memoryDir, "daily");
   const _createSourceTimeRangeResolver = () => {
     const filesById = new Map(
       listSessionFiles(sessionDir).map((entry) => [_sessionIdentityForPath(entry.filePath), entry.filePath]),
@@ -197,7 +209,7 @@ export function createMemoryTicker(opts) {
 
   // ── 步骤健康状态：每步独立记录，方便 UI 层 / healthz 接口读取 ──
   // 注意：failCount 只在连续失败时递增，一次成功立即清零
-  const _stepKeys = ["rollingSummary", "compileToday", "compileWeek", "compileLongterm", "compileFacts", "deepMemory"];
+  const _stepKeys = ["rollingSummary", "compileToday", "compileDaily", "rollDailyWindow", "compileFacts", "deepMemory"];
   const _health = {};
   for (const k of _stepKeys) {
     _health[k] = { lastSuccessAt: null, lastErrorAt: null, lastErrorMsg: null, failCount: 0 };
@@ -695,6 +707,16 @@ export function createMemoryTicker(opts) {
       log.log(`每日任务开始 (${todayStr})`);
       let hasFailed = false;
 
+      // Step -1（不计入断点续跑）：一次性迁移旧 week.md 到 longterm。幂等——
+      // week.md 迁移后被更名为 .migrated.bak，之后每次调用都会因文件不存在而 no-op，
+      // 不需要独立 checkpoint。必须早于本函数末尾的 assemble（读 weekMdPath）之前跑完。
+      try {
+        await migrateLegacyWeekToLongterm(memoryDir, longtermMdPath, getResolvedMemoryModel());
+      } catch (err) {
+        hasFailed = true;
+        log.error(`week.md 迁移失败: ${err.message}`);
+      }
+
       // Step 0: compileToday（日期切换后刷新 today.md，新一天无 session 时会清空）
       if (!_dailyStepsCompleted.has("compileToday")) {
         try {
@@ -709,31 +731,39 @@ export function createMemoryTicker(opts) {
         }
       }
 
-      // Step 1: compileWeek
-      if (!_dailyStepsCompleted.has("compileWeek")) {
+      // Step 1: compileDaily——把已经翻篇的昨天编译成 memory/daily/{date}.md
+      if (!_dailyStepsCompleted.has("compileDaily")) {
         try {
-          await compileWeek(summaryManager, weekMdPath, getResolvedMemoryModel(), { since: resetAt });
-          _markDailyStepCompleted("compileWeek", context);
-          _markSuccess("compileWeek");
-          _markStepRecovered("compileWeek");
+          const yesterday = shiftLogicalDate(todayStr, -1);
+          await compileDaily(summaryManager, _dailyDir(), yesterday, getResolvedMemoryModel(), { since: resetAt });
+          _markDailyStepCompleted("compileDaily", context);
+          _markSuccess("compileDaily");
+          _markStepRecovered("compileDaily");
         } catch (err) {
           hasFailed = true;
-          _markFailure("compileWeek", err);
-          _logStepError("compileWeek", err);
+          _markFailure("compileDaily", err);
+          _logStepError("compileDaily", err);
         }
       }
 
-      // Step 2: compileLongterm（依赖 compileWeek 产出的 week.md，必须等 compileWeek 完成）
-      if (!_dailyStepsCompleted.has("compileLongterm") && _dailyStepsCompleted.has("compileWeek")) {
+      // Step 2: rollDailyWindow——把滚出 7 日窗口的 daily 条目 fold 进 longterm 并删除源文件。
+      // 依赖 compileDaily 已经把昨天落盘，否则窗口判断会漏看最新一天（虽然滚动窗口本身
+      // 判断的是"更早"的条目，但保持与 compileWeek→compileLongterm 相同的顺序约束更安全）。
+      if (!_dailyStepsCompleted.has("rollDailyWindow") && _dailyStepsCompleted.has("compileDaily")) {
         try {
-          await compileLongterm(weekMdPath, longtermMdPath, getResolvedMemoryModel());
-          _markDailyStepCompleted("compileLongterm", context);
-          _markSuccess("compileLongterm");
-          _markStepRecovered("compileLongterm");
+          const { failed } = await rollDailyWindow(_dailyDir(), longtermMdPath, getResolvedMemoryModel(), {
+            referenceDate: todayStr,
+          });
+          if (failed.length > 0) {
+            throw new Error(`${failed.length} 份 daily 条目 fold 进 longterm 失败: ${failed.join(", ")}`);
+          }
+          _markDailyStepCompleted("rollDailyWindow", context);
+          _markSuccess("rollDailyWindow");
+          _markStepRecovered("rollDailyWindow");
         } catch (err) {
           hasFailed = true;
-          _markFailure("compileLongterm", err);
-          _logStepError("compileLongterm", err);
+          _markFailure("rollDailyWindow", err);
+          _logStepError("rollDailyWindow", err);
         }
       }
 
@@ -753,8 +783,9 @@ export function createMemoryTicker(opts) {
         }
       }
 
-      // Step 4: assemble（纯文件操作，用已有的 .md 文件组装，总是执行）
+      // Step 4: assemble（纯文件操作，先从 daily/ 目录装配 week.md 再拼 memory.md，总是执行）
       try {
+        assembleWeekFromDaily(_dailyDir(), weekMdPath);
         assemble(_factsSourcePath(), todayMdPath, weekMdPath, longtermMdPath, memoryMdPath);
         onCompiled?.();
       } catch (err) {

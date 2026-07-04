@@ -5,13 +5,15 @@
  *
  * _doDaily 步骤编排（关键路径）：
  * - 5 个步骤各自独立 try-catch
- * - compileLongterm 依赖 compileWeek（compileWeek 失败则跳过）
+ * - rollDailyWindow 依赖 compileDaily（compileDaily 失败则跳过）
  * - 断点续跑：已完成步骤在重试时跳过
- * - assemble 总是执行（step 4）
+ * - assemble 总是执行（step 4，含 assembleWeekFromDaily 纯文件装配 week.md）
  * - compileFacts 步骤恒走 compileEditableFacts（facts 转正后唯一路径）
+ * - migrateLegacyWeekToLongterm 在每次 _doDaily 开头无条件调用一次（自身幂等，
+ *   不计入断点续跑 step key）
  *
  * getHealthStatus API：
- * - 验证每步（rollingSummary / compileToday / compileWeek / compileLongterm /
+ * - 验证每步（rollingSummary / compileToday / compileDaily / rollDailyWindow /
  *   compileFacts / deepMemory）的成功/失败都记录在 _health，并通过
  *   getHealthStatus() 暴露，供 UI 层判断"记忆编译是否在静默失败"。
  */
@@ -25,12 +27,15 @@ import path from "path";
 
 vi.mock("../lib/memory/compile.js", () => ({
   compileToday: vi.fn().mockResolvedValue("compiled"),
-  compileWeek: vi.fn().mockResolvedValue("compiled"),
+  compileDaily: vi.fn().mockResolvedValue("compiled"),
+  assembleWeekFromDaily: vi.fn(),
+  rollDailyWindow: vi.fn().mockResolvedValue({ folded: [], failed: [] }),
   compileLongterm: vi.fn().mockResolvedValue("compiled"),
   compileEditableFacts: vi.fn().mockResolvedValue("compiled"),
   assemble: vi.fn(),
   ensureEditableFactsBaseline: vi.fn(),
   migrateLegacyEditableFacts: vi.fn(() => ({ migrated: false, reason: "no-legacy-file" })),
+  migrateLegacyWeekToLongterm: vi.fn().mockResolvedValue({ migrated: false }),
 }));
 
 vi.mock("../lib/memory/deep-memory.js", () => ({
@@ -51,10 +56,11 @@ vi.mock("../lib/debug-log.js", () => ({
 import { createMemoryTicker } from "../lib/memory/memory-ticker.ts";
 import {
   compileToday,
-  compileWeek,
-  compileLongterm,
+  compileDaily,
+  rollDailyWindow,
   compileEditableFacts,
   assemble,
+  migrateLegacyWeekToLongterm,
 } from "../lib/memory/compile.ts";
 import { processDirtySessions } from "../lib/memory/deep-memory.ts";
 
@@ -115,8 +121,8 @@ describe("_doDaily step orchestration", () => {
   it("runs all 5 steps when everything succeeds", async () => {
     await ticker.tick();
 
-    expect(compileWeek).toHaveBeenCalledOnce();
-    expect(compileLongterm).toHaveBeenCalledOnce();
+    expect(compileDaily).toHaveBeenCalledOnce();
+    expect(rollDailyWindow).toHaveBeenCalledOnce();
     expect(compileEditableFacts).toHaveBeenCalledOnce();
     expect(processDirtySessions).toHaveBeenCalledOnce();
     // daily step 0 + final compileTodayAndAssemble
@@ -125,13 +131,19 @@ describe("_doDaily step orchestration", () => {
     expect(assemble).toHaveBeenCalledTimes(2);
   });
 
-  it("skips compileLongterm when compileWeek fails (dependency)", async () => {
-    (compileWeek as any).mockRejectedValueOnce(new Error("LLM timeout"));
+  it("calls the one-time week.md migration unconditionally at the start of _doDaily", async () => {
+    await ticker.tick();
+
+    expect(migrateLegacyWeekToLongterm).toHaveBeenCalled();
+  });
+
+  it("skips rollDailyWindow when compileDaily fails (dependency)", async () => {
+    (compileDaily as any).mockRejectedValueOnce(new Error("LLM timeout"));
 
     await ticker.tick();
 
-    expect(compileWeek).toHaveBeenCalledOnce();
-    expect(compileLongterm).not.toHaveBeenCalled();
+    expect(compileDaily).toHaveBeenCalledOnce();
+    expect(rollDailyWindow).not.toHaveBeenCalled();
     // independent steps still run
     expect(compileEditableFacts).toHaveBeenCalledOnce();
     expect(processDirtySessions).toHaveBeenCalledOnce();
@@ -139,17 +151,17 @@ describe("_doDaily step orchestration", () => {
   });
 
   it("retries only failed steps on second tick (checkpoint resume)", async () => {
-    // First tick: compileWeek fails
-    (compileWeek as any).mockRejectedValueOnce(new Error("network error"));
+    // First tick: compileDaily fails
+    (compileDaily as any).mockRejectedValueOnce(new Error("network error"));
     await ticker.tick();
 
     vi.clearAllMocks();
 
-    // Second tick: compileWeek should retry + compileLongterm should run
+    // Second tick: compileDaily should retry + rollDailyWindow should run
     await ticker.tick();
 
-    expect(compileWeek).toHaveBeenCalledOnce();
-    expect(compileLongterm).toHaveBeenCalledOnce();
+    expect(compileDaily).toHaveBeenCalledOnce();
+    expect(rollDailyWindow).toHaveBeenCalledOnce();
     // Already completed in first tick — should be skipped
     expect(compileEditableFacts).not.toHaveBeenCalled();
     expect(processDirtySessions).not.toHaveBeenCalled();
@@ -162,8 +174,8 @@ describe("_doDaily step orchestration", () => {
     // Second tick: _lastDailyJobDate already set → _doDaily skipped
     await ticker.tick();
 
-    expect(compileWeek).not.toHaveBeenCalled();
-    expect(compileLongterm).not.toHaveBeenCalled();
+    expect(compileDaily).not.toHaveBeenCalled();
+    expect(rollDailyWindow).not.toHaveBeenCalled();
     expect(compileEditableFacts).not.toHaveBeenCalled();
     expect(processDirtySessions).not.toHaveBeenCalled();
     // _doCompileTodayAndAssemble always runs regardless
@@ -176,11 +188,11 @@ describe("_doDaily step orchestration", () => {
     const state = readDailyState(tmpDir);
     expect(state.dailyCompletedAt).toEqual(expect.any(String));
     expect(Object.keys(state.completedSteps).sort()).toEqual([
+      "compileDaily",
       "compileFacts",
-      "compileLongterm",
       "compileToday",
-      "compileWeek",
       "deepMemory",
+      "rollDailyWindow",
     ]);
 
     await ticker.stop();
@@ -189,8 +201,8 @@ describe("_doDaily step orchestration", () => {
 
     await ticker.tick();
 
-    expect(compileWeek).not.toHaveBeenCalled();
-    expect(compileLongterm).not.toHaveBeenCalled();
+    expect(compileDaily).not.toHaveBeenCalled();
+    expect(rollDailyWindow).not.toHaveBeenCalled();
     expect(compileEditableFacts).not.toHaveBeenCalled();
     expect(processDirtySessions).not.toHaveBeenCalled();
     expect(compileToday).toHaveBeenCalledOnce();
@@ -198,7 +210,7 @@ describe("_doDaily step orchestration", () => {
   });
 
   it("persists partial daily checkpoints and retries only unfinished steps after recreation", async () => {
-    (compileWeek as any).mockRejectedValueOnce(new Error("network error"));
+    (compileDaily as any).mockRejectedValueOnce(new Error("network error"));
     await ticker.tick();
 
     const failedState = readDailyState(tmpDir);
@@ -206,8 +218,8 @@ describe("_doDaily step orchestration", () => {
     expect(failedState.completedSteps.compileToday).toEqual(expect.any(String));
     expect(failedState.completedSteps.compileFacts).toEqual(expect.any(String));
     expect(failedState.completedSteps.deepMemory).toEqual(expect.any(String));
-    expect(failedState.completedSteps.compileWeek).toBeUndefined();
-    expect(failedState.completedSteps.compileLongterm).toBeUndefined();
+    expect(failedState.completedSteps.compileDaily).toBeUndefined();
+    expect(failedState.completedSteps.rollDailyWindow).toBeUndefined();
 
     await ticker.stop();
     vi.clearAllMocks();
@@ -215,8 +227,8 @@ describe("_doDaily step orchestration", () => {
 
     await ticker.tick();
 
-    expect(compileWeek).toHaveBeenCalledOnce();
-    expect(compileLongterm).toHaveBeenCalledOnce();
+    expect(compileDaily).toHaveBeenCalledOnce();
+    expect(rollDailyWindow).toHaveBeenCalledOnce();
     expect(compileEditableFacts).not.toHaveBeenCalled();
     expect(processDirtySessions).not.toHaveBeenCalled();
   });
@@ -233,8 +245,8 @@ describe("_doDaily step orchestration", () => {
 
     await ticker.tick();
 
-    expect(compileWeek).toHaveBeenCalledOnce();
-    expect(compileLongterm).toHaveBeenCalledOnce();
+    expect(compileDaily).toHaveBeenCalledOnce();
+    expect(rollDailyWindow).toHaveBeenCalledOnce();
     expect(compileEditableFacts).toHaveBeenCalledOnce();
     expect(processDirtySessions).toHaveBeenCalledOnce();
     expect(readDailyState(tmpDir).resetAt).toBe("2026-04-18T00:00:00.000Z");
@@ -266,8 +278,8 @@ describe("_doDaily step orchestration", () => {
     await ticker.tick();
 
     expect(rollingSummary).toHaveBeenCalledOnce();
-    expect(compileWeek).toHaveBeenCalledOnce();
-    expect(compileLongterm).toHaveBeenCalledOnce();
+    expect(compileDaily).toHaveBeenCalledOnce();
+    expect(rollDailyWindow).toHaveBeenCalledOnce();
     expect(compileEditableFacts).toHaveBeenCalledOnce();
     expect(processDirtySessions).toHaveBeenCalledOnce();
   });
@@ -277,8 +289,8 @@ describe("_doDaily step orchestration", () => {
 
     await ticker.tick();
 
-    expect(compileWeek).toHaveBeenCalledOnce();
-    expect(compileLongterm).toHaveBeenCalledOnce();
+    expect(compileDaily).toHaveBeenCalledOnce();
+    expect(rollDailyWindow).toHaveBeenCalledOnce();
     expect(processDirtySessions).toHaveBeenCalledOnce();
     expect(assemble).toHaveBeenCalled();
   });
@@ -291,14 +303,14 @@ describe("_doDaily step orchestration", () => {
     await ticker.tick();
 
     // Only deepMemory should retry
-    expect(compileWeek).not.toHaveBeenCalled();
-    expect(compileLongterm).not.toHaveBeenCalled();
+    expect(compileDaily).not.toHaveBeenCalled();
+    expect(rollDailyWindow).not.toHaveBeenCalled();
     expect(compileEditableFacts).not.toHaveBeenCalled();
     expect(processDirtySessions).toHaveBeenCalledOnce();
   });
 
-  it("multiple failures: both compileWeek and compileFacts retry together", async () => {
-    (compileWeek as any).mockRejectedValueOnce(new Error("fail1"));
+  it("multiple failures: both compileDaily and compileFacts retry together", async () => {
+    (compileDaily as any).mockRejectedValueOnce(new Error("fail1"));
     (compileEditableFacts as any).mockRejectedValueOnce(new Error("fail2"));
     await ticker.tick();
 
@@ -306,16 +318,16 @@ describe("_doDaily step orchestration", () => {
     await ticker.tick();
 
     // Both should retry
-    expect(compileWeek).toHaveBeenCalledOnce();
+    expect(compileDaily).toHaveBeenCalledOnce();
     expect(compileEditableFacts).toHaveBeenCalledOnce();
-    // compileLongterm depends on compileWeek — should now run
-    expect(compileLongterm).toHaveBeenCalledOnce();
+    // rollDailyWindow depends on compileDaily — should now run
+    expect(rollDailyWindow).toHaveBeenCalledOnce();
     // deepMemory already succeeded — skipped
     expect(processDirtySessions).not.toHaveBeenCalled();
   });
 
   it("assemble runs even when all LLM steps fail", async () => {
-    (compileWeek as any).mockRejectedValueOnce(new Error("fail"));
+    (compileDaily as any).mockRejectedValueOnce(new Error("fail"));
     (compileEditableFacts as any).mockRejectedValueOnce(new Error("fail"));
     (processDirtySessions as any).mockRejectedValueOnce(new Error("fail"));
 
@@ -323,6 +335,15 @@ describe("_doDaily step orchestration", () => {
 
     // assemble (step 4) always executes
     expect(assemble).toHaveBeenCalled();
+  });
+
+  it("rollDailyWindow reporting failed dates keeps the step incomplete for retry", async () => {
+    (rollDailyWindow as any).mockResolvedValueOnce({ folded: [], failed: ["2026-04-10"] });
+
+    await ticker.tick();
+
+    const state = readDailyState(tmpDir);
+    expect(state.completedSteps.rollDailyWindow).toBeUndefined();
   });
 });
 
@@ -344,7 +365,7 @@ describe("memory-ticker getHealthStatus", () => {
     const ticker = makeTicker(tmpDir);
     const h: any = ticker.getHealthStatus();
 
-    for (const key of ["rollingSummary", "compileToday", "compileWeek", "compileLongterm", "compileFacts", "deepMemory"]) {
+    for (const key of ["rollingSummary", "compileToday", "compileDaily", "rollDailyWindow", "compileFacts", "deepMemory"]) {
       expect(h[key]).toEqual({
         lastSuccessAt: null,
         lastErrorAt: null,
@@ -361,12 +382,12 @@ describe("memory-ticker getHealthStatus", () => {
 
     const h: any = ticker.getHealthStatus();
     expect(h.compileToday.lastSuccessAt).not.toBeNull();
-    expect(h.compileWeek.lastSuccessAt).not.toBeNull();
-    expect(h.compileLongterm.lastSuccessAt).not.toBeNull();
+    expect(h.compileDaily.lastSuccessAt).not.toBeNull();
+    expect(h.rollDailyWindow.lastSuccessAt).not.toBeNull();
     expect(h.compileFacts.lastSuccessAt).not.toBeNull();
     expect(h.deepMemory.lastSuccessAt).not.toBeNull();
     // 所有步骤都应无错误
-    for (const key of ["compileToday", "compileWeek", "compileLongterm", "compileFacts", "deepMemory"]) {
+    for (const key of ["compileToday", "compileDaily", "rollDailyWindow", "compileFacts", "deepMemory"]) {
       expect(h[key].lastErrorMsg).toBeNull();
       expect(h[key].failCount).toBe(0);
     }
@@ -382,7 +403,7 @@ describe("memory-ticker getHealthStatus", () => {
     expect(h.compileFacts.lastErrorAt).not.toBeNull();
     expect(h.compileFacts.failCount).toBe(1);
     // 其他步骤不受影响
-    expect(h.compileWeek.failCount).toBe(0);
+    expect(h.compileDaily.failCount).toBe(0);
     expect(h.compileToday.failCount).toBe(0);
   });
 

@@ -1,29 +1,33 @@
 /**
- * compile.js — 记忆编译器（v3 四块独立编译 + assemble）
+ * compile.js — 记忆编译器（v4：按天滚动传送带 + assemble）
  *
- * 四个独立函数各自有指纹缓存，互不依赖：
- *   compileToday()        → today.md（当天 sessions）
- *   compileWeek()         → week.md（过去7天滑动窗口）
- *   compileLongterm()     → longterm.md（fold 周报到长期）
- *   compileEditableFacts()→ facts.md（重要事实，增量编译 + 水位线跟踪，唯一路径）
+ * compileToday()         → today.md（当天 sessions）
+ * compileDaily()         → memory/daily/{date}.md（已结束那天的两三句话日记，独立指纹缓存）
+ * assembleWeekFromDaily() → week.md（纯文件装配最近 6-7 天的日记条目，零 LLM）
+ * rollDailyWindow()      → 把滚出窗口的 daily 条目 fold 进 longterm.md 后删除源文件
+ * compileLongterm()      → longterm.md（fold 任意内容到长期，被 rollDailyWindow /
+ *                          migrateLegacyWeekToLongterm 复用的通用入口）
+ * migrateLegacyWeekToLongterm() → 一次性、幂等地把旧 week.md 整段 fold 进 longterm
+ * compileEditableFacts() → facts.md（重要事实，增量编译 + 水位线跟踪，唯一路径）
  *
+ * 传送带：session 摘要 → compileDaily → assembleWeekFromDaily → rollDailyWindow → longterm。
  * assemble() 同步读取四个文件，拼成 memory.md（≤2000 token）。
  */
 
 import fs from "fs";
 import path from "path";
 import crypto from "crypto";
-import { getLogicalDay } from "../time-utils.ts";
+import { getLogicalDay, getLogicalDayForDate, shiftLogicalDate } from "../time-utils.ts";
 import { callText } from "../../core/llm-client.ts";
 import { getLocale } from "../i18n.ts";
 import { atomicWriteSync, safeReadFile } from "../../shared/safe-fs.ts";
 import { normalizeCompiledLLMResult, normalizeCompiledSectionBody } from "./compiled-memory-state.ts";
 import { attachPromptLayoutMetadata, buildUtilityPromptLayout } from "../llm/prompt-layout.ts";
 import {
+  buildCompileDailyPrompt,
   buildCompileEditableFactsPrompt,
   buildCompileLongtermPrompt,
   buildCompileTodayPrompt,
-  buildCompileWeekPrompt,
 } from "./prompts/compile.ts";
 import { withMemoryReasoningBuffer } from "./llm-budget.ts";
 import {
@@ -45,15 +49,22 @@ export function getEmptyMemory() { return _isZh() ? EMPTY_MEMORY_ZH : EMPTY_MEMO
 // editable-facts-state.json 只做增量编译水位线跟踪，与产物文件名（facts.md）解耦。
 export const EDITABLE_FACTS_STATE_FILE = "editable-facts-state.json";
 
+// daily 传送带默认参数：week 段展示最近 7 天，超过这个天数的条目 fold 进 longterm 后删除。
+export const DAILY_WINDOW_RETENTION_DAYS = 7;
+// week.md 硬性总长上限（字符数）：7 条 daily（单条极紧的 budget）加合理结构开销后的总量级，
+// 与被取代的 LLM week 段体量大致相当。
+export const WEEK_ASSEMBLY_MAX_CHARS = 1200;
+const DAILY_FILE_RE = /^(\d{4}-\d{2}-\d{2})\.md$/;
+
 const COMPILE_PROMPT_BUILDERS = {
   compile_today: buildCompileTodayPrompt,
-  compile_week: buildCompileWeekPrompt,
+  compile_daily: buildCompileDailyPrompt,
   compile_longterm: buildCompileLongtermPrompt,
   compile_editable_facts: buildCompileEditableFactsPrompt,
 };
 
 // ════════════════════════════
-//  v3 四块独立编译 + assemble
+//  v4 传送带：daily 编译 + week 装配 + 滚动 fold + assemble
 // ════════════════════════════
 
 /**
@@ -144,24 +155,33 @@ Output 3-5 coarse events, 1-2 sentences each. Max 180 words. Keep it short on qu
 }
 
 /**
- * 编译过去 7 天滑动窗口的摘要 → week.md
+ * 编译已结束那天的 session 摘要 → memory/daily/{logicalDate}.md
+ *
+ * 与 compileToday 的关键区别：compileToday 编译"当天进行中"的摘要，每次新摘要
+ * 出现都可能重跑；compileDaily 编译"已经翻篇的那天"，一天只落一次盘（除非当天
+ * 摘要事后发生变化，此时按 fingerprint 重新覆盖，不追加）。
+ *
+ * 当天没有任何摘要时不产文件（零占位），避免 daily/ 目录被大量空文件污染。
+ *
+ * @param {import('./session-summary.ts').SessionSummaryManager} summaryManager
+ * @param {string} dailyDir - memory/daily 目录
+ * @param {string} logicalDate - YYYY-MM-DD，要编译的那个逻辑日
  * @param {object} resolvedModel
+ * @returns {Promise<"compiled"|"skipped">}
  */
-export async function compileWeek(summaryManager, outputPath, resolvedModel, opts: { since?: any } = {}) {
-  fs.mkdirSync(path.dirname(outputPath), { recursive: true });
+export async function compileDaily(summaryManager, dailyDir, logicalDate, resolvedModel, opts: { since?: any } = {}) {
+  fs.mkdirSync(dailyDir, { recursive: true });
 
-  const now = new Date();
-  const sevenDaysAgo = new Date(now.getTime() - 7 * 86400000);
-
-  const sessions = summaryManager.getSummariesInRange(sevenDaysAgo, now, { since: opts.since || null });
+  const { rangeStart, rangeEnd } = getLogicalDayForDate(logicalDate);
+  const sessions = summaryManager.getSummariesInRange(rangeStart, rangeEnd, { since: opts.since || null });
+  const outputPath = path.join(dailyDir, `${logicalDate}.md`);
   const fpPath = outputPath + ".fingerprint";
 
-  // 空 sessions 不写 fingerprint：同 compileToday 的理由，避免失败态被指纹锁死。
   if (sessions.length === 0) {
+    // 零占位：当天确实没有摘要就不落文件；同时清掉可能存在的旧指纹，
+    // 避免摘要之后补齐时被过期指纹挡住（理由同 compileToday 的空 sessions 分支）。
     try { fs.unlinkSync(fpPath); } catch {}
-    const cur = safeReadFile(outputPath, "");
-    if (cur.length > 0) atomicWrite(outputPath, "");
-    return "compiled";
+    return "skipped";
   }
 
   const fpKeys = sessions.map((s) => `${s.session_id}:${s.updated_at}`);
@@ -171,78 +191,133 @@ export async function compileWeek(summaryManager, outputPath, resolvedModel, opt
   } catch {}
 
   const input = sessions.map((s) => s.summary).join("\n\n---\n\n");
-  const isZh = _isZh();
+  const promptSpec = buildCompileDailyPrompt(getLocale());
   const result = await _compactLLM(
     input,
-    isZh
-      ? `请把过去 7 天的对话摘要整理成一份"本周用户主题概要"。
-
-关键定位：到 week 这一层，记录已经是粗线条的了。它不是"每天发生的事"的集合，而是再上一层——归纳用户这一周大致在关注什么、投入什么、发生了什么重要变化。读这份记录的人只需要知道用户近况和大主题，不需要知道任何过程细节。
-
-提炼层级：
-- 记忆的核心职责是维护用户模型：用户是谁、喜欢什么、在意什么、最近关注什么
-- 工作相关内容只允许保留到大主题层级：只写用户最近关注的领域/项目/主题，不写该主题里的细节
-- 持续性的关注主题（"本周持续关注 X"、"这几天主要在做 Y"）放最前
-- 够分量的个人近况、创作主题、关系变化、兴趣变化次之
-- 时间用模糊表述（"周初/前几天/这两天"），不留精确时间戳
-
-明确不要保留的内容：
-- 不要记录执行步骤、文件名、工具、命令、检查顺序、协作偏好、工作细节
-- 某个主题里的具体子问题、具体方案、具体改法、具体测试或发布流程
-- 任务过程中的方法论、工具、格式选择
-- 单次对话内的来回修改、临时决定
-- 助手的具体产出内容
-- 不重要的杂事（普通的闲聊、查询、调试）
-
-只记录"用户这一周大致关注什么、发生了什么重要变化"。工作只记大主题，其他可以不写。
-
-输出 3-5 条本周主题/事件。最多 400 字。不要输出 Markdown 标题，不要以 #、##、### 开头；直接输出正文列表或段落。`
-      : `Distill the past 7 days' conversation summaries into a "weekly user-theme overview".
-
-Positioning: at the week layer, the record is already coarse-grained. It is NOT a collection of "what happened each day" — it is one level above: distilling what the user was broadly focused on, invested in, and what important changes happened. The reader only needs user current-state and broad themes, not any process detail.
-
-Layering:
-- Memory's core job is to maintain a user model: who the user is, what they like, what they care about, and what they are broadly focused on recently
-- Work-related content may only be kept at the broad-theme level: record the domain/project/theme, not details inside that theme
-- Persistent focus themes ("focused on X this week", "spent several days on Y") come first
-- Substantial personal current-state, creative themes, relationship changes, or interest changes come second
-- Time is vague ("early in the week / a few days ago / these last two days"); do NOT preserve exact timestamps
-
-Explicitly do NOT keep:
-- Execution steps, filenames, tools, commands, validation order, collaboration preferences, or work details
-- Specific subproblems, concrete solutions, concrete code changes, tests, or release flows
-- Task-level details (how it was done, how many revisions, interruptions and resumptions)
-- Task-level methodology, tools, format choices
-- Within-conversation revisions and temporary decisions
-- Specific content of assistant's output
-- Trivial activity (small talk, lookups, debugging)
-
-Record only "what the user was broadly focused on and what important changes happened this week". For work, keep only the broad theme. Skip the rest.
-
-Output 3-5 weekly themes/events. Max 240 words. Do not output Markdown headings. Do not start with #, ##, or ###; output body text only.`,
+    promptSpec,
     resolvedModel,
-    600,
-    "compile_week",
+    // week 段过去是 600 tokens／7 条 ≈ 85/条；daily 单条 budget 从紧，
+    // 保证 7 条装配起来的总量不超过原 week 段体量。
+    100,
+    "compile_daily",
   );
 
-  atomicWrite(outputPath, normalizeCompiledLLMResult(result, "compileWeek"));
+  const body = normalizeCompiledLLMResult(result, "compileDaily");
+  atomicWrite(outputPath, body ? `## ${logicalDate}\n\n${body}\n` : "");
   fs.writeFileSync(fpPath, fp);
   return "compiled";
 }
 
+function _listDailyEntries(dailyDir) {
+  let names;
+  try {
+    names = fs.readdirSync(dailyDir);
+  } catch {
+    return [];
+  }
+  return names
+    .map((name) => name.match(DAILY_FILE_RE))
+    .filter(Boolean)
+    .map((match) => ({ date: match[1], filePath: path.join(dailyDir, match[0]) }))
+    .sort((a, b) => a.date.localeCompare(b.date));
+}
+
 /**
- * 将 week.md fold 进 longterm.md（每日一次）
- * @param {object} resolvedModel
+ * 从 memory/daily/ 目录纯文件装配 week.md：取最近 N 天的日记条目按日期正序
+ * 拼接。零 LLM 调用——week 段不再是独立编译产物，而是 daily 条目的滚动列表。
+ *
+ * 总长超过硬上限时从最老的条目开始截断，并显式 log（不静默丢弃）。
+ *
+ * @param {string} dailyDir
+ * @param {string} weekPath
+ * @param {{ maxDays?: number, maxChars?: number }} [opts]
  */
-export async function compileLongterm(weekMdPath, longtermPath, resolvedModel) {
+export function assembleWeekFromDaily(dailyDir, weekPath, opts: { maxDays?: number; maxChars?: number } = {}) {
+  const maxDays = opts.maxDays || DAILY_WINDOW_RETENTION_DAYS;
+  const maxChars = opts.maxChars || WEEK_ASSEMBLY_MAX_CHARS;
+
+  const entries = _listDailyEntries(dailyDir).slice(-maxDays);
+  const blocks = entries.map(({ filePath }) => safeReadFile(filePath, "").trim()).filter(Boolean);
+
+  let content = blocks.join("\n\n");
+  if (content.length > maxChars) {
+    // 从最老的条目（数组开头）开始丢，直到总长回到上限内。
+    const kept = [...blocks];
+    while (kept.length > 1 && kept.join("\n\n").length > maxChars) {
+      kept.shift();
+    }
+    content = kept.join("\n\n");
+    // 仅剩一条也超限：保留头部（含日期抬头），从尾部截断，而不是丢掉日期标识。
+    if (content.length > maxChars) content = content.slice(0, maxChars);
+    log.warn(`assembleWeekFromDaily: 总长超过上限（${maxChars} 字），已从最老条目开始截断`);
+  }
+
+  atomicWrite(weekPath, content ? `${content}\n` : "");
+}
+
+/**
+ * 把滚出 N 日窗口的 daily 条目 fold 进 longterm.md，成功后删除源文件；
+ * 失败的条目保留在 daily/ 目录，交给下一轮重试，不静默丢弃。
+ *
+ * @param {string} dailyDir
+ * @param {string} longtermPath
+ * @param {object} resolvedModel
+ * @param {{ referenceDate?: string, retentionDays?: number }} [opts]
+ * @returns {Promise<{ folded: string[], failed: string[] }>}
+ */
+export async function rollDailyWindow(dailyDir, longtermPath, resolvedModel, opts: { referenceDate?: string; retentionDays?: number } = {}) {
+  const retentionDays = opts.retentionDays || DAILY_WINDOW_RETENTION_DAYS;
+  const referenceDate = opts.referenceDate || getLogicalDay().logicalDate;
+  const cutoffDate = shiftLogicalDate(referenceDate, -retentionDays);
+
+  const entries = _listDailyEntries(dailyDir).filter(({ date }) => date < cutoffDate);
+  if (entries.length === 0) return { folded: [], failed: [] };
+
+  const combined = entries
+    .map(({ date, filePath }) => {
+      const body = safeReadFile(filePath, "").trim();
+      return body ? `## ${date}\n\n${body}` : "";
+    })
+    .filter(Boolean)
+    .join("\n\n");
+
+  if (!combined) {
+    // 全是空文件：直接清掉，不必调用 LLM。
+    for (const { filePath } of entries) removeFileIfExists(filePath);
+    return { folded: entries.map((e) => e.date), failed: [] };
+  }
+
+  try {
+    // combined 非空，compileLongterm 只会返回 "compiled" 或因 fingerprint 命中返回
+    // "skipped"——两种情况都意味着这批内容已经安全落在 longterm 里，可以删源文件。
+    await compileLongterm(combined, longtermPath, resolvedModel);
+    for (const { filePath } of entries) removeFileIfExists(filePath);
+    return { folded: entries.map((e) => e.date), failed: [] };
+  } catch (err) {
+    log.error(`rollDailyWindow: fold 进 longterm 失败，保留 ${entries.length} 份 daily 条目待下轮重试: ${err.message}`);
+    return { folded: [], failed: entries.map((e) => e.date) };
+  }
+}
+
+/**
+ * 将任意内容 fold 进 longterm.md（每日一次，指纹按内容去重）。
+ *
+ * 通用 fold 入口：被 rollDailyWindow（滚出窗口的 daily 条目）和
+ * migrateLegacyWeekToLongterm（旧 week.md 一次性迁移）共用。
+ *
+ * @param {string} content - 待吸收的原始内容（调用方已读好的文本，不是文件路径）
+ * @param {string} longtermPath
+ * @param {object} resolvedModel
+ * @returns {Promise<"compiled"|"skipped">}
+ */
+export async function compileLongterm(content, longtermPath, resolvedModel) {
   fs.mkdirSync(path.dirname(longtermPath), { recursive: true });
 
-  const weekContent = safeReadFile(weekMdPath, "").trim();
+  const newContent = String(content || "").trim();
+  if (!newContent) return "skipped";
 
-  if (!weekContent) return "skipped";
-
-  // fingerprint：week.md 内容没变就跳过，避免每天把同一批内容反复折叠
-  const fp = computeFingerprint([weekContent]);
+  // fingerprint：内容没变就跳过，避免同一批内容被反复折叠
+  const fp = computeFingerprint([newContent]);
   const fpPath = longtermPath + ".fingerprint";
   try {
     if (fs.readFileSync(fpPath, "utf-8").trim() === fp && fs.existsSync(longtermPath)) return "skipped";
@@ -253,11 +328,11 @@ export async function compileLongterm(weekMdPath, longtermPath, resolvedModel) {
   const isZh = _isZh();
   const input = prevLongterm
     ? (isZh
-        ? `## 上一份长期情况\n\n${prevLongterm}\n\n## 本周新增\n\n${weekContent}`
-        : `## Previous long-term context\n\n${prevLongterm}\n\n## This week's additions\n\n${weekContent}`)
+        ? `## 上一份长期情况\n\n${prevLongterm}\n\n## 新沉淀内容\n\n${newContent}`
+        : `## Previous long-term context\n\n${prevLongterm}\n\n## Newly settled content\n\n${newContent}`)
     : (isZh
-        ? `## 本周新增\n\n${weekContent}`
-        : `## This week's additions\n\n${weekContent}`);
+        ? `## 新沉淀内容\n\n${newContent}`
+        : `## Newly settled content\n\n${newContent}`);
 
   const result = await _compactLLM(
     input,
@@ -270,6 +345,36 @@ export async function compileLongterm(weekMdPath, longtermPath, resolvedModel) {
   atomicWrite(longtermPath, normalizeCompiledLLMResult(result, "compileLongterm"));
   fs.writeFileSync(fpPath, fp);
   return "compiled";
+}
+
+/**
+ * 一次性、幂等的读时迁移：旧版按周编译的 week.md 无法按日拆分，整段 fold 进
+ * longterm 一次，随后把 week.md 更名为 .migrated.bak 防止重复迁移。
+ * daily 传送带自迁移日起独立积累，不回填迁移前的历史。
+ *
+ * 三种现场：
+ *   1. week.md 不存在（从未迁移过 / 已迁移过）：no-op。
+ *   2. week.md 存在且非空：fold 进 longterm，成功后更名为 .migrated.bak。
+ *   3. week.md 存在但为空：没有内容可 fold，直接更名，不调用 LLM。
+ *
+ * @param {string} memoryDir
+ * @param {string} longtermPath
+ * @param {object} resolvedModel
+ * @returns {Promise<{ migrated: boolean }>}
+ */
+export async function migrateLegacyWeekToLongterm(memoryDir, longtermPath, resolvedModel) {
+  const weekPath = path.join(memoryDir, "week.md");
+  if (!fs.existsSync(weekPath)) return { migrated: false };
+
+  const weekContent = safeReadFile(weekPath, "").trim();
+  if (weekContent) {
+    await compileLongterm(weekContent, longtermPath, resolvedModel);
+  }
+
+  const backupPath = `${weekPath}.migrated.bak`;
+  atomicWrite(backupPath, weekContent);
+  removeFileIfExists(weekPath);
+  return { migrated: true };
 }
 
 export function editableFactsStatePath(memoryDir) {
