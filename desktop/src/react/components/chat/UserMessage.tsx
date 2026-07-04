@@ -12,7 +12,7 @@ import { FileKindIcon } from '../shared/FileKindIcon';
 import { FolderIcon } from '../shared/FolderIcon';
 import type { ChatMessage, UserAttachment, DeskContext } from '../../stores/chat-types';
 import { useStore } from '../../stores';
-import { selectIsStreamingSession, selectSelectedIdsBySession } from '../../stores/session-selectors';
+import { selectSelectedIdsBySession } from '../../stores/session-selectors';
 import { extractSelectedTexts } from '../../utils/message-text';
 import { openFilePreview } from '../../utils/file-preview';
 import { isImageOrSvgExt, extOfName, kindOfFileName } from '../../utils/file-kind';
@@ -31,6 +31,9 @@ interface Props {
   readOnly?: boolean;
   hideIdentity?: boolean;
   userIdentity?: { name?: string | null; avatarUrl?: string | null };
+  viewerIdentity: { name: string; avatarUrl: string | null };
+  isStreaming: boolean;
+  isSelected: boolean;
   isLatestUserMessage?: boolean;
   messageRef?: (element: HTMLDivElement | null) => void;
 }
@@ -42,24 +45,22 @@ export const UserMessage = memo(function UserMessage({
   readOnly = false,
   hideIdentity = false,
   userIdentity,
+  viewerIdentity,
+  isStreaming,
+  isSelected,
   isLatestUserMessage = false,
   messageRef,
 }: Props) {
-  const userAvatarUrl = useStore(s => s.userAvatarUrl);
   const t = window.t ?? ((p: string) => p);
-  const storeUserName = useStore(s => s.userName) || t('common.me');
+  const storeUserName = viewerIdentity.name;
   const userName = userIdentity?.name || storeUserName;
-  const displayAvatarUrl = userIdentity ? (userIdentity.avatarUrl || null) : userAvatarUrl;
+  const displayAvatarUrl = userIdentity ? (userIdentity.avatarUrl || null) : viewerIdentity.avatarUrl;
   const userDisplayInfo = useMemo(() => resolveAgentDisplayInfo({
     id: 'user',
     agents: [],
     userName,
     userAvatarUrl: displayAvatarUrl,
   }), [userName, displayAvatarUrl]);
-
-  const isStreaming = useStore(s => selectIsStreamingSession(s, sessionPath));
-  const selectedIds = useStore(s => selectSelectedIdsBySession(s, sessionPath));
-  const isSelected = selectedIds.includes(message.id);
 
   const [copied, setCopied] = useState(false);
   const [editing, setEditing] = useState(false);

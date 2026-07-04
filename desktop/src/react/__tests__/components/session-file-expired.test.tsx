@@ -53,6 +53,9 @@ describe('expired session file presentation', () => {
   it('renders an expired assistant file block as a disabled file card', () => {
     render(
       <AssistantMessage
+        agentDisplay={{ displayName: 'Hana', yuan: 'hana' }}
+        isStreaming={false}
+        isSelected={false}
         showAvatar={false}
         sessionPath="/sessions/main.jsonl"
         readOnly
@@ -85,6 +88,9 @@ describe('expired session file presentation', () => {
   it('does not load image previews for expired user attachments', () => {
     render(
       <UserMessage
+        viewerIdentity={{ name: '我', avatarUrl: null }}
+        isStreaming={false}
+        isSelected={false}
         showAvatar={false}
         sessionPath="/sessions/main.jsonl"
         readOnly
@@ -115,6 +121,9 @@ describe('expired session file presentation', () => {
   it('renders attachment-only user messages without an empty text bubble', () => {
     const { container } = render(
       <UserMessage
+        viewerIdentity={{ name: '我', avatarUrl: null }}
+        isStreaming={false}
+        isSelected={false}
         showAvatar={false}
         sessionPath="/sessions/main.jsonl"
         readOnly
@@ -161,6 +170,9 @@ describe('expired session file presentation', () => {
 
     render(
       <UserMessage
+        viewerIdentity={{ name: '我', avatarUrl: null }}
+        isStreaming={false}
+        isSelected={false}
         showAvatar={false}
         sessionPath="/sessions/main.jsonl"
         readOnly
@@ -217,6 +229,9 @@ describe('expired session file presentation', () => {
 
     render(
       <UserMessage
+        viewerIdentity={{ name: '我', avatarUrl: null }}
+        isStreaming={false}
+        isSelected={false}
         showAvatar={false}
         sessionPath="/sessions/main.jsonl"
         readOnly
@@ -266,6 +281,9 @@ describe('expired session file presentation', () => {
   it('renders voice-input audio messages inside the voice card even before transcription is ready', () => {
     const { container } = render(
       <UserMessage
+        viewerIdentity={{ name: '我', avatarUrl: null }}
+        isStreaming={false}
+        isSelected={false}
         showAvatar={false}
         sessionPath="/sessions/main.jsonl"
         readOnly
@@ -303,6 +321,9 @@ describe('expired session file presentation', () => {
   it('renders voice-input audio messages as waveform-only chips without visible filenames', () => {
     render(
       <UserMessage
+        viewerIdentity={{ name: '我', avatarUrl: null }}
+        isStreaming={false}
+        isSelected={false}
         showAvatar={false}
         sessionPath="/sessions/main.jsonl"
         readOnly
@@ -333,6 +354,9 @@ describe('expired session file presentation', () => {
   it('renders voice-input transcript above the playable audio strip without an empty text bubble', () => {
     const { container } = render(
       <UserMessage
+        viewerIdentity={{ name: '我', avatarUrl: null }}
+        isStreaming={false}
+        isSelected={false}
         showAvatar={false}
         sessionPath="/sessions/main.jsonl"
         readOnly
@@ -376,6 +400,9 @@ describe('expired session file presentation', () => {
   it('renders assistant file actions as a split button with reveal and copy menu actions', async () => {
     render(
       <AssistantMessage
+        agentDisplay={{ displayName: 'Hana', yuan: 'hana' }}
+        isStreaming={false}
+        isSelected={false}
         showAvatar={false}
         sessionPath="/sessions/main.jsonl"
         readOnly
@@ -454,6 +481,9 @@ describe('expired session file presentation', () => {
 
     render(
       <AssistantMessage
+        agentDisplay={{ displayName: 'Hana', yuan: 'hana' }}
+        isStreaming={false}
+        isSelected={false}
         showAvatar={false}
         sessionPath="/sessions/main.jsonl"
         readOnly
@@ -527,6 +557,9 @@ describe('expired session file presentation', () => {
 
     render(
       <AssistantMessage
+        agentDisplay={{ displayName: 'Hana', yuan: 'hana' }}
+        isStreaming={false}
+        isSelected={false}
         showAvatar={false}
         sessionPath="/sessions/main.jsonl"
         readOnly

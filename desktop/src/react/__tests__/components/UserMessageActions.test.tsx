@@ -58,6 +58,9 @@ describe('UserMessage Codex-style actions', () => {
 
     render(
       <UserMessage
+        viewerIdentity={{ name: '小黎', avatarUrl: null }}
+        isStreaming={false}
+        isSelected={false}
         message={message}
         showAvatar={false}
         sessionPath="/session/a.jsonl"
@@ -78,6 +81,9 @@ describe('UserMessage Codex-style actions', () => {
 
     render(
       <UserMessage
+        viewerIdentity={{ name: '小黎', avatarUrl: null }}
+        isStreaming={false}
+        isSelected={false}
         message={message}
         showAvatar={false}
         sessionPath="/session/a.jsonl"
@@ -106,6 +112,9 @@ describe('UserMessage Codex-style actions', () => {
 
     render(
       <UserMessage
+        viewerIdentity={{ name: '小黎', avatarUrl: null }}
+        isStreaming={false}
+        isSelected={false}
         message={message}
         showAvatar={false}
         sessionPath="/session/a.jsonl"
@@ -130,6 +139,9 @@ describe('UserMessage Codex-style actions', () => {
 
     render(
       <UserMessage
+        viewerIdentity={{ name: '小黎', avatarUrl: null }}
+        isStreaming={false}
+        isSelected={false}
         message={message}
         showAvatar={false}
         sessionPath="/session/a.jsonl"
@@ -151,6 +163,9 @@ describe('UserMessage Codex-style actions', () => {
 
     render(
       <UserMessage
+        viewerIdentity={{ name: '小黎', avatarUrl: null }}
+        isStreaming={false}
+        isSelected={false}
         message={message}
         showAvatar={false}
         sessionPath="/session/a.jsonl"

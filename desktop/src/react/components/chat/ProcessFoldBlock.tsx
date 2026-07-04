@@ -1,6 +1,5 @@
 import { memo, useCallback, useId, useMemo, useState } from 'react';
 import { Collapse } from '@/ui';
-import { useStore } from '../../stores';
 import { AgentAvatar, resolveAgentDisplayInfo } from '../../utils/agent-display';
 import { AssistantMessage } from './AssistantMessage';
 import { MessageFooterActions, formatMessageTime } from './MessageFooterActions';
@@ -16,6 +15,9 @@ interface Props {
   turnCompletionAssistantIndexes?: ReadonlySet<number>;
   assistantTurnSelectionIdsByCompletionIndex?: ReadonlyMap<number, readonly string[]>;
   completionTimePersistent?: boolean;
+  agentDisplay: { displayName: string; yuan: string };
+  isStreaming: boolean;
+  selectedIds: readonly string[];
   registerMessageElement?: (messageId: string, element: HTMLDivElement | null) => void;
 }
 
@@ -28,22 +30,22 @@ export const ProcessFoldBlock = memo(function ProcessFoldBlock({
   turnCompletionAssistantIndexes,
   assistantTurnSelectionIdsByCompletionIndex,
   completionTimePersistent = false,
+  agentDisplay,
+  isStreaming,
+  selectedIds,
   registerMessageElement,
 }: Props) {
-  const agents = useStore(s => s.agents);
-  const globalAgentName = useStore(s => s.agentName) || 'Hanako';
-  const globalYuan = useStore(s => s.agentYuan) || 'hanako';
   const [open, setOpen] = useState(false);
   const panelId = useId();
   const t = window.t ?? ((p: string) => p);
 
-  const displayInfo = resolveAgentDisplayInfo({
+  const displayName = agentDisplay.displayName;
+  const displayInfo = useMemo(() => resolveAgentDisplayInfo({
     id: agentId || null,
-    agents,
-    fallbackAgentName: globalAgentName,
-    fallbackAgentYuan: globalYuan,
-  });
-  const displayName = displayInfo.displayName;
+    agents: [],
+    fallbackAgentName: displayName,
+    fallbackAgentYuan: agentDisplay.yuan,
+  }), [agentId, agentDisplay.displayName, agentDisplay.yuan, displayName]);
   const summary = useMemo(
     () => buildProcessFoldSummary(
       group.stats,
@@ -99,6 +101,9 @@ export const ProcessFoldBlock = memo(function ProcessFoldBlock({
                 sessionPath={sessionPath}
                 agentId={agentId}
                 readOnly={readOnly}
+                agentDisplay={agentDisplay}
+                isStreaming={isStreaming}
+                isSelected={selectedIds.includes(entry.item.data.id)}
                 showTurnCompletionTime={turnCompletionAssistantIndexes?.has(entry.originalIndex) ?? false}
                 assistantTurnSelectionIds={assistantTurnSelectionIdsByCompletionIndex?.get(entry.originalIndex)}
                 messageRef={messageRef(entry.item.data.id)}

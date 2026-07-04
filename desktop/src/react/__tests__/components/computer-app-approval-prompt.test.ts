@@ -483,6 +483,9 @@ describe('computer app approval prompt', () => {
       },
       showAvatar: false,
       sessionPath: '/session/a.jsonl',
+      agentDisplay: { displayName: 'Hana', yuan: 'hana' },
+      isStreaming: false,
+      isSelected: false,
     }));
 
     expect(screen.queryByText('允许 Hana 使用电脑')).toBeNull();
