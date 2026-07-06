@@ -1,4 +1,5 @@
 import type { AudioWaveform } from './chat-types';
+import type { JSONContent } from '@tiptap/core';
 import { sessionScopedKey } from './session-slice';
 
 export interface AttachedFile {
@@ -48,6 +49,8 @@ export interface InputSlice {
   attachedFilesBySession: Record<string, AttachedFile[]>;
   /** 按 session path 存储的草稿文本（内存级，关窗口清空） */
   drafts: Record<string, string>;
+  /** 按 session path 存储的输入框富文本草稿（内存级，关窗口清空） */
+  draftDocs: Record<string, JSONContent>;
   deskContextAttached: boolean;
   docContextAttached: boolean;
   inputFocusTrigger: number;
@@ -61,7 +64,7 @@ export interface InputSlice {
   removeAttachedFile: (index: number) => void;
   setAttachedFiles: (files: AttachedFile[]) => void;
   clearAttachedFiles: () => void;
-  setDraft: (sessionPath: string, text: string) => void;
+  setDraft: (sessionPath: string, text: string, doc?: JSONContent | null) => void;
   clearDraft: (sessionPath: string) => void;
   setDeskContextAttached: (attached: boolean) => void;
   toggleDeskContext: () => void;
@@ -102,6 +105,7 @@ export const createInputSlice = (
   attachedFiles: [],
   attachedFilesBySession: {},
   drafts: {},
+  draftDocs: {},
   deskContextAttached: false,
   docContextAttached: false,
   inputFocusTrigger: 0,
@@ -120,20 +124,27 @@ export const createInputSlice = (
     set((s) => syncCurrentSessionAttachments(s as InputSlice & { currentSessionPath?: string | null }, files)),
   clearAttachedFiles: () =>
     set((s) => syncCurrentSessionAttachments(s as InputSlice & { currentSessionPath?: string | null }, [])),
-  setDraft: (sessionPath, text) =>
+  setDraft: (sessionPath, text, doc) =>
     set((s) => {
       const key = sessionScopedKey(s as any, sessionPath) || sessionPath;
       const drafts = { ...s.drafts, [key]: text };
+      const draftDocs = { ...s.draftDocs };
+      if (doc) draftDocs[key] = doc;
+      else delete draftDocs[key];
       if (key !== sessionPath) delete drafts[sessionPath];
-      return { drafts };
+      if (key !== sessionPath) delete draftDocs[sessionPath];
+      return { drafts, draftDocs };
     }),
   clearDraft: (sessionPath) =>
     set((s) => {
       const key = sessionScopedKey(s as any, sessionPath) || sessionPath;
       const rest = { ...s.drafts };
+      const draftDocs = { ...s.draftDocs };
       delete rest[key];
       delete rest[sessionPath];
-      return { drafts: rest };
+      delete draftDocs[key];
+      delete draftDocs[sessionPath];
+      return { drafts: rest, draftDocs };
     }),
   setDeskContextAttached: (attached) => set({ deskContextAttached: attached }),
   toggleDeskContext: () =>

@@ -90,16 +90,24 @@ describe('input-slice attachedFiles session ownership', () => {
     });
 
     slice.addAttachedFile({ path: '/tmp/a.txt', name: 'a.txt' });
-    slice.setDraft('/session/moved', 'hello');
+    slice.setDraft('/session/moved', 'hello', {
+      type: 'doc',
+      content: [{ type: 'paragraph', content: [{ type: 'text', text: 'hello' }] }],
+    });
 
     expect(slice.attachedFilesBySession.sess_input).toEqual([
       { path: '/tmp/a.txt', name: 'a.txt' },
     ]);
     expect(slice.attachedFilesBySession['/session/moved']).toBeUndefined();
     expect(slice.drafts.sess_input).toBe('hello');
+    expect(slice.draftDocs.sess_input).toEqual({
+      type: 'doc',
+      content: [{ type: 'paragraph', content: [{ type: 'text', text: 'hello' }] }],
+    });
 
     slice.clearDraft('/session/moved');
     expect(slice.drafts.sess_input).toBeUndefined();
+    expect(slice.draftDocs.sess_input).toBeUndefined();
   });
 
   it('没有 currentSessionPath 时只更新当前输入区，不写 keyed 附件状态', () => {

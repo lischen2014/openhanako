@@ -240,6 +240,7 @@ function clearSessionRuntimeCaches(path: string): void {
     const attachedFilesBySession = deleteSessionScopedStateValue(s, s.attachedFilesBySession || {}, path);
     const sessionRegistryFilesByPath = deleteSessionScopedStateValue(s, s.sessionRegistryFilesByPath || {}, path);
     const drafts = deleteSessionScopedStateValue(s, s.drafts || {}, path);
+    const draftDocs = deleteSessionScopedStateValue(s, s.draftDocs || {}, path);
     const activeSessionStreams = deleteSessionScopedStateValue(s, s.activeSessionStreams || {}, path);
     const computerOverlayBySession = deleteSessionScopedStateValue(s, s.computerOverlayBySession || {}, path);
     const scrollPositions = deleteSessionScopedStateValue(s, s.scrollPositions || {}, path);
@@ -259,6 +260,7 @@ function clearSessionRuntimeCaches(path: string): void {
       attachedFilesBySession,
       sessionRegistryFilesByPath,
       drafts,
+      draftDocs,
       sessionStreams,
       activeSessionStreams,
       browserBySession,

@@ -2,6 +2,7 @@
 
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import React from 'react';
+import type { JSONContent } from '@tiptap/core';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { InputArea } from '../../components/InputArea';
 import { useStore } from '../../stores';
@@ -9,6 +10,7 @@ import { useStore } from '../../stores';
 const mocks = vi.hoisted(() => ({
   editorOptions: undefined as undefined | Record<string, unknown>,
   editorText: '',
+  editorJson: undefined as undefined | JSONContent,
   updateHandler: undefined as undefined | (() => void),
   insertContent: vi.fn(),
   setContent: vi.fn(),
@@ -52,7 +54,7 @@ vi.mock('@tiptap/react', () => ({
       },
       chain: () => chain,
       getText: () => mocks.editorText,
-      getJSON: () => editorJsonForText(mocks.editorText),
+      getJSON: () => mocks.editorJson ?? editorJsonForText(mocks.editorText),
       isDestroyed: false,
       state: { tr: { setMeta: vi.fn(() => ({})) } },
       view: { dispatch: vi.fn() },
@@ -270,6 +272,7 @@ describe('InputArea paste and slash menu behavior', () => {
     vi.clearAllMocks();
     mocks.editorOptions = undefined;
     mocks.editorText = '';
+    mocks.editorJson = undefined;
     mocks.updateHandler = undefined;
     mocks.chainInserted = [];
     mocks.editorFocus.mockClear();
@@ -346,6 +349,36 @@ describe('InputArea paste and slash menu behavior', () => {
       attrs: { name: 'zz-second' },
     });
     expect(mocks.wsSend).not.toHaveBeenCalled();
+  });
+
+  it('saves rich list drafts as markdown text plus the editor document', async () => {
+    render(React.createElement(InputArea));
+
+    await waitFor(() => {
+      expect(mocks.updateHandler).toBeTypeOf('function');
+    });
+
+    mocks.editorJson = {
+      type: 'doc',
+      content: [{
+        type: 'orderedList',
+        attrs: { start: 1 },
+        content: [{
+          type: 'listItem',
+          content: [{
+            type: 'paragraph',
+            content: [{ type: 'text', text: 'first' }],
+          }],
+        }],
+      }],
+    };
+
+    act(() => {
+      mocks.updateHandler?.();
+    });
+
+    expect(useStore.getState().drafts['/session/input.jsonl']).toBe('1. first');
+    expect(useStore.getState().draftDocs['/session/input.jsonl']).toEqual(mocks.editorJson);
   });
 
   it('handles welcome Enter inside TipTap before the editor inserts a newline', async () => {

@@ -14,7 +14,6 @@ export interface EditorFileRef {
 export function serializeEditor(json: JSONContent): { text: string; skills: string[]; fileRefs: EditorFileRef[] } {
   const skills: string[] = [];
   const fileRefs: EditorFileRef[] = [];
-  const textParts: string[] = [];
 
   function fileBadgeLabel(attrs: Record<string, unknown>): string {
     const name = typeof attrs.name === 'string' ? attrs.name : '';
@@ -26,10 +25,10 @@ export function serializeEditor(json: JSONContent): { text: string; skills: stri
     return (content || []).some(child => child.type === 'text' && typeof child.text === 'string' && child.text.trim().length > 0);
   }
 
-  function walk(node: JSONContent, options: { emitFileBadgeText?: boolean } = {}) {
+  function serializeInline(node: JSONContent, options: { emitFileBadgeText?: boolean } = {}): string {
     if (node.type === 'skillBadge' && node.attrs?.name) {
       skills.push(node.attrs.name as string);
-      return;
+      return '';
     }
     if (node.type === 'fileBadge' && node.attrs) {
       const path = typeof node.attrs.path === 'string' ? node.attrs.path : '';
@@ -43,37 +42,104 @@ export function serializeEditor(json: JSONContent): { text: string; skills: stri
           ...(typeof node.attrs.mimeType === 'string' && node.attrs.mimeType ? { mimeType: node.attrs.mimeType } : {}),
         });
         if (options.emitFileBadgeText) {
-          textParts.push(`@${label}`);
+          return `@${label}`;
         }
       }
-      return;
+      return '';
     }
     if (node.type === 'text' && node.text) {
-      textParts.push(node.text);
-      return;
+      return node.text;
     }
     if (node.type === 'hardBreak') {
-      textParts.push('\n');
-      return;
+      return '\n';
     }
-    if (node.type === 'paragraph') {
-      const emitFileBadgeText = paragraphHasText(node.content);
-      if (node.content) {
-        for (const child of node.content) walk(child, { emitFileBadgeText });
-      }
-      if (textParts.length > 0) {
-        textParts.push('\n');
-      }
-      return;
-    }
-    if (node.content) {
-      for (const child of node.content) walk(child);
-    }
+    return (node.content || []).map(child => serializeInline(child, options)).join('');
   }
 
-  walk(json);
+  function serializeParagraph(node: JSONContent): string {
+    const emitFileBadgeText = paragraphHasText(node.content);
+    return (node.content || []).map(child => serializeInline(child, { emitFileBadgeText })).join('');
+  }
 
-  const text = textParts.join('').replace(/\n+$/, '').trim();
+  function listStart(node: JSONContent): number {
+    const start = node.attrs?.start;
+    return typeof start === 'number' && Number.isFinite(start) ? start : 1;
+  }
+
+  function serializeListItem(node: JSONContent, marker: string, indent: string): string[] {
+    const markerContinuation = `${indent}${' '.repeat(marker.length)}`;
+    const lines: string[] = [];
+    let markerUsed = false;
+
+    for (const child of node.content || []) {
+      if (child.type === 'paragraph') {
+        const paragraph = serializeParagraph(child);
+        if (!markerUsed) {
+          lines.push(`${indent}${marker}${paragraph}`);
+          markerUsed = true;
+        } else if (paragraph) {
+          lines.push(`${markerContinuation}${paragraph}`);
+        }
+        continue;
+      }
+
+      if (child.type === 'bulletList' || child.type === 'orderedList') {
+        if (!markerUsed) {
+          lines.push(`${indent}${marker.trimEnd()}`);
+          markerUsed = true;
+        }
+        lines.push(...serializeBlock(child, `${indent}  `));
+        continue;
+      }
+
+      const childLines = serializeBlock(child, indent);
+      if (childLines.length === 0) continue;
+      if (!markerUsed) {
+        lines.push(`${indent}${marker}${childLines[0].trimStart()}`);
+        markerUsed = true;
+        lines.push(...childLines.slice(1));
+      } else {
+        lines.push(...childLines);
+      }
+    }
+
+    if (!markerUsed) {
+      lines.push(`${indent}${marker.trimEnd()}`);
+    }
+    return lines;
+  }
+
+  function serializeList(node: JSONContent, indent: string): string[] {
+    const ordered = node.type === 'orderedList';
+    const start = ordered ? listStart(node) : 1;
+    return (node.content || []).flatMap((child, index) => {
+      if (child.type !== 'listItem') return serializeBlock(child, indent);
+      const marker = ordered ? `${start + index}. ` : '- ';
+      return serializeListItem(child, marker, indent);
+    });
+  }
+
+  function serializeBlock(node: JSONContent, indent = ''): string[] {
+    if (node.type === 'paragraph') {
+      const paragraph = serializeParagraph(node);
+      return paragraph ? [`${indent}${paragraph}`] : [];
+    }
+    if (node.type === 'bulletList' || node.type === 'orderedList') {
+      return serializeList(node, indent);
+    }
+    if (node.type === 'doc') {
+      return (node.content || []).flatMap(child => serializeBlock(child, indent));
+    }
+    if (node.content?.length) {
+      return node.content.flatMap(child => serializeBlock(child, indent));
+    }
+    const inline = serializeInline(node);
+    return inline ? [`${indent}${inline}`] : [];
+  }
+
+  const lines = serializeBlock(json);
+
+  const text = lines.join('\n').replace(/\n+$/, '').trim();
 
   return { text, skills, fileRefs };
 }

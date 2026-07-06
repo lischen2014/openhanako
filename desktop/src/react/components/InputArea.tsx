@@ -7,7 +7,7 @@
 
 import { useState, useEffect, useRef, useCallback, useMemo, type ChangeEvent } from 'react';
 import { useEditor, EditorContent } from '@tiptap/react';
-import type { Editor } from '@tiptap/core';
+import type { Editor, JSONContent } from '@tiptap/core';
 import { useStore } from '../stores';
 import { selectPreviewItems, selectActiveTabId } from '../stores/preview-slice';
 import { sessionScopedListIncludes, sessionScopedValue } from '../stores/session-slice';
@@ -273,6 +273,16 @@ function editorHasInlineNode(editor: Editor | null, nodeType: string): boolean {
     return !found;
   });
   return found;
+}
+
+function plainTextToEditorDocument(text: string): JSONContent {
+  return {
+    type: 'doc',
+    content: text.split('\n').map(line => ({
+      type: 'paragraph',
+      content: line ? [{ type: 'text', text: line }] : [],
+    })),
+  };
 }
 
 export type { SlashItem };
@@ -1123,11 +1133,12 @@ function InputAreaInner({ surface }: Required<InputAreaProps>) {
     };
   }, []);
 
-  // Sync editor text to React state (drives hasInput / canSend) + slash menu detection + draft save
+  // Sync serialized editor text to React state (drives hasInput / canSend) + slash menu detection + draft save
   useEffect(() => {
     if (!editor) return;
     const handler = () => {
-      const text = editor.getText();
+      const editorJson = editor.getJSON();
+      const { text } = serializeEditor(editorJson);
       setInputText(text);
       if (slashDismissedTextRef.current && slashDismissedTextRef.current !== text.trim()) {
         slashDismissedTextRef.current = null;
@@ -1153,7 +1164,7 @@ function InputAreaInner({ surface }: Required<InputAreaProps>) {
       }
       // 保存草稿到 store
       if (currentSessionPath) {
-        setDraft(currentSessionPath, text);
+        setDraft(currentSessionPath, text, editorJson);
       }
       // 内容超出可见区域时，自动滚动到光标位置
       requestAnimationFrame(() => editor.commands.scrollIntoView());
@@ -1167,19 +1178,20 @@ function InputAreaInner({ surface }: Required<InputAreaProps>) {
     if (!editor || !currentSessionPath) return;
     const state = useStore.getState();
     const draft = sessionScopedValue(state, state.drafts, currentSessionPath) || '';
-    const current = editor.getText();
-    if (draft !== current) {
-      if (!draft) {
+    const draftDoc = sessionScopedValue(state, state.draftDocs, currentSessionPath);
+    const currentDoc = editor.getJSON();
+    const nextDoc = draft
+      ? (draftDoc || plainTextToEditorDocument(draft))
+      : null;
+    const currentSerialized = serializeEditor(currentDoc).text;
+    const nextSerialized = draft;
+    const currentDocJson = JSON.stringify(currentDoc);
+    const nextDocJson = nextDoc ? JSON.stringify(nextDoc) : '';
+    if (nextSerialized !== currentSerialized || nextDocJson !== currentDocJson) {
+      if (!nextDoc) {
         editor.commands.setContent('', { emitUpdate: false });
       } else {
-        const doc = {
-          type: 'doc' as const,
-          content: draft.split('\n').map(line => ({
-            type: 'paragraph' as const,
-            content: line ? [{ type: 'text' as const, text: line }] : [],
-          })),
-        };
-        editor.commands.setContent(doc, { emitUpdate: false });
+        editor.commands.setContent(nextDoc, { emitUpdate: false });
       }
     }
   }, [editor, currentSessionPath]);

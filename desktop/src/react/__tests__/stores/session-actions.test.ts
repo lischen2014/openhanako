@@ -42,6 +42,7 @@ const initialStateFactory = (): MockState => ({
   attachedFiles: [],
   attachedFilesBySession: {} as Record<string, unknown>,
   drafts: {} as Record<string, string>,
+  draftDocs: {} as Record<string, unknown>,
   streamingSessions: [] as string[],
   unreadOutputSessionPaths: [] as string[],
   capabilityDriftBySession: {} as Record<string, unknown>,
@@ -1588,6 +1589,7 @@ function mockPermissionDefault(mode = 'ask') {
       (mockState.sessionStreams as Record<string, unknown>)['/archived'] = { isStreaming: true };
       (mockState.attachedFilesBySession as Record<string, unknown>)['/archived'] = [{ name: 'a.txt' }];
       (mockState.drafts as Record<string, string>)['/archived'] = 'draft';
+      (mockState.draftDocs as Record<string, unknown>)['/archived'] = { type: 'doc' };
       (mockState.todosBySession as Record<string, unknown>)['/archived'] = [{ id: 'todo-1' }];
       (mockState.todosLiveVersionBySession as Record<string, number>)['/archived'] = 3;
       (mockState.streamingSessions as string[]) = ['/current', '/archived'];
@@ -1611,6 +1613,7 @@ function mockPermissionDefault(mode = 'ask') {
       expect((mockState.sessionStreams as Record<string, unknown>)['/archived']).toBeUndefined();
       expect((mockState.attachedFilesBySession as Record<string, unknown>)['/archived']).toBeUndefined();
       expect((mockState.drafts as Record<string, string>)['/archived']).toBeUndefined();
+      expect((mockState.draftDocs as Record<string, unknown>)['/archived']).toBeUndefined();
       expect((mockState.todosBySession as Record<string, unknown>)['/archived']).toBeUndefined();
       expect((mockState.streamingSessions as string[])).toEqual(['/current']);
       expect((mockState.inlineErrors as Record<string, string | null>)['/archived']).toBeNull();

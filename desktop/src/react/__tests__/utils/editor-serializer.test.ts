@@ -28,4 +28,44 @@ describe('serializeEditor', () => {
       mimeType: 'audio/wav',
     }]);
   });
+
+  it('serializes TipTap ordered and unordered lists as markdown markers', () => {
+    const result = serializeEditor({
+      type: 'doc',
+      content: [
+        {
+          type: 'orderedList',
+          attrs: { start: 3 },
+          content: [
+            {
+              type: 'listItem',
+              content: [{
+                type: 'paragraph',
+                content: [{ type: 'text', text: 'third' }],
+              }],
+            },
+            {
+              type: 'listItem',
+              content: [{
+                type: 'paragraph',
+                content: [{ type: 'text', text: 'fourth' }],
+              }],
+            },
+          ],
+        },
+        {
+          type: 'bulletList',
+          content: [{
+            type: 'listItem',
+            content: [{
+              type: 'paragraph',
+              content: [{ type: 'text', text: 'plain bullet' }],
+            }],
+          }],
+        },
+      ],
+    });
+
+    expect(result.text).toBe('3. third\n4. fourth\n- plain bullet');
+  });
 });

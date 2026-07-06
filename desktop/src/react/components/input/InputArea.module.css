@@ -1670,3 +1670,14 @@
 .input-box p {
     margin: 0;
 }
+
+.input-box ul,
+.input-box ol {
+    margin: 0;
+    padding-left: var(--space-24);
+}
+
+.input-box li {
+    margin: 0;
+    padding-left: var(--space-4);
+}
