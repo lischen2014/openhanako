@@ -280,4 +280,19 @@ describe('ToolGroupBlock', () => {
     expect(toolGroupRule).toContain('width: 100%');
     expect(toolGroupRule).toContain('box-sizing: border-box');
   });
+
+  it('renders the task-family container: four-corner radius, no accent quote bar', () => {
+    const css = fs.readFileSync(
+      path.join(process.cwd(), 'desktop/src/react/components/chat/Chat.module.css'),
+      'utf8',
+    );
+    const toolGroupRule = css.match(/\.toolGroup\s*\{(?<body>[^}]*)\}/)?.groups?.body || '';
+    expect(toolGroupRule).toContain('border-radius: var(--radius-sm)');
+    expect(toolGroupRule).not.toContain('padding-left');
+    expect(css).not.toMatch(/\.toolGroup::before/);
+    expect(css).not.toContain('hana-tool-bar-in');
+
+    const toolDotsRule = css.match(/\.toolDots\s*\{(?<body>[^}]*)\}/)?.groups?.body || '';
+    expect(toolDotsRule).toContain('color: var(--tool-text)');
+  });
 });

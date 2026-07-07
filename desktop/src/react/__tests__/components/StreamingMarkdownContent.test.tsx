@@ -318,17 +318,12 @@ describe('StreamingMarkdownContent', () => {
     );
     const tailBlock = css.match(/\.streamTailChunk\s*\{(?<body>[^}]*)\}/)?.groups?.body || '';
     const cardBlock = css.match(/\.mediaGenerationCard\s*\{(?<body>[^}]*)\}/)?.groups?.body || '';
-    const toolBlock = Array.from(css.matchAll(/\.toolGroup::before\s*\{(?<body>[^}]*)\}/g))
-      .map(match => match.groups?.body || '')
-      .find(body => body.includes('hana-tool-bar-in')) || '';
 
     expect(tailBlock).toContain('hana-stream-tail-in');
     expect(tailBlock).not.toContain('requestAnimationFrame');
     expect(cardBlock).toContain('hana-chat-soft-up-in');
-    expect(toolBlock).toContain('hana-tool-bar-in');
     expect(animations).toContain('@keyframes hana-stream-tail-in');
     expect(animations).toContain('@keyframes hana-chat-soft-down-in');
     expect(animations).toContain('@keyframes hana-chat-soft-up-in');
-    expect(animations).toContain('@keyframes hana-tool-bar-in');
   });
 });

@@ -1124,26 +1124,13 @@
 .toolGroup {
     position: relative;
     margin: var(--space-4) 0;
-    padding-left: 2px;
-    border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+    border-radius: var(--radius-sm);
     background: var(--tool-bg);
     overflow: hidden;
     width: 100%;
     max-width: 100%;
     box-sizing: border-box;
     animation: hana-chat-soft-down-in 110ms var(--ease-out) both;
-}
-
-.toolGroup::before {
-    content: '';
-    position: absolute;
-    left: 0;
-    top: 0;
-    bottom: 0;
-    width: 2px;
-    background: var(--accent);
-    transform-origin: top;
-    animation: hana-tool-bar-in 100ms var(--ease-out) 55ms both;
 }
 
 .toolGroupSummary {
@@ -1355,7 +1342,7 @@
     font-family: var(--font-serif);
     font-weight: 700;
     letter-spacing: 0.1em;
-    color: var(--accent);
+    color: var(--tool-text);
 }
 
 .toolDots::after {
@@ -1732,7 +1719,7 @@
     gap: var(--space-8);
     margin: var(--space-4) 0;
     padding: 0.55rem 0.85rem;
-    background: var(--tool-bg);
+    background: var(--overlay-subtle);
     border: 1px solid var(--accent);
     border-radius: var(--radius-chat-card);
     max-width: 100%;
@@ -2084,12 +2071,6 @@
     .legacyArtifactCard,
     .browserScreenshot {
         animation: none;
-    }
-
-    .toolGroup::before {
-        animation: none;
-        opacity: 1;
-        transform: none;
     }
 }
 
