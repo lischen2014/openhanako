@@ -110,7 +110,9 @@
     font-size: var(--editor-markdown-font-size);
     font-weight: 400;
     line-height: var(--editor-markdown-line-height);
-    font-family: var(--editor-markdown-font-family, var(--font-serif));
+    font-family: var(--editor-markdown-font-family, var(--font-serif-text));
+    /* 基线网格节奏单位：随用户排版设置伸缩 */
+    --md-rhythm: calc(var(--editor-markdown-font-size) * var(--editor-markdown-line-height));
 }
 
 .previewPanelBody :global(.preview-markdown > *) {
@@ -270,44 +272,107 @@
     color: var(--danger, #b45a5a);
 }
 
+/* ── 网格标题：margin 整格 / 半格呼吸放 padding（不参与 collapse），
+      content 总高凑整格；全部 longhand，勿动左右 auto ── */
 .previewPanelBody :global(.preview-markdown) h1 {
-    text-align: center;
     font-size: var(--editor-markdown-h1-font-size);
-    font-weight: 700;
+    font-weight: 400;
+    text-align: left;
+    line-height: calc(var(--md-rhythm) * 1.5);
+    margin-top: calc(var(--md-rhythm) * 2);
+    margin-bottom: calc(var(--md-rhythm) * 0.5);
+    border-bottom: 1px solid var(--border);
+    padding-bottom: calc(var(--md-rhythm) - 1px);
+    /* content 1.5r + (1r−1px) + 1px = 2.5r；+mb 0.5r = 3r 落格。
+       题→线远衬、线→正文近贴，比例随 newsprint 原版 */
 }
-
+/* 首 h1 = 文档题名：居中（手账身份）；后续 h1 = 章标题：左对齐 + 底线 */
+.previewPanelBody :global(.preview-markdown) > h1:first-child {
+    margin-top: 0;
+    text-align: center;
+}
 .previewPanelBody :global(.preview-markdown.markdown-has-cover) h1 {
     text-align: left;
 }
-
-.previewPanelBody :global(.preview-markdown) h2 {
-    font-size: var(--editor-markdown-h2-font-size);
-    font-weight: 600;
-}
-
-.previewPanelBody :global(.preview-markdown) h3 {
-    font-size: var(--editor-markdown-h3-font-size);
-    font-weight: 600;
-}
-
-.previewPanelBody :global(.preview-markdown) h4 {
-    font-size: var(--editor-markdown-h4-font-size);
-    font-weight: 600;
-}
-
-.previewPanelBody :global(.preview-markdown) h5 {
-    font-size: var(--editor-markdown-h5-font-size);
-    font-weight: 600;
-}
-
+.previewPanelBody :global(.preview-markdown) h2,
+.previewPanelBody :global(.preview-markdown) h3,
+.previewPanelBody :global(.preview-markdown) h4,
+.previewPanelBody :global(.preview-markdown) h5,
 .previewPanelBody :global(.preview-markdown) h6 {
-    font-size: var(--editor-markdown-h6-font-size);
-    font-weight: 600;
+    line-height: var(--md-rhythm);
+    margin-top: var(--md-rhythm);
+    margin-bottom: 0;
+    padding-top: calc(var(--md-rhythm) * 0.5);
+    padding-bottom: calc(var(--md-rhythm) * 0.5);
+    /* content 0.5r+1r+0.5r = 2r；视觉上方 1.5 行、下方 0.5 行 */
 }
+.previewPanelBody :global(.preview-markdown) h1 + h2,
+.previewPanelBody :global(.preview-markdown) h1 + h3 {
+    margin-top: calc(var(--md-rhythm) * 0.5); /* h1 mb 0.5r 与之 collapse 后仍 3r 累计落格 */
+}
+.previewPanelBody :global(.preview-markdown) h2 { font-size: var(--editor-markdown-h2-font-size); font-weight: 500; }
+.previewPanelBody :global(.preview-markdown) h3 { font-size: var(--editor-markdown-h3-font-size); font-weight: 500; }
+.previewPanelBody :global(.preview-markdown) h4 { font-size: var(--editor-markdown-h4-font-size); font-weight: 600; }
+.previewPanelBody :global(.preview-markdown) h5 { font-size: var(--editor-markdown-h5-font-size); font-weight: 600; }
+.previewPanelBody :global(.preview-markdown) h6 { font-size: var(--editor-markdown-h6-font-size); font-weight: 600; }
 
 .previewPanelBody :global(.preview-markdown) strong {
     font-weight: 700;
 }
+
+/* ── 网格节奏：块级下边距一律整格 ── */
+.previewPanelBody :global(.preview-markdown) p { margin-top: 0; margin-bottom: var(--md-rhythm); }
+.previewPanelBody :global(.preview-markdown) li p { margin-bottom: 0; }
+.previewPanelBody :global(.preview-markdown) blockquote {
+    margin-top: 0; margin-bottom: var(--md-rhythm); padding-left: 1.25em;
+}
+.previewPanelBody :global(.preview-markdown) ul,
+.previewPanelBody :global(.preview-markdown) ol { margin-top: 0; margin-bottom: var(--md-rhythm); }
+.previewPanelBody :global(.preview-markdown) li { margin-top: 0; margin-bottom: 0; }
+.previewPanelBody :global(.preview-markdown) li ul,
+.previewPanelBody :global(.preview-markdown) li ol { margin-bottom: 0; }
+/* hr 占满一行高，细线画在行中央：1px 边框不挤破网格 */
+.previewPanelBody :global(.preview-markdown) hr {
+    border: none;
+    height: var(--md-rhythm);
+    margin-top: 0; margin-bottom: 0;
+    background: linear-gradient(var(--border), var(--border)) center / 100% 1px no-repeat;
+}
+/* ── 报纸表格：全无线，行的区分靠 thead 灰底 + 斑马纹；
+      collapse 下 radius 不生效，单元格已无边框 → separate 视觉零差异 ── */
+.previewPanelBody :global(.preview-markdown .markdown-table-scroll) { margin-top: 0; margin-bottom: var(--md-rhythm); }
+.previewPanelBody :global(.preview-markdown) table {
+    border-collapse: separate;
+    border-spacing: 0;
+    border-radius: var(--radius-xs);
+    overflow: hidden;
+}
+.previewPanelBody :global(.preview-markdown) th,
+.previewPanelBody :global(.preview-markdown) td { border: none; padding: 0.35em 0.8em; }
+.previewPanelBody :global(.preview-markdown) thead th {
+    background: color-mix(in srgb, var(--text) 9%, transparent);
+    font-weight: 600;
+    font-size: 0.85em;
+    letter-spacing: 0.08em;
+}
+.previewPanelBody :global(.preview-markdown) tbody tr:nth-child(even) td {
+    background: color-mix(in srgb, var(--text) 4.5%, transparent);
+}
+/* ── 代码块：无框平铺灰块 + 微圆角；rhythm 边距挂在最外层块上 ── */
+.previewPanelBody :global(.preview-markdown) pre {
+    background: color-mix(in srgb, var(--text) 9%, transparent);
+    border: none;
+    border-radius: var(--radius-xs);
+    padding: 0.75em 1em;
+    margin-top: 0; margin-bottom: var(--md-rhythm);
+}
+.previewPanelBody :global(.preview-markdown .code-block-wrap) { margin-top: 0; margin-bottom: var(--md-rhythm); }
+.previewPanelBody :global(.preview-markdown .code-block-wrap > pre) { margin-bottom: 0; }
+.previewPanelBody :global(.preview-markdown) code {
+    background: color-mix(in srgb, var(--text) 9%, transparent);
+    border-radius: var(--radius-xs);
+}
+.previewPanelBody :global(.preview-markdown) pre code { background: none; }
 
 /* 代码预览 */
 .previewPanelBody :global(.preview-code) {

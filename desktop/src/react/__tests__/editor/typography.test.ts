@@ -186,18 +186,33 @@ describe('editor typography settings', () => {
 
     expect(css).toMatch(/:global\(\.preview-markdown\)\s*\{[\s\S]*padding:\s*var\(--space-24\)\s+var\(--editor-markdown-content-padding-x\)\s+var\(--space-16\)/);
     expect(css).toMatch(/:global\(\.preview-markdown\)\s*\{[\s\S]*font-size:\s*var\(--editor-markdown-font-size\)/);
-    expect(css).toMatch(/:global\(\.preview-markdown\)\s*\{[\s\S]*font-family:\s*var\(--editor-markdown-font-family,\s*var\(--font-serif\)\)/);
+    expect(css).toMatch(/:global\(\.preview-markdown\)\s*\{[\s\S]*font-family:\s*var\(--editor-markdown-font-family,\s*var\(--font-serif-text\)\)/);
     expect(css).toMatch(/:global\(\.preview-markdown\)\s*\{[\s\S]*font-weight:\s*400/);
-    expect(css).toMatch(/:global\(\.preview-markdown\) h1\s*\{[\s\S]*font-size:\s*var\(--editor-markdown-h1-font-size\)[\s\S]*font-weight:\s*700/);
+    expect(css).toMatch(/:global\(\.preview-markdown\) h1\s*\{[\s\S]*font-size:\s*var\(--editor-markdown-h1-font-size\)[\s\S]*font-weight:\s*400/);
     expect(css).toMatch(/:global\(\.preview-markdown\.markdown-has-cover\) h1\s*\{[\s\S]*text-align:\s*left/);
 
-    for (const level of [2, 3, 4, 5, 6]) {
+    for (const level of [2, 3]) {
+      expect(css).toMatch(new RegExp(
+        `:global\\(\\.preview-markdown\\) h${level}\\s*\\{[\\s\\S]*font-size:\\s*var\\(--editor-markdown-h${level}-font-size\\)[\\s\\S]*font-weight:\\s*500`,
+      ));
+    }
+    for (const level of [4, 5, 6]) {
       expect(css).toMatch(new RegExp(
         `:global\\(\\.preview-markdown\\) h${level}\\s*\\{[\\s\\S]*font-size:\\s*var\\(--editor-markdown-h${level}-font-size\\)[\\s\\S]*font-weight:\\s*600`,
       ));
     }
 
     expect(css).toMatch(/:global\(\.preview-markdown\) strong\s*\{[\s\S]*font-weight:\s*700/);
+  });
+
+  it('preview markdown enforces the baseline rhythm contract', () => {
+    const css = readPreviewStyles();
+    expect(css).toMatch(/--md-rhythm:\s*calc\(var\(--editor-markdown-font-size\)\s*\*\s*var\(--editor-markdown-line-height\)\)/);
+    expect(css).toMatch(/:global\(\.preview-markdown\)\s*>\s*h1:first-child[\s\S]*?text-align:\s*center/);
+    expect(css).toMatch(/:global\(\.preview-markdown\) h1\s*\{[\s\S]*?border-bottom:\s*1px solid var\(--border\)[\s\S]*?padding-bottom:\s*calc\(var\(--md-rhythm\) - 1px\)/);
+    expect(css).toMatch(/:global\(\.preview-markdown\) hr\s*\{[\s\S]*?height:\s*var\(--md-rhythm\)/);
+    expect(css).toMatch(/:global\(\.preview-markdown\) table\s*\{[\s\S]*?border-collapse:\s*separate[\s\S]*?border-radius:\s*var\(--radius-xs\)/);
+    expect(css).toMatch(/thead th\)?\s*\{[\s\S]*?color-mix\(in srgb, var\(--text\) 9%, transparent\)/);
   });
 
   it('adds page-header space to markdown previews without a cover', () => {
