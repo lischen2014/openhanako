@@ -43,6 +43,38 @@ function assertBundledServerNodeModulesReady(nodeModulesDir) {
   }
 }
 
+function removeNodeModulesBinDirs(nodeModulesDir) {
+  let removedDirs = 0;
+
+  function walk(dir) {
+    let entries;
+    try {
+      entries = fs.readdirSync(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue;
+
+      const full = path.join(dir, entry.name);
+      if (entry.name === ".bin" && path.basename(dir) === "node_modules") {
+        fs.rmSync(full, { recursive: true, force: true });
+        removedDirs++;
+        continue;
+      }
+
+      walk(full);
+    }
+  }
+
+  if (fs.existsSync(nodeModulesDir)) {
+    walk(nodeModulesDir);
+  }
+
+  return removedDirs;
+}
+
 function copyBundledServerNodeModules(serverDir, serverBuildModules, opts = {}) {
   if (!fs.existsSync(serverDir)) {
     throw new Error(
@@ -61,10 +93,14 @@ function copyBundledServerNodeModules(serverDir, serverBuildModules, opts = {}) 
   const serverNodeModules = path.join(serverDir, "node_modules");
   fs.rmSync(serverNodeModules, { recursive: true, force: true });
   fs.cpSync(serverBuildModules, serverNodeModules, { recursive: true });
+  const removedBinDirs = removeNodeModulesBinDirs(serverNodeModules);
   assertBundledServerNodeModulesReady(serverNodeModules);
 
   const log = typeof opts.log === "function" ? opts.log : console.log;
   log(`[fix-modules] 重建 server node_modules → ${serverNodeModules}`);
+  if (removedBinDirs > 0) {
+    log(`[fix-modules] 清理 server node_modules 中 ${removedBinDirs} 个 .bin 目录`);
+  }
 }
 
 exports.default = async function (context) {
@@ -155,41 +191,15 @@ exports.default = async function (context) {
     console.log(`[fix-modules] 补全了 ${copied} 个缺失的生产依赖`);
   }
 
-  // 清理 node_modules 中指向 bundle 外部的 .bin 符号链接（codesign 会报错）
-  let removedLinks = 0;
-  function cleanBinLinks(dir) {
-    let entries;
-    try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
-    for (const entry of entries) {
-      const full = path.join(dir, entry.name);
-      if (entry.isSymbolicLink()) {
-        const target = fs.readlinkSync(full);
-        if (path.isAbsolute(target) && !target.startsWith(appDir)) {
-          fs.unlinkSync(full);
-          removedLinks++;
-        }
-      } else if (entry.isDirectory() && entry.name !== ".bin") {
-        // 递归进 node_modules 子目录，但跳过非 node_modules 的深层目录
-        const binDir = path.join(full, "node_modules", ".bin");
-        if (fs.existsSync(binDir)) cleanBinLinks(binDir);
-      }
-    }
-  }
-
-  // 扫描顶层和嵌套的 .bin 目录
-  const topBin = path.join(distModules, ".bin");
-  if (fs.existsSync(topBin)) cleanBinLinks(topBin);
-  for (const entry of fs.readdirSync(distModules, { withFileTypes: true })) {
-    if (!entry.isDirectory()) continue;
-    const nested = path.join(distModules, entry.name, "node_modules", ".bin");
-    if (fs.existsSync(nested)) cleanBinLinks(nested);
-  }
-
-  if (removedLinks > 0) {
-    console.log(`[fix-modules] 清理了 ${removedLinks} 个指向 bundle 外部的 .bin 符号链接`);
+  // 清理 node_modules/.bin。生产运行时不依赖包管理器生成的 CLI 链接，
+  // 而绝对 symlink 会让 macOS codesign 报 invalid destination for symbolic link。
+  const removedBinDirs = removeNodeModulesBinDirs(distModules);
+  if (removedBinDirs > 0) {
+    console.log(`[fix-modules] 清理 app node_modules 中 ${removedBinDirs} 个 .bin 目录`);
   }
 };
 
 exports.SERVER_NODE_MODULE_REQUIRED_FILES = SERVER_NODE_MODULE_REQUIRED_FILES;
 exports.assertBundledServerNodeModulesReady = assertBundledServerNodeModulesReady;
 exports.copyBundledServerNodeModules = copyBundledServerNodeModules;
+exports.removeNodeModulesBinDirs = removeNodeModulesBinDirs;

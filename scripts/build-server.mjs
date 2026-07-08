@@ -437,16 +437,37 @@ if (fs.existsSync(patchScript)) {
 // 符号链接指向构建机器的绝对路径，codesign 会报错
 // server 运行时不需要这些 CLI 工具
 function removeBinDirs(nmDir) {
-  const topBin = path.join(nmDir, ".bin");
-  if (fs.existsSync(topBin)) fs.rmSync(topBin, { recursive: true });
-  // 嵌套的 node_modules/.bin
-  for (const entry of fs.readdirSync(nmDir, { withFileTypes: true })) {
-    if (!entry.isDirectory() || entry.name.startsWith(".")) continue;
-    const nested = path.join(nmDir, entry.name, "node_modules", ".bin");
-    if (fs.existsSync(nested)) fs.rmSync(nested, { recursive: true });
+  let removedDirs = 0;
+
+  function walk(dir) {
+    let entries;
+    try {
+      entries = fs.readdirSync(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue;
+
+      const full = path.join(dir, entry.name);
+      if (entry.name === ".bin" && path.basename(dir) === "node_modules") {
+        fs.rmSync(full, { recursive: true, force: true });
+        removedDirs++;
+        continue;
+      }
+
+      walk(full);
+    }
   }
+
+  walk(nmDir);
+  return removedDirs;
 }
-removeBinDirs(path.join(outDir, "node_modules"));
+const removedBinDirs = removeBinDirs(path.join(outDir, "node_modules"));
+if (removedBinDirs > 0) {
+  console.log(`[build-server] cleanup: removed ${removedBinDirs} node_modules/.bin director${removedBinDirs === 1 ? "y" : "ies"}`);
+}
 
 console.log("[build-server] dependencies installed");
 
