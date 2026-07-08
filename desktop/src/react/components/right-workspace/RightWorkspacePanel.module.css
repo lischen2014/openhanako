@@ -223,9 +223,6 @@
     cursor: default;
     user-select: none;
     transition: background 0.14s var(--ease-out), color 0.14s var(--ease-out);
-    contain: layout paint;
-    content-visibility: auto;
-    contain-intrinsic-size: auto 28px;
 }
 
 .fileRow:hover {

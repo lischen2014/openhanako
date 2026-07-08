@@ -1613,9 +1613,6 @@
     border: 0.5px solid var(--border, rgba(0,0,0,0.08));
     border-radius: var(--radius-chat-card);
     box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
-    contain: layout paint;
-    content-visibility: auto;
-    contain-intrinsic-size: 360px 450px;
     transition: border-color var(--duration-fast);
 }
 
@@ -1782,9 +1779,6 @@
 .browserScreenshot {
     margin: 8px 0;
     max-width: 600px;
-    contain: layout paint;
-    content-visibility: auto;
-    contain-intrinsic-size: 600px 360px;
     animation: hana-chat-soft-up-in 130ms var(--ease-out) both;
 }
 
@@ -1847,18 +1841,6 @@
     display: flex;
     flex-direction: column;
     gap: var(--space-8);
-}
-
-.sessionMessages > .messageGroup {
-    contain: layout paint;
-    content-visibility: auto;
-    contain-intrinsic-size: auto 220px;
-}
-
-.sessionMessages.selectionModeActive > .messageGroup,
-.sessionMessages > .messageGroupSelected,
-.sessionMessages > .locateFlash {
-    content-visibility: visible;
 }
 
 .cardSessionShell {
