@@ -43,7 +43,7 @@
 
     /* ─── 其他（继承原有语义，但色值对齐纸本）─── */
     --hana-text:    #2A2622;
-    --tool-bg:      rgba(0, 0, 0, 0.045);
+    --tool-bg:      rgba(42, 38, 34, 0.03);
     --tool-text:    #6B6158;
     --user-bg:      rgba(83, 125, 150, 0.08);
     --drop-overlay-bg: rgba(245, 239, 228, 0.85);

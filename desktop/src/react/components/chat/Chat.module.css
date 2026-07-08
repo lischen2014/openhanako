@@ -1207,7 +1207,7 @@
 }
 
 .processFoldSummary:hover {
-    background: var(--tool-bg);
+    background: var(--overlay-light);
     color: var(--tool-text);
 }
 
