@@ -11,6 +11,20 @@ import { moodLabelForYuan } from '../../../../shared/yuan-visuals.ts';
 // ── Mood 解析 ──
 
 const TAG_TO_YUAN: Record<string, string> = { mood: 'hanako', pulse: 'butter', reflect: 'ming' };
+const SESSION_REMINDER_HEADER_RE = /^\[hana_reminder at \d{4}-\d{2}-\d{2} \d{2}:\d{2}\]\r?\n/;
+const SESSION_REMINDER_END = '[/hana_reminder]';
+
+function stripLeadingSessionReminder(content: string): string {
+  const header = content.match(SESSION_REMINDER_HEADER_RE);
+  if (!header) return content;
+  const closingLine = `\n${SESSION_REMINDER_END}`;
+  const closingIndex = content.indexOf(closingLine, header[0].length);
+  if (closingIndex < 0) return content;
+  const blockEnd = closingIndex + closingLine.length;
+  const nextChar = content[blockEnd];
+  if (nextChar !== undefined && nextChar !== '\n' && nextChar !== '\r') return content;
+  return content.slice(blockEnd).replace(/^(?:\r?\n){0,2}/, '');
+}
 
 export function moodLabel(yuan: string): string {
   return moodLabelForYuan(yuan);
@@ -85,6 +99,7 @@ function parseSessionFileMarker(line: string): { fileId: string; sessionPath?: s
 
 export function parseUserAttachments(content: string): ParsedAttachments {
   if (!content) return { text: '', files: [], attachedImages: [], attachedVideos: [], attachedAudios: [], sessionFileRefs: [], deskContext: null, quotedText: null };
+  content = stripLeadingSessionReminder(content);
   const lines = content.split('\n');
   const textLines: string[] = [];
   const files: Array<{ path: string; name: string; isDirectory: boolean }> = [];

@@ -4,7 +4,7 @@
  * Contract under test:
  *  - computeSessionCapabilityFingerprint is order-insensitive for tools and
  *    clock-insensitive for the system prompt (the trailing
- *    "Current date and time: ..." line buildSystemPrompt appends).
+ *    old and new session-clock labels buildSystemPrompt has used).
  *  - buildSessionCapabilityDrift classifies added / removed / invalid tools and
  *    prompt change, and hasDrift is the union of those signals.
  *  - repairRestoredToolSnapshotDetailed reports the silently filtered names so
@@ -48,6 +48,19 @@ describe("computeSessionCapabilityFingerprint", () => {
     expect(a).toBe(b);
   });
 
+  it("normalizes new clock labels and old-to-new frozen snapshot transitions", () => {
+    const oldPrompt = "You are Hana.\nCurrent date and time: Monday, June 8, 2026, 10:00 CST\nYour day starts at 04:00.";
+    const newA = "You are Hana.\nSession start time: Monday, June 8, 2026, 10:00 CST\nYour day starts at 04:00.";
+    const newB = "You are Hana.\nSession start time: Thursday, June 11, 2026, 23:59 CST\nYour day starts at 04:00.";
+    const fingerprint = (systemPrompt: string) => computeSessionCapabilityFingerprint({
+      toolNames: ["read"],
+      systemPrompt,
+    });
+
+    expect(fingerprint(newA)).toBe(fingerprint(newB));
+    expect(fingerprint(oldPrompt)).toBe(fingerprint(newA));
+  });
+
   it("still changes when non-clock prompt content changes", () => {
     const a = computeSessionCapabilityFingerprint({ toolNames: ["read"], systemPrompt: "v1 persona" });
     const b = computeSessionCapabilityFingerprint({ toolNames: ["read"], systemPrompt: "v2 persona" });
@@ -82,6 +95,7 @@ function buildPromptFixture({
   pinned = "",
   memory = "",
   date = "Monday, June 8, 2026, 10:00 CST",
+  clockLabel = "Session start time",
   locale = "zh",
 }: {
   persona?: string;
@@ -89,6 +103,7 @@ function buildPromptFixture({
   pinned?: string;
   memory?: string;
   date?: string;
+  clockLabel?: "Current date and time" | "Session start time";
   locale?: string;
 } = {}) {
   const isZh = locale.startsWith("zh");
@@ -114,7 +129,7 @@ function buildPromptFixture({
     }
     parts.push(...memParts);
   }
-  parts.push(`\nCurrent date and time: ${date}`);
+  parts.push(`\n${clockLabel}: ${date}`);
   parts.push(isZh
     ? "你的一天从 04:00 开始。04:00 之前的对话属于前一天。"
     : "Your day starts at 04:00. Conversations before 04:00 belong to the previous day.");
@@ -144,6 +159,18 @@ describe("normalizeSystemPromptForFingerprint — dynamic segments (#1624 C1)", 
       systemPrompt: buildPromptFixture({ pinned: "记住周五交房租。", memory: "新积累的记忆。" }),
     });
     expect(absent).toBe(present);
+  });
+
+  it("normalizes the memory seam across old and new clock labels", () => {
+    const oldFrozen = computeSessionCapabilityFingerprint({
+      toolNames: ["read"],
+      systemPrompt: buildPromptFixture({ clockLabel: "Current date and time", memory: "旧记忆" }),
+    });
+    const newLive = computeSessionCapabilityFingerprint({
+      toolNames: ["read"],
+      systemPrompt: buildPromptFixture({ clockLabel: "Session start time", memory: "新记忆" }),
+    });
+    expect(oldFrozen).toBe(newLive);
   });
 
   it("ignores pinned-memory-only changes", () => {
@@ -249,10 +276,11 @@ describe("normalizeSystemPromptForFingerprint — dynamic segments (#1624 C1)", 
 
   it("normalizes every clock line, not just the first (M4)", () => {
     const normalized = normalizeSystemPromptForFingerprint(
-      "Current date and time: Monday, June 8, 2026\nmiddle\nCurrent date and time: Thursday, June 11, 2026",
+      "Current date and time: Monday, June 8, 2026\nmiddle\nSession start time: Thursday, June 11, 2026",
     );
     expect(normalized).not.toContain("June 8, 2026");
     expect(normalized).not.toContain("June 11, 2026");
+    expect(normalized.match(/Session start time: <normalized>/g)).toHaveLength(2);
   });
 });
 

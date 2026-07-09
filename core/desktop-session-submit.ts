@@ -48,6 +48,28 @@ export const MESSAGE_ORIGIN_RECORD_TYPE = "hana-message-origin";
 
 const pendingDesktopSessionSubmissions = new Set();
 
+function renderPendingReminderBlock(engine: any, sessionPath: string) {
+  if (typeof engine.renderSessionReminderBlock === "function") {
+    const rendered = engine.renderSessionReminderBlock(sessionPath);
+    if (!rendered?.block) return null;
+    return {
+      block: rendered.block,
+      receipt: rendered.receipt ?? rendered.now ?? null,
+      alreadyConsumed: false,
+    };
+  }
+
+  const legacyBlock = engine.consumeSessionReminderBlock?.(sessionPath);
+  return legacyBlock
+    ? { block: legacyBlock, receipt: null, alreadyConsumed: true }
+    : null;
+}
+
+function consumeRenderedReminderBlock(engine: any, sessionPath: string, rendered: any): void {
+  if (!rendered || rendered.alreadyConsumed || rendered.receipt == null) return;
+  engine.consumeRenderedSessionReminderBlock?.(sessionPath, rendered.receipt);
+}
+
 /**
  * 持久化非桌面来源的消息 origin。写失败只告警不阻断：来源标注是辅助
  * 元数据，不能因为它写不进去就丢掉用户消息本身。
@@ -213,6 +235,10 @@ export async function submitDesktopSessionMessage(engine: any, opts: {
     promptText = addAttachedVideoMarkers(promptText, promptVideoAttachmentPaths);
     promptText = addAttachedAudioMarkers(promptText, promptAudioAttachmentPaths);
     promptText = addSessionFileRefMarkers(promptText, promptSessionFileRefs);
+    const reminderBlock = renderPendingReminderBlock(engine, sessionPath);
+    if (reminderBlock) {
+      promptText = `${reminderBlock.block}\n\n${promptText}`;
+    }
 
     let captured = "";
     const toolMedia = [];
@@ -248,6 +274,7 @@ export async function submitDesktopSessionMessage(engine: any, opts: {
         context,
       });
       await engine.promptSession(sessionPath, promptText, promptOpts);
+      consumeRenderedReminderBlock(engine, sessionPath, reminderBlock);
     } finally {
       try { unsub?.(); } catch {}
       engine.emitEvent?.({ type: "session_status", isStreaming: false }, sessionPath);
@@ -399,9 +426,14 @@ export async function submitDesktopSessionInterjection(engine: any, opts: {
   if (context?.beforeUser) {
     promptText = `${context.beforeUser}\n\n${promptText}`;
   }
+  const reminderBlock = renderPendingReminderBlock(engine, sessionPath);
+  if (reminderBlock) {
+    promptText = `${reminderBlock.block}\n\n${promptText}`;
+  }
 
   const steered = engine.steerSession(sessionPath, promptText);
   if (!steered) throw new Error("session_busy");
+  consumeRenderedReminderBlock(engine, sessionPath, reminderBlock);
   // 来源元信息在 steer 成功后持久化，避免 steer 被拒绝时产生孤儿条目。
   // steerSession 同步返回，与 appendCustomEntry 之间无 await，紧邻性不受影响。
   // 契约：origin 条目注释其后第一条 user message（中间可能隔着在途 assistant 输出）。

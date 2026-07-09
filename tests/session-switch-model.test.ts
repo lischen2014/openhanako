@@ -1,3 +1,4 @@
+import path from "path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const {
@@ -198,7 +199,8 @@ describe("SessionCoordinator.switchSessionModel", () => {
       },
     };
 
-    const result = await coord._compactWithModel(session, 5000, session.model);
+    const sessionPath = path.join(agentsDir, "hana", "sessions", "compact.jsonl");
+    const result = await coord._compactWithModel(sessionPath, session, 5000, session.model);
 
     expect(result.summary).toBe("cache summary");
     expect(emit).toHaveBeenNthCalledWith(1, { type: "compaction_start", reason: "model_switch" });
@@ -261,7 +263,8 @@ describe("SessionCoordinator.switchSessionModel", () => {
       agent: { replaceMessages },
     };
 
-    const result = await coord._hardTruncate(session, 100);
+    const sessionPath = path.join(agentsDir, "hana", "sessions", "truncate.jsonl");
+    const result = await coord._hardTruncate(sessionPath, session, 100);
 
     expect(result.details.reason).toBe("model-switch-truncation");
     expect(appendCompaction).toHaveBeenCalledWith(

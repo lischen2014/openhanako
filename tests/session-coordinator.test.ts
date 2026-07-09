@@ -35,6 +35,7 @@ vi.mock("../lib/debug-log.js", () => ({
 }));
 
 import { SessionCoordinator } from "../core/session-coordinator.ts";
+import { EnvChangeLedger } from "../core/env-change-ledger.ts";
 import { VisionBridge, VISION_CONTEXT_START } from "../core/vision-bridge.ts";
 import { createUsageLedger } from "../lib/llm/usage-ledger.ts";
 import { BrowserManager } from "../lib/browser/browser-manager.ts";
@@ -4819,5 +4820,249 @@ describe("SessionCoordinator", () => {
     expect(deferredStore.clearBySession).toHaveBeenCalledWith(hibernatedPath);
     expect(closeTerminalsForSession).toHaveBeenCalledWith(hibernatedPath);
     expect(onSessionRuntimeDiscarded).toHaveBeenCalledWith(hibernatedPath, "archive");
+  });
+});
+
+describe("SessionCoordinator session reminders", () => {
+  let tempDir: string;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "hana-session-reminders-"));
+    sessionManagerListMock.mockResolvedValue([]);
+    emitSessionShutdownMock.mockResolvedValue(false);
+  });
+
+  afterEach(() => {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  });
+
+  function makeAgent() {
+    const agent = {
+      id: "hana",
+      agentDir: path.join(tempDir, "agents", "hana"),
+      sessionDir: path.join(tempDir, "agents", "hana", "sessions"),
+      memoryMasterEnabled: true,
+      sessionMemoryEnabled: true,
+      setMemoryEnabled: vi.fn(),
+      buildSystemPrompt: vi.fn(() => "BASE"),
+      config: { locale: "zh-CN" },
+      tools: [],
+    };
+    fs.mkdirSync(agent.sessionDir, { recursive: true });
+    return agent;
+  }
+
+  function makeCoordinator(agent: any, envChangeLedger: EnvChangeLedger) {
+    return new SessionCoordinator({
+      agentsDir: path.join(tempDir, "agents"),
+      getAgent: () => agent,
+      getActiveAgentId: () => "hana",
+      getModels: () => ({
+        currentModel: { id: "m", provider: "test" },
+        authStorage: {},
+        modelRegistry: {},
+        resolveThinkingLevel: (level: any) => level || "medium",
+      }),
+      getResourceLoader: () => ({
+        getSystemPrompt: () => "BASE",
+        getAppendSystemPrompt: () => [],
+        getExtensions: () => ({ extensions: [], errors: [] }),
+        getSkills: () => ({ skills: [], diagnostics: [] }),
+        getAgentsFiles: () => ({ agentsFiles: [] }),
+      }),
+      getSkills: () => null,
+      buildTools: () => ({ tools: [], customTools: [] }),
+      emitEvent: vi.fn(),
+      getHomeCwd: () => "/tmp/home",
+      agentIdFromSessionPath: () => "hana",
+      switchAgentOnly: async () => {},
+      getConfig: () => ({}),
+      getPrefs: () => ({
+        getThinkingLevel: () => "medium",
+        getTimezone: () => "UTC",
+      }),
+      getAgents: () => new Map([["hana", agent]]),
+      getActivityStore: () => null,
+      getAgentById: () => agent,
+      listAgents: () => [{ id: "hana", name: "Hana" }],
+      envChangeLedger,
+    });
+  }
+
+  function mockSessionAt(sessionPath: string, sessionManagerOverride: any = null) {
+    const sessionManager = sessionManagerOverride || {
+      getSessionFile: () => sessionPath,
+      getCwd: () => "/tmp/workspace",
+    };
+    sessionManagerCreateMock.mockReturnValue(sessionManager);
+    createAgentSessionMock.mockResolvedValueOnce({
+      session: {
+        sessionManager,
+        subscribe: vi.fn(() => vi.fn()),
+        setActiveToolsByName: vi.fn(),
+      },
+    });
+    return sessionManager;
+  }
+
+  it("initializes fresh reminder state at the current ledger baseline and prompt-build time", async () => {
+    const ledger = new EnvChangeLedger();
+    ledger.append({ type: "toolset_changed", payload: { pluginId: "before", action: "loaded" } });
+    const agent = makeAgent();
+    const sessionPath = path.join(agent.sessionDir, "fresh.jsonl");
+    mockSessionAt(sessionPath);
+    const coordinator = makeCoordinator(agent, ledger);
+    const before = Date.now();
+
+    await coordinator.createSession(null, "/tmp/workspace", false);
+
+    const entry = coordinator._getSessionEntryByPath(sessionPath);
+    expect(entry).toMatchObject({
+      reminderEnvCursor: 1,
+      reminderEnvStartSeq: 1,
+      reminderCompactionRevision: 0,
+      reminderConsumedCompactionRevision: 0,
+    });
+    expect(entry.lastTimeObservedAt).toBeGreaterThanOrEqual(before);
+    expect(entry.lastTimeObservedAt).toBeLessThanOrEqual(Date.now());
+    expect(coordinator.renderSessionReminderBlock(sessionPath)).toBeNull();
+  });
+
+  it("uses a receipt without advancing state until explicit consumption", async () => {
+    const ledger = new EnvChangeLedger();
+    const agent = makeAgent();
+    const sessionPath = path.join(agent.sessionDir, "receipt.jsonl");
+    mockSessionAt(sessionPath);
+    const coordinator = makeCoordinator(agent, ledger);
+    await coordinator.createSession(null, "/tmp/workspace", false);
+    ledger.append({ type: "toolset_changed", payload: { pluginId: "demo", action: "loaded" } });
+
+    const rendered = coordinator.renderSessionReminderBlock(sessionPath);
+    expect(rendered?.block).toContain("demo");
+    expect(coordinator._getSessionEntryByPath(sessionPath).reminderEnvCursor).toBe(0);
+    expect(coordinator.renderSessionReminderBlock(sessionPath)?.block).toContain("demo");
+
+    expect(coordinator.consumeRenderedSessionReminderBlock(sessionPath, rendered!.receipt)).toBe(true);
+    expect(coordinator.renderSessionReminderBlock(sessionPath)).toBeNull();
+  });
+
+  it("keeps newer compaction and time observations when consuming an older receipt", async () => {
+    const ledger = new EnvChangeLedger();
+    const agent = makeAgent();
+    const sessionPath = path.join(agent.sessionDir, "monotonic.jsonl");
+    mockSessionAt(sessionPath);
+    const coordinator = makeCoordinator(agent, ledger);
+    await coordinator.createSession(null, "/tmp/workspace", false);
+    const entry = coordinator._getSessionEntryByPath(sessionPath);
+    entry.lastTimeObservedAt = null;
+    coordinator._markSessionCompacted(sessionPath);
+    const rendered = coordinator.renderSessionReminderBlock(sessionPath)!;
+
+    coordinator._markSessionCompacted(sessionPath);
+    const laterObservation = rendered.receipt.observedAt + 10_000;
+    expect(coordinator.noteSessionTimeObserved(sessionPath, laterObservation)).toBe(true);
+    coordinator.consumeRenderedSessionReminderBlock(sessionPath, rendered.receipt);
+
+    expect(entry.lastTimeObservedAt).toBe(laterObservation);
+    expect(entry.reminderCompactionRevision).toBe(2);
+    expect(entry.reminderConsumedCompactionRevision).toBe(1);
+    expect(coordinator.renderSessionReminderBlock(sessionPath)?.block).toContain("上下文已压缩");
+  });
+
+  it("sets cold restored sessions to observe time on the first message only when a frozen prompt is reused", async () => {
+    const ledger = new EnvChangeLedger();
+    const agent = makeAgent();
+    const sessionPath = path.join(agent.sessionDir, "restored.jsonl");
+    const sessionManager = mockSessionAt(sessionPath);
+    const coordinator = makeCoordinator(agent, ledger);
+    vi.spyOn(coordinator as any, "_readSessionCapabilitySnapshot").mockReturnValue({
+      toolNames: [],
+      promptSnapshot: {
+        version: 1,
+        systemPrompt: "FROZEN",
+        appendSystemPrompt: [],
+        skillsResult: { skills: [], diagnostics: [] },
+        agentsFilesResult: { agentsFiles: [] },
+      },
+    });
+
+    await coordinator.createSession(sessionManager, "/tmp/workspace", false, null, { restore: true });
+
+    const entry = coordinator._getSessionEntryByPath(sessionPath);
+    expect(entry.lastTimeObservedAt).toBeNull();
+    expect(coordinator.renderSessionReminderBlock(sessionPath)?.block).toContain("当前时间");
+    expect(createAgentSessionMock.mock.calls[0][0].resourceLoader.getSystemPrompt()).toBe("FROZEN");
+  });
+
+  it("preserves same-process cursors and revisions but resets time for a frozen runtime", async () => {
+    const ledger = new EnvChangeLedger();
+    const agent = makeAgent();
+    const sessionPath = path.join(agent.sessionDir, "hibernated.jsonl");
+    const sessionManager = mockSessionAt(sessionPath);
+    const coordinator = makeCoordinator(agent, ledger);
+    vi.spyOn(coordinator as any, "_readSessionCapabilitySnapshot").mockReturnValue({
+      toolNames: [],
+      promptSnapshot: {
+        version: 1,
+        systemPrompt: "FROZEN",
+        appendSystemPrompt: [],
+        skillsResult: { skills: [], diagnostics: [] },
+        agentsFilesResult: { agentsFiles: [] },
+      },
+    });
+    const reminderState = {
+      reminderEnvCursor: 4,
+      reminderEnvStartSeq: 2,
+      lastTimeObservedAt: 1234,
+      reminderCompactionRevision: 5,
+      reminderConsumedCompactionRevision: 3,
+    };
+
+    await coordinator.createSession(sessionManager, "/tmp/workspace", false, null, {
+      restore: true,
+      reminderState,
+    });
+
+    expect(coordinator._getSessionEntryByPath(sessionPath)).toMatchObject({
+      ...reminderState,
+      lastTimeObservedAt: null,
+    });
+  });
+
+  it("keeps a valid reminder ahead of provider-only beforeUser context", async () => {
+    const ledger = new EnvChangeLedger();
+    const agent = makeAgent();
+    const sessionPath = path.join(agent.sessionDir, "context.jsonl");
+    mockSessionAt(sessionPath);
+    const coordinator = makeCoordinator(agent, ledger);
+    await coordinator.createSession(null, "/tmp/workspace", false);
+    coordinator._setRuntimeValueForPath(coordinator._turnContextBySession, sessionPath, {
+      beforeUser: "world lore",
+      metadata: { pluginId: "tavern" },
+    });
+    const extension = createAgentSessionMock.mock.calls[0][0]
+      .resourceLoader.getExtensions().extensions[0];
+    const handler = extension.handlers.get("context")[0];
+    const reminder = "[hana_reminder at 2026-07-05 14:05]\n- Current time: 2026-07-05 14:05\n[/hana_reminder]";
+
+    const result = await handler({
+      messages: [{ role: "user", content: `${reminder}\n\nhello` }],
+    });
+    const content = result.messages[0].content;
+
+    expect(content.startsWith(reminder)).toBe(true);
+    expect(content.indexOf("[Hana turn context: before_user]")).toBeGreaterThan(reminder.length);
+    expect(content.indexOf("world lore")).toBeLessThan(content.indexOf("hello"));
+  });
+
+  it("returns false for reminder state operations on an unknown session path", () => {
+    const coordinator = makeCoordinator(makeAgent(), new EnvChangeLedger());
+    expect(coordinator.consumeRenderedSessionReminderBlock("/missing.jsonl", {
+      observedAt: 1,
+      throughSeq: 0,
+      compactionRevision: 0,
+    })).toBe(false);
+    expect(coordinator.noteSessionTimeObserved("/missing.jsonl", 1)).toBe(false);
   });
 });

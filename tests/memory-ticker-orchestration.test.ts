@@ -358,6 +358,75 @@ describe("_doDaily step orchestration", () => {
   });
 });
 
+describe("memory facts environment ledger", () => {
+  let tmpDir: string;
+  let ticker: any;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "hana-memory-ledger-"));
+  });
+
+  afterEach(() => {
+    ticker?.stop();
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it("records at most five newly compiled non-empty trimmed fact lines", async () => {
+    const factsPath = path.join(tmpDir, "facts.md");
+    fs.writeFileSync(factsPath, " existing fact \n\n");
+    (compileEditableFacts as any).mockImplementationOnce(async () => {
+      fs.writeFileSync(factsPath, [
+        "existing fact",
+        " new one ",
+        "new two",
+        "new two",
+        "new three",
+        "new four",
+        "new five",
+        "new six",
+        "",
+      ].join("\n"));
+    });
+    const append = vi.fn();
+    ticker = makeTicker(tmpDir, undefined, { envChangeLedger: { append } });
+
+    await ticker.tick();
+
+    expect(append).toHaveBeenCalledOnce();
+    expect(append).toHaveBeenCalledWith({
+      type: "memory_facts",
+      payload: { addedLines: ["new one", "new two", "new three", "new four", "new five"] },
+    });
+  });
+
+  it("does not record an event when successful compilation adds no fact", async () => {
+    const factsPath = path.join(tmpDir, "facts.md");
+    fs.writeFileSync(factsPath, "existing fact\n");
+    (compileEditableFacts as any).mockImplementationOnce(async () => {
+      fs.writeFileSync(factsPath, "  existing fact  \n\n");
+    });
+    const append = vi.fn();
+    ticker = makeTicker(tmpDir, undefined, { envChangeLedger: { append } });
+
+    await ticker.tick();
+
+    expect(append).not.toHaveBeenCalled();
+  });
+
+  it("does not record an event when fact compilation fails", async () => {
+    const factsPath = path.join(tmpDir, "facts.md");
+    fs.writeFileSync(factsPath, "existing fact\n");
+    (compileEditableFacts as any).mockRejectedValueOnce(new Error("compile failed"));
+    const append = vi.fn();
+    ticker = makeTicker(tmpDir, undefined, { envChangeLedger: { append } });
+
+    await ticker.tick();
+
+    expect(append).not.toHaveBeenCalled();
+  });
+});
+
 // ── getHealthStatus API ──
 
 describe("memory-ticker getHealthStatus", () => {

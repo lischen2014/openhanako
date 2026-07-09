@@ -1509,6 +1509,77 @@ function writeConfigPlugin(root, id, version = "1.0.0") {
 }
 
 describe("hot operations", () => {
+  it("records successful plugin load and unload transitions", async () => {
+    const dir = path.join(pluginsDir, "ledger-lifecycle");
+    fs.mkdirSync(path.join(dir, "tools"), { recursive: true });
+    fs.writeFileSync(path.join(dir, "tools", "echo.js"), "export const name = 'echo';");
+    const append = vi.fn();
+    const pm = new PluginManager({
+      pluginsDir,
+      dataDir,
+      bus: await makeBus(),
+      envChangeLedger: { append },
+    } as any);
+
+    pm.scan();
+    await pm.loadAll();
+    await pm.unloadPlugin("ledger-lifecycle");
+
+    expect(append.mock.calls.map(([event]) => event)).toEqual([
+      { type: "toolset_changed", payload: { pluginId: "ledger-lifecycle", action: "loaded" } },
+      { type: "toolset_changed", payload: { pluginId: "ledger-lifecycle", action: "unloaded" } },
+    ]);
+  });
+
+  it("records unload then final reload state for a successful hot reload", async () => {
+    const dir = path.join(pluginsDir, "ledger-reload");
+    fs.mkdirSync(path.join(dir, "tools"), { recursive: true });
+    fs.writeFileSync(path.join(dir, "tools", "echo.js"), "export const name = 'echo';");
+    const append = vi.fn();
+    const pm = new PluginManager({
+      pluginsDir,
+      dataDir,
+      bus: await makeBus(),
+      envChangeLedger: { append },
+    } as any);
+    pm.scan();
+    await pm.loadAll();
+    append.mockClear();
+
+    const entry = await pm.installPlugin(dir, { source: "builtin" });
+
+    expect(entry.status).toBe("loaded");
+    expect(append.mock.calls.map(([event]) => event.payload.action)).toEqual(["unloaded", "reloaded"]);
+  });
+
+  it("keeps the real unload transition when a hot reload fails", async () => {
+    const dir = path.join(pluginsDir, "ledger-failed-reload");
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, "index.js"), `
+      export default class Plugin { async onload() {} }
+    `);
+    const append = vi.fn();
+    const pm = new PluginManager({
+      pluginsDir,
+      dataDir,
+      bus: await makeBus(),
+      envChangeLedger: { append },
+    } as any);
+    pm.scan();
+    await pm.loadAll();
+    append.mockClear();
+    fs.writeFileSync(path.join(dir, "index.js"), `
+      export default class Plugin { async onload() { throw new Error("reload failed"); } }
+    `);
+
+    const entry = await pm.installPlugin(dir, { source: "builtin" });
+
+    expect(entry.status).toBe("failed");
+    expect(append.mock.calls.map(([event]) => event)).toEqual([
+      { type: "toolset_changed", payload: { pluginId: "ledger-failed-reload", action: "unloaded" } },
+    ]);
+  });
+
   it("installPlugin loads a new plugin at runtime", async () => {
     const pm = new PluginManager({ pluginsDir, dataDir, bus: await makeBus() } as any);
     pm.scan();

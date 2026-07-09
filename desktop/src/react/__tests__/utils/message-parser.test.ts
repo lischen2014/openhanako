@@ -64,6 +64,12 @@ describe('cleanMoodText', () => {
 });
 
 describe('parseUserAttachments', () => {
+  const reminder = [
+    '[hana_reminder at 2026-07-10 09:05]',
+    '- Current time: 2026-07-10 09:05',
+    '[/hana_reminder]',
+  ].join('\n');
+
   it('纯文本无附件', () => {
     const result = parseUserAttachments('hello');
     expect(result.text).toBe('hello');
@@ -75,6 +81,34 @@ describe('parseUserAttachments', () => {
     const result = parseUserAttachments('');
     expect(result.text).toBe('');
     expect(result.files).toEqual([]);
+  });
+
+  it('隐藏消息开头格式完整的内部 reminder block', () => {
+    const result = parseUserAttachments(`${reminder}\n\nhello`);
+    expect(result.text).toBe('hello');
+  });
+
+  it('reminder 后没有用户正文时返回空正文', () => {
+    const result = parseUserAttachments(reminder);
+    expect(result.text).toBe('');
+  });
+
+  it('隐藏 reminder 后仍解析附件标记', () => {
+    const result = parseUserAttachments(`${reminder}\n\n请看\n[attached_image: /tmp/example.png]`);
+    expect(result.text).toBe('请看');
+    expect(result.attachedImages).toEqual([{ path: '/tmp/example.png', name: 'example.png' }]);
+  });
+
+  it('未闭合或畸形 reminder 原样保留', () => {
+    const unclosed = '[hana_reminder at 2026-07-10 09:05]\n- Current time: 2026-07-10 09:05\nhello';
+    const malformed = '[hana_reminder sometime]\nsecret\n[/hana_reminder]\nhello';
+    expect(parseUserAttachments(unclosed).text).toBe(unclosed);
+    expect(parseUserAttachments(malformed).text).toBe(malformed);
+  });
+
+  it('不剥离正文中间出现的伪 reminder block', () => {
+    const content = `hello\n\n${reminder}\n\nworld`;
+    expect(parseUserAttachments(content).text).toBe(content);
   });
 
   it('解析文件附件', () => {

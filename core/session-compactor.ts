@@ -365,7 +365,13 @@ async function emitSessionCompactEvent(session, compactionEntryId, fromExtension
   });
 }
 
-export async function appendCompactionResultToSession(session, result, { fromExtension = true } = {}) {
+export async function appendCompactionResultToSession(session, result, {
+  fromExtension = true,
+  onCompacted,
+}: {
+  fromExtension?: boolean;
+  onCompacted?: (session: any) => void;
+} = {}) {
   const compactionEntryId = session.sessionManager.appendCompaction(
     result.summary,
     result.firstKeptEntryId,
@@ -375,6 +381,7 @@ export async function appendCompactionResultToSession(session, result, { fromExt
   );
   replaceSessionMessages(session);
   await emitSessionCompactEvent(session, compactionEntryId, fromExtension);
+  onCompacted?.(session);
   return result;
 }
 
@@ -555,7 +562,8 @@ export async function runCachePreservingCompactionForSession(session: any, {
   lifecycleReason = "manual",
   usageLedger,
   usageContext,
-}: { settings?: any; model?: any; customInstructions?: any; signal?: any; hardTruncateThreshold?: number; emitLifecycle?: boolean; lifecycleReason?: string; usageLedger?: any; usageContext?: any } = {}) {
+  onCompacted,
+}: { settings?: any; model?: any; customInstructions?: any; signal?: any; hardTruncateThreshold?: number; emitLifecycle?: boolean; lifecycleReason?: string; usageLedger?: any; usageContext?: any; onCompacted?: (session: any) => void } = {}) {
   if (!session?.sessionManager) throw new Error("runCachePreservingCompactionForSession: missing session manager");
   if (!session?.agent) throw new Error("runCachePreservingCompactionForSession: missing agent");
   if (!model) throw new Error("runCachePreservingCompactionForSession: missing model");
@@ -592,7 +600,7 @@ export async function runCachePreservingCompactionForSession(session: any, {
           `(${fit.budget.totalTokens} > ${fit.threshold}) and hard truncation is unavailable`
         );
       }
-      const result = await appendCompactionResultToSession(session, truncation, { fromExtension: true });
+      const result = await appendCompactionResultToSession(session, truncation, { fromExtension: true, onCompacted });
       if (emitLifecycle) {
         emitCompactionProgress(session, {
           type: "compaction_end",
@@ -630,7 +638,7 @@ export async function runCachePreservingCompactionForSession(session: any, {
       usageContext,
     });
 
-    const saved = await appendCompactionResultToSession(session, result, { fromExtension: true });
+    const saved = await appendCompactionResultToSession(session, result, { fromExtension: true, onCompacted });
     if (emitLifecycle) {
       emitCompactionProgress(session, {
         type: "compaction_end",

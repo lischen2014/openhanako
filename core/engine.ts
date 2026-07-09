@@ -29,6 +29,7 @@ import { findModel } from "../shared/model-ref.ts";
 import { resolveWorkspaceSkillPaths } from "../shared/workspace-skill-paths.ts";
 import { resolveHanaPiAgentDir, resolveHanaPiProjectDir } from "../shared/hana-runtime-paths.ts";
 import { PluginManager } from "./plugin-manager.ts";
+import { EnvChangeLedger } from "./env-change-ledger.ts";
 import { PluginDevService } from "./plugin-dev-service.ts";
 import { createPluginDevTools } from "./plugin-dev-tools.ts";
 import { DefaultResourceLoader, SettingsManager } from "../lib/pi-sdk/index.ts";
@@ -203,6 +204,7 @@ export class HanaEngine {
   declare _devLogsMax: any;
   declare _discoveredExternalPaths: any;
   declare _eventBus: any;
+  declare _envChangeLedger: EnvChangeLedger;
   declare _extensionFactories: any;
   declare _frameworkExtFactories: any;
   declare _hubCallbacks: any;
@@ -311,6 +313,10 @@ export class HanaEngine {
       }),
     });
 
+    // Process-local append-only environment ledger. This is created before
+    // every producer/consumer and passed by dependency injection.
+    this._envChangeLedger = new EnvChangeLedger();
+
     // ── Core managers ──
     this._prefs = new PreferencesManager({ userDir: this.userDir, agentsDir: this.agentsDir });
     this._inputDrafts = new InputDraftsStore({ hanakoHome: this.hanakoHome });
@@ -400,6 +406,7 @@ export class HanaEngine {
       onBeforeSessionCreate: async (cwd) => {
         await this.syncWorkspaceSkillPaths(cwd, { reload: true, emitEvent: false });
       },
+      envChangeLedger: this._envChangeLedger,
     });
 
     // ── Config Coordinator ──
@@ -1051,6 +1058,13 @@ export class HanaEngine {
   async promptSession(p, text, opts) { return this._sessionCoord.promptSession(p, text, opts); }
   steerSession(p, text) { return this._sessionCoord.steerSession(p, text); }
   async abortSession(p, options) { return this._sessionCoord.abortSession(p, options); }
+  getEnvChangeLedger() { return this._envChangeLedger; }
+  renderSessionReminderBlock(p) { return this._sessionCoord.renderSessionReminderBlock(p); }
+  consumeRenderedSessionReminderBlock(p, receipt) {
+    return this._sessionCoord.consumeRenderedSessionReminderBlock(p, receipt);
+  }
+  consumeSessionReminderBlock(p) { return this._sessionCoord.consumeSessionReminderBlock(p); }
+  noteSessionTimeObserved(p, observedAt) { return this._sessionCoord.noteSessionTimeObserved(p, observedAt); }
   get focusSessionPath() { return this._sessionCoord.currentSessionPath; }
   getMessages(p) { return this._sessionCoord.getSessionByPath(p)?.messages ?? []; }
   getSessionWorkspaceFolders(p = this.currentSessionPath) {
@@ -1527,6 +1541,7 @@ export class HanaEngine {
       },
     });
     session = compacted.session;
+    this._sessionCoord._markSessionCompacted(sessionPath);
     const after = session.getContextUsage?.() ?? null;
     return {
       tokensBefore: before?.tokens ?? null,
@@ -1569,6 +1584,7 @@ export class HanaEngine {
       if (!noopReason) throw error;
     }
     const after = session.getContextUsage?.() ?? null;
+    if (!noopReason) this._sessionCoord._markSessionCompacted(sessionPath);
     // 压缩完成后整体重建 runtime：restore 路径按当前配置重算 prompt/tool 快照并写回 session-meta
     await this._sessionCoord.reloadSessionRuntime(sessionPath, { refreshCapabilitySnapshots: true });
     return {
@@ -2075,6 +2091,7 @@ export class HanaEngine {
       lifecycleTimeoutMs: undefined,
       logSink: (entry) => this._pluginDevService?.recordLog(entry),
       runtimeContext: this.getRuntimeContext(),
+      envChangeLedger: this._envChangeLedger,
     });
     const allowedPluginDevSourceRoots = [
       pluginDevSourcesDir,

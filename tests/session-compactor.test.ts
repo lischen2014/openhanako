@@ -28,6 +28,7 @@ vi.mock("../lib/pi-sdk/index.js", () => ({
 }));
 
 import {
+  appendCompactionResultToSession,
   compactSessionWithCachePreservation,
   compactSessionWithCachePreservationRecoveringRuntime,
   createCachePreservingCompactionResult,
@@ -342,7 +343,8 @@ describe("session-compactor", () => {
       },
     };
 
-    const result = await runCachePreservingCompactionForSession(session);
+    const onCompacted = vi.fn();
+    const result = await runCachePreservingCompactionForSession(session, { onCompacted });
 
     expect(prepareCompactionMock).toHaveBeenCalledWith(branch, { enabled: true, reserveTokens: 2000 });
     expect(session.agent.transformContext).not.toHaveBeenCalled();
@@ -354,6 +356,8 @@ describe("session-compactor", () => {
       true,
     );
     expect(replaceMessages).toHaveBeenCalledWith(compactedMessages);
+    expect(onCompacted).toHaveBeenCalledOnce();
+    expect(onCompacted).toHaveBeenCalledWith(session);
     expect(result.summary).toBe("cache summary");
   });
 
@@ -401,7 +405,8 @@ describe("session-compactor", () => {
       },
     };
 
-    const result = await runCachePreservingCompactionForSession(session);
+    const onCompacted = vi.fn();
+    const result = await runCachePreservingCompactionForSession(session, { onCompacted });
 
     expect(streamFn).not.toHaveBeenCalled();
     expect(appendCompaction).toHaveBeenCalledWith(
@@ -412,7 +417,79 @@ describe("session-compactor", () => {
       true,
     );
     expect(replaceMessages).toHaveBeenCalledWith(compactedMessages);
+    expect(onCompacted).toHaveBeenCalledWith(session);
     expect(result.details.reason).toBe("cache-preserving-compaction-hard-truncate");
+  });
+
+  it("calls onCompacted only after append, message replacement, and compact event succeed", async () => {
+    const order: string[] = [];
+    const onCompacted = vi.fn(() => order.push("callback"));
+    const session = {
+      sessionManager: {
+        appendCompaction: vi.fn(() => {
+          order.push("append");
+          return "compaction-entry";
+        }),
+        buildSessionContext: vi.fn(() => ({ messages: [{ role: "compactionSummary", summary: "done" }] })),
+        getEntry: vi.fn(() => ({ id: "compaction-entry", type: "compaction" })),
+      },
+      agent: {
+        replaceMessages: vi.fn(() => order.push("replace")),
+      },
+      extensionRunner: {
+        hasHandlers: vi.fn(() => true),
+        emit: vi.fn(async () => { order.push("event"); }),
+      },
+    };
+    const result = {
+      summary: "done",
+      firstKeptEntryId: "keep",
+      tokensBefore: 12,
+      details: {},
+    };
+
+    await appendCompactionResultToSession(session, result, { onCompacted });
+
+    expect(order).toEqual(["append", "replace", "event", "callback"]);
+  });
+
+  it("does not call onCompacted when replacement or compact event fails", async () => {
+    const result = {
+      summary: "done",
+      firstKeptEntryId: "keep",
+      tokensBefore: 12,
+      details: {},
+    };
+    const onReplaceFailure = vi.fn();
+    const replaceFailure = {
+      sessionManager: {
+        appendCompaction: vi.fn(() => "entry"),
+        buildSessionContext: vi.fn(() => ({ messages: [] })),
+      },
+      agent: { replaceMessages: vi.fn(() => { throw new Error("replace failed"); }) },
+    };
+    await expect(appendCompactionResultToSession(replaceFailure, result, {
+      onCompacted: onReplaceFailure,
+    })).rejects.toThrow("replace failed");
+    expect(onReplaceFailure).not.toHaveBeenCalled();
+
+    const onEventFailure = vi.fn();
+    const eventFailure = {
+      sessionManager: {
+        appendCompaction: vi.fn(() => "entry"),
+        buildSessionContext: vi.fn(() => ({ messages: [] })),
+        getEntry: vi.fn(() => ({ id: "entry", type: "compaction" })),
+      },
+      agent: { replaceMessages: vi.fn() },
+      extensionRunner: {
+        hasHandlers: vi.fn(() => true),
+        emit: vi.fn(async () => { throw new Error("event failed"); }),
+      },
+    };
+    await expect(appendCompactionResultToSession(eventFailure, result, {
+      onCompacted: onEventFailure,
+    })).rejects.toThrow("event failed");
+    expect(onEventFailure).not.toHaveBeenCalled();
   });
 
   it("hard truncates direct session compaction when model context window is unknown", async () => {

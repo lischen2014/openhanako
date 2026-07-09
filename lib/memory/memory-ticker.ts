@@ -94,6 +94,7 @@ const DAILY_STEP_KEYS = ["compileDaily", "compileToday", "rollDailyWindow", "com
  * @param {(sessionPath: string) => object|null} [opts.readMemoryReflectionSnapshot] - 返回 session 创建时冻结的记忆反思快照
  * @param {string} [opts.agentId] - 当前 agent id，用于实验观察产物归属
  * @param {string} [opts.agentDir] - 当前 agent 数据目录，用于实验观察产物落盘
+ * @param {import('../../core/env-change-ledger.ts').EnvChangeLedger} [opts.envChangeLedger] - 进程内环境变更台账
  */
 export function createMemoryTicker(opts) {
   const {
@@ -118,6 +119,7 @@ export function createMemoryTicker(opts) {
     ensureSessionLoaded,
     getSessionStreamFn,
     getSessionIdForPath,
+    envChangeLedger,
     memoryDir = path.dirname(memoryMdPath),
   } = opts;
   const _memoryReflectionRunner = memoryReflectionRunner || { runMemoryReflection: defaultRunMemoryReflection };
@@ -154,6 +156,33 @@ export function createMemoryTicker(opts) {
       outputPath: factsMdPath,
     });
     return factsMdPath;
+  };
+  const _readFactsLines = () => {
+    try {
+      return fs.readFileSync(factsMdPath, "utf-8")
+        .split("\n")
+        .map((line) => line.trim())
+        .filter(Boolean);
+    } catch (err) {
+      return err?.code === "ENOENT" ? [] : null;
+    }
+  };
+  const _recordNewFactLines = (beforeLines) => {
+    if (!envChangeLedger || !Array.isArray(beforeLines)) return;
+    const afterLines = _readFactsLines();
+    if (!Array.isArray(afterLines)) return;
+    const before = new Set(beforeLines);
+    const seen = new Set();
+    const addedLines = afterLines.filter((line) => {
+      if (before.has(line) || seen.has(line)) return false;
+      seen.add(line);
+      return true;
+    }).slice(0, 5);
+    if (addedLines.length === 0) return;
+    envChangeLedger.append({
+      type: "memory_facts",
+      payload: { addedLines },
+    });
   };
   const _dailyDir = () => path.join(memoryDir, "daily");
   const _createSourceTimeRangeResolver = () => {
@@ -786,9 +815,11 @@ export function createMemoryTicker(opts) {
       // Step 3: compileFacts（独立于 step 1-2）——恒走增量编译，facts.md 是唯一产物
       if (!_dailyStepsCompleted.has("compileFacts")) {
         try {
+          const factsBefore = _readFactsLines();
           await compileEditableFacts(summaryManager, factsMdPath, getResolvedMemoryModel(), {
             since: resetAt,
           });
+          _recordNewFactLines(factsBefore);
           _markDailyStepCompleted("compileFacts", context);
           _markSuccess("compileFacts");
           _markStepRecovered("compileFacts");

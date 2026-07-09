@@ -20,6 +20,13 @@ import {
 } from "./session-compactor.ts";
 import { teardownSessionResources } from "./session-teardown.ts";
 import { evaluateSessionHealth, repairOrphanToolResultEntriesInFile } from "./session-health.ts";
+import {
+  applyReminderConsumption,
+  collectReminderBlock,
+  noteTimeObservedForSession,
+  REMINDER_BLOCK_END,
+  REMINDER_BLOCK_PREFIX,
+} from "./session-reminders.ts";
 import { createModuleLogger } from "../lib/debug-log.ts";
 import { BrowserManager } from "../lib/browser/browser-manager.ts";
 import { t, getLocale } from "../lib/i18n.ts";
@@ -105,9 +112,98 @@ const SESSION_META_PAYLOAD_DIR = "session-meta-payloads";
 const SESSION_META_PAYLOAD_FIELDS = ["promptSnapshot", "memoryReflectionSnapshot"];
 const SESSION_META_PAYLOAD_INLINE_LIMIT_BYTES = 256 * 1024;
 const SESSION_META_INDEX_MAX_BYTES = 1024 * 1024;
+const REMINDER_HEADER_RE = /^\[hana_reminder at \d{4}-\d{2}-\d{2} \d{2}:\d{2}\]$/;
 
 /** 巡检/定时任务默认工具白名单（"*" = 与 chat 一致，全部放行） */
 export const PATROL_TOOLS_DEFAULT = "*";
+
+function splitLeadingSessionReminder(text: any) {
+  if (typeof text !== "string" || !text.startsWith(`${REMINDER_BLOCK_PREFIX} at `)) return null;
+  const firstNewline = text.indexOf("\n");
+  if (firstNewline < 0 || !REMINDER_HEADER_RE.test(text.slice(0, firstNewline).replace(/\r$/, ""))) return null;
+  const closingMarker = `\n${REMINDER_BLOCK_END}`;
+  const closingIndex = text.indexOf(closingMarker, firstNewline);
+  if (closingIndex < 0) return null;
+  const reminderEnd = closingIndex + closingMarker.length;
+  const reminder = text.slice(0, reminderEnd);
+  const remainder = text.slice(reminderEnd).replace(/^\r?\n\r?\n/, "");
+  return { reminder, remainder };
+}
+
+function detachReminderFromLatestUserMessage(messages: any) {
+  if (!Array.isArray(messages)) return { messages, reminder: null };
+  let userIndex = -1;
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    if (messages[index]?.role === "user") {
+      userIndex = index;
+      break;
+    }
+  }
+  if (userIndex < 0) return { messages, reminder: null };
+
+  const message = messages[userIndex];
+  if (typeof message.content === "string") {
+    const split = splitLeadingSessionReminder(message.content);
+    if (!split) return { messages, reminder: null };
+    const next = [...messages];
+    next[userIndex] = { ...message, content: split.remainder };
+    return { messages: next, reminder: split.reminder };
+  }
+  if (Array.isArray(message.content) && message.content[0]?.type === "text") {
+    const split = splitLeadingSessionReminder(message.content[0].text);
+    if (!split) return { messages, reminder: null };
+    const next = [...messages];
+    next[userIndex] = {
+      ...message,
+      content: [{ ...message.content[0], text: split.remainder }, ...message.content.slice(1)],
+    };
+    return { messages: next, reminder: split.reminder };
+  }
+  return { messages, reminder: null };
+}
+
+function reattachReminderToLatestUserMessage(messages: any, reminder: any) {
+  if (!reminder || !Array.isArray(messages)) return messages;
+  const next = [...messages];
+  for (let index = next.length - 1; index >= 0; index -= 1) {
+    const message = next[index];
+    if (message?.role !== "user") continue;
+    if (typeof message.content === "string") {
+      next[index] = { ...message, content: `${reminder}\n\n${message.content}` };
+    } else if (Array.isArray(message.content) && message.content[0]?.type === "text") {
+      next[index] = {
+        ...message,
+        content: [
+          { ...message.content[0], text: `${reminder}\n\n${message.content[0].text}` },
+          ...message.content.slice(1),
+        ],
+      };
+    } else if (Array.isArray(message.content)) {
+      next[index] = {
+        ...message,
+        content: [{ type: "text", text: reminder }, ...message.content],
+      };
+    }
+    break;
+  }
+  return next;
+}
+
+function createReminderAwareTurnContextExtension(options: any) {
+  const extension = createSessionTurnContextExtension(options);
+  const baseHandler = extension.handlers.get("context")?.[0];
+  if (typeof baseHandler !== "function") return extension;
+  extension.handlers.set("context", [async (event: any) => {
+    const detached = detachReminderFromLatestUserMessage(event?.messages);
+    const result = await baseHandler({ ...event, messages: detached.messages });
+    if (!result?.messages || !detached.reminder) return result;
+    return {
+      ...result,
+      messages: reattachReminderToLatestUserMessage(result.messages, detached.reminder),
+    };
+  }]);
+  return extension;
+}
 
 function isPathInsideDir(parentDir: any, childPath: any) {
   if (!parentDir || !childPath) return false;
@@ -674,6 +770,7 @@ export class SessionCoordinator {
   declare _prePromptAbortControllers: Map<string, AbortController>;
   declare _turnContextBySession: Map<string, any>;
   declare _sessionManifestStore: any;
+  declare _envChangeLedger: any;
 
   /**
    * @param {object} deps
@@ -716,6 +813,7 @@ export class SessionCoordinator {
     this._prePromptAbortControllers = new Map();
     this._turnContextBySession = new Map();
     this._sessionManifestStore = deps.sessionManifestStore || null;
+    this._envChangeLedger = deps.envChangeLedger || null;
   }
 
   static _TITLES_TTL = 60_000; // 60 秒
@@ -1213,6 +1311,7 @@ export class SessionCoordinator {
     // #1624 显式刷新（fresh compact）：restore 时忽略冻结的 promptSnapshot/toolNames，
     // 按当前 agent 配置重建两份快照并持久化。只在用户显式触发时为 true。
     refreshCapabilitySnapshots = false,
+    reminderState = null,
   }: any = {}) {
     const t0 = Date.now();
     const agent = explicitAgent
@@ -1466,7 +1565,7 @@ export class SessionCoordinator {
       },
       warn: warnVisionContextInjection,
     });
-    const turnContextExtension = createSessionTurnContextExtension({
+    const turnContextExtension = createReminderAwareTurnContextExtension({
       path: "hana-desktop-session-turn-context",
       sessionPathRef,
       getTurnContext: (sessionPath) => sessionPath
@@ -1732,6 +1831,27 @@ export class SessionCoordinator {
     // 这里刻意不构造 live prompt / tool diff，避免切换旧会话时为隐藏提醒付出额外成本。
     let capabilityDrift = null;
 
+    const reminderBaselineSeq = this._envChangeLedger?.maxSeq?.() ?? 0;
+    const hasPreviousReminderState = reminderState && typeof reminderState === "object";
+    const preserveFrozenPromptReminderState = !!restoredPromptSnapshot && hasPreviousReminderState;
+    const initialReminderState = {
+      reminderEnvCursor: preserveFrozenPromptReminderState
+        ? (reminderState.reminderEnvCursor ?? reminderBaselineSeq)
+        : reminderBaselineSeq,
+      reminderEnvStartSeq: preserveFrozenPromptReminderState
+        ? (reminderState.reminderEnvStartSeq ?? reminderBaselineSeq)
+        : reminderBaselineSeq,
+      // A reused frozen prompt contains an old session-start clock. Every
+      // restored runtime therefore observes time again on its first message.
+      lastTimeObservedAt: restoredPromptSnapshot ? null : Date.now(),
+      reminderCompactionRevision: hasPreviousReminderState
+        ? (reminderState.reminderCompactionRevision ?? 0)
+        : 0,
+      reminderConsumedCompactionRevision: hasPreviousReminderState
+        ? (reminderState.reminderConsumedCompactionRevision ?? 0)
+        : 0,
+    };
+
     Object.assign(sessionEntry, {
       session,
       agentId: creatingAgentId,
@@ -1758,6 +1878,7 @@ export class SessionCoordinator {
       // #1624：session 级提示数据，归属 sessionEntry（this._sessions 由 _sessionRuntimeKeyForPath 以 sessionId 优先键控，sessionPath 仅为兼容退化键），不挂 agent/engine
       capabilityDrift,
       capabilityDriftDismissedFingerprint: restoredDriftDismissedFingerprint,
+      ...initialReminderState,
       lastTouchedAt: Date.now(),
       unsub,
       sessionPath,
@@ -2114,7 +2235,12 @@ export class SessionCoordinator {
           },
         },
       } as any);
-      const saved = await appendCompactionResultToSession(session, result, { fromExtension: false });
+      const saved = await appendCompactionResultToSession(session, result, {
+        fromExtension: false,
+        onCompacted: () => {
+          if (targetSessionPath) this._markSessionCompacted(targetSessionPath);
+        },
+      });
       session?._emit?.({
         type: "compaction_end",
         reason: "deleted_agent_continue",
@@ -2463,12 +2589,14 @@ export class SessionCoordinator {
     this._repairInlineMediaHistory(sessionPath);
 
     // 冷启动恢复：model 由 PI SDK 从 session JSONL 恢复（单一数据源），不从 session-meta.json 读
+    const reminderState = this._getRuntimeValueForPath(this._hibernatedSessionMeta, sessionPath);
     const sessionMgr = SessionManager.open(sessionPath, this._d.getAgent().sessionDir);
     const cwd = sessionMgr.getCwd?.() || undefined;
     const result = await this.createSession(sessionMgr, cwd, memoryEnabled, null, {
       restore: true,
       agent: this._d.getAgent(),
       agentId: targetAgentId || this._d.getActiveAgentId(),
+      reminderState,
     });
     return result.session;
   }
@@ -2889,14 +3017,14 @@ export class SessionCoordinator {
 
         // 尝试压缩
         try {
-          const compactionResult = await this._compactWithModel(session, effectiveWindow, oldModel);
+          const compactionResult = await this._compactWithModel(sessionPath, session, effectiveWindow, oldModel);
           const hardTruncated = compactionResult?.details?.reason === "cache-preserving-compaction-hard-truncate";
           adaptations.push(hardTruncated ? "truncated" : "compacted");
         } catch (compactErr) {
           log.warn(`compactWithModel failed, falling back to hard truncate: ${compactErr.message}`);
           // 压缩失败，尝试硬截断
           try {
-            await this._hardTruncate(session, effectiveWindow);
+            await this._hardTruncate(sessionPath, session, effectiveWindow);
             adaptations.push("truncated");
           } catch (truncErr) {
             throw new Error(`Failed to fit context into new model window: ${truncErr.message}`);
@@ -2935,8 +3063,8 @@ export class SessionCoordinator {
    * 用主模型同前缀摘要来压缩对话历史（为 model switch 准备窗口）。
    * @private
    */
-  async _compactWithModel(session: any, effectiveWindow: any, model: any) {
-    const sessionPath = session?.sessionManager?.getSessionFile?.() || this.currentSessionPath;
+  async _compactWithModel(sessionPath: any, session: any, effectiveWindow: any, model: any) {
+    if (!sessionPath) throw new Error("model-switch compaction requires an explicit session path");
     const sessionId = this._sessionIdForPath(sessionPath);
     return await runCachePreservingCompactionForSession(session, {
       model,
@@ -2962,14 +3090,27 @@ export class SessionCoordinator {
           sessionPath,
         },
       },
+      onCompacted: () => this._markSessionCompacted(sessionPath),
     });
+  }
+
+  _markSessionCompacted(sessionPath: any) {
+    if (!sessionPath) return false;
+    const entry = this._getSessionEntryByPath(sessionPath);
+    if (!entry) return false;
+    const revision = Number.isFinite(entry.reminderCompactionRevision)
+      ? Math.max(0, Math.floor(entry.reminderCompactionRevision))
+      : 0;
+    entry.reminderCompactionRevision = revision + 1;
+    return true;
   }
 
   /**
    * 硬截断对话历史（无 API 调用，用固定文本作为摘要）。
    * @private
    */
-  async _hardTruncate(session: any, effectiveWindow: any) {
+  async _hardTruncate(sessionPath: any, session: any, effectiveWindow: any) {
+    if (!sessionPath) throw new Error("model-switch hard truncation requires an explicit session path");
     const sm = session.sessionManager;
     const pathEntries = sm.getBranch();
     const reason = "model_switch";
@@ -2984,7 +3125,10 @@ export class SessionCoordinator {
         throw new Error("Cannot hard-truncate: not enough messages or cut at beginning");
       }
 
-      const saved = await appendCompactionResultToSession(session, result, { fromExtension: false });
+      const saved = await appendCompactionResultToSession(session, result, {
+        fromExtension: false,
+        onCompacted: () => this._markSessionCompacted(sessionPath),
+      });
       session?._emit?.({
         type: "compaction_end",
         reason,
@@ -3388,6 +3532,11 @@ export class SessionCoordinator {
       planMode: entry.planMode,
       thinkingLevel: entry.thinkingLevel,
       toolNames: Array.isArray(entry.toolNames) ? [...entry.toolNames] : entry.toolNames,
+      reminderEnvCursor: entry.reminderEnvCursor,
+      reminderEnvStartSeq: entry.reminderEnvStartSeq,
+      lastTimeObservedAt: entry.lastTimeObservedAt,
+      reminderCompactionRevision: entry.reminderCompactionRevision,
+      reminderConsumedCompactionRevision: entry.reminderConsumedCompactionRevision,
       contextUsage: entry.session?.getContextUsage?.() || null,
       hibernatedAt: Date.now(),
     });
@@ -3613,6 +3762,42 @@ export class SessionCoordinator {
     return this._getRuntimeValueForPath(this._hibernatedSessionMeta, sessionPath)?.contextUsage || null;
   }
 
+  renderSessionReminderBlock(sessionPath: any) {
+    if (!sessionPath || !this._envChangeLedger) return null;
+    const entry = this._getSessionEntryByPath(sessionPath);
+    if (!entry) return null;
+    return collectReminderBlock({
+      sessionEntry: entry,
+      ledger: this._envChangeLedger,
+      now: Date.now(),
+      isZh: getLocale().startsWith("zh"),
+      timeZone: this._d.getPrefs?.()?.getTimezone?.(),
+    });
+  }
+
+  consumeRenderedSessionReminderBlock(sessionPath: any, receipt: any) {
+    if (!sessionPath || !this._envChangeLedger || !receipt) return false;
+    const entry = this._getSessionEntryByPath(sessionPath);
+    if (!entry) return false;
+    applyReminderConsumption({ sessionEntry: entry, receipt });
+    return true;
+  }
+
+  consumeSessionReminderBlock(sessionPath: any) {
+    const rendered = this.renderSessionReminderBlock(sessionPath);
+    if (!rendered) return null;
+    this.consumeRenderedSessionReminderBlock(sessionPath, rendered.receipt);
+    return rendered.block;
+  }
+
+  noteSessionTimeObserved(sessionPath: any, observedAt: any) {
+    if (!sessionPath) return false;
+    const entry = this._getSessionEntryByPath(sessionPath);
+    if (!entry) return false;
+    noteTimeObservedForSession(entry, observedAt);
+    return true;
+  }
+
   _assertActiveDesktopSessionPath(sessionPath: any, operation: any) {
     if (!isActiveSessionPath(sessionPath, this._d.agentsDir)) {
       throw new Error(`${operation}: path must be an active desktop session under agents/{id}/sessions/*.jsonl; got ${sessionPath}`);
@@ -3817,6 +4002,8 @@ export class SessionCoordinator {
     }
 
     const oldEntry = this._getSessionEntryByPath(sessionPath);
+    const hibernatedEntry = this._getRuntimeValueForPath(this._hibernatedSessionMeta, sessionPath);
+    const reminderState = oldEntry || hibernatedEntry || null;
     if (oldEntry) {
       if (oldEntry.session?.isStreaming || oldEntry.session?.isCompacting || oldEntry._switching) {
         throw new Error("reloadSessionRuntime: session is busy");
@@ -3842,6 +4029,7 @@ export class SessionCoordinator {
       agentId: targetAgentId,
       preserveAgentMemoryState: true,
       refreshCapabilitySnapshots,
+      reminderState,
     });
     return result.session;
   }
@@ -3882,6 +4070,7 @@ export class SessionCoordinator {
 
     // memoryEnabled 从 session-owned state 恢复（跟 switchSession 同一份数据源）
     const memoryEnabled = this.getSessionMemoryEnabled(sessionPath);
+    const reminderState = this._getRuntimeValueForPath(this._hibernatedSessionMeta, sessionPath);
 
     // 保存焦点：createSession 副作用会设 this._session / _sessionStarted，
     // /rc 这类纯 attach 路径结束后必须完整回滚，避免污染桌面 UI 的当前会话态。
@@ -3902,6 +4091,7 @@ export class SessionCoordinator {
         agent,
         agentId: targetAgentId,
         preserveAgentMemoryState: true,
+        reminderState,
       });
     } finally {
       this._session = prevFocus;

@@ -1060,3 +1060,174 @@ describe("submitDesktopSessionMessage", () => {
     expect(appendCustomEntry).not.toHaveBeenCalled();
   });
 });
+
+describe("session reminder block injection", () => {
+  const reminderBlock = "[hana_reminder at 2026-07-05 14:05]\n- 当前时间：2026-07-05 14:05\n[/hana_reminder]";
+  const receipt = Object.freeze({
+    observedAt: 1783231500000,
+    throughSeq: 7,
+    compactionRevision: 3,
+  });
+
+  it("prepends reminders before attachment markers and consumes the exact receipt after prompt acceptance", async () => {
+    const session = makeFakeSession();
+    const engine = {
+      ensureSessionLoaded: vi.fn(async () => session),
+      promptSession: vi.fn(async (sessionPath, text, opts) => session.prompt(text, opts)),
+      emitEvent: vi.fn(),
+      setUiContext: vi.fn(),
+      renderSessionReminderBlock: vi.fn(() => ({ block: reminderBlock, receipt })),
+      consumeRenderedSessionReminderBlock: vi.fn(),
+    };
+
+    await submitDesktopSessionMessage(engine, {
+      sessionPath: "/tmp/desk.jsonl",
+      text: "hello",
+      imageAttachmentPaths: ["/tmp/image.png"],
+      displayMessage: { text: "hello" },
+      context: { beforeUser: "world lore" },
+    });
+
+    expect(engine.promptSession).toHaveBeenCalledWith(
+      "/tmp/desk.jsonl",
+      `${reminderBlock}\n\n[attached_image: /tmp/image.png]\nhello`,
+      { imageAttachmentPaths: ["/tmp/image.png"], context: { beforeUser: "world lore" } },
+    );
+    expect(engine.consumeRenderedSessionReminderBlock).toHaveBeenCalledWith("/tmp/desk.jsonl", receipt);
+    expect(engine.emitEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: "session_user_message",
+        message: expect.objectContaining({ text: "hello" }),
+      }),
+      "/tmp/desk.jsonl",
+    );
+  });
+
+  it("does not consume a rendered receipt when promptSession rejects", async () => {
+    const session = makeFakeSession();
+    const engine = {
+      ensureSessionLoaded: vi.fn(async () => session),
+      promptSession: vi.fn(async () => { throw new Error("model preflight failed"); }),
+      emitEvent: vi.fn(),
+      setUiContext: vi.fn(),
+      renderSessionReminderBlock: vi.fn(() => ({ block: reminderBlock, receipt })),
+      consumeRenderedSessionReminderBlock: vi.fn(),
+    };
+
+    await expect(submitDesktopSessionMessage(engine, {
+      sessionPath: "/tmp/desk.jsonl",
+      text: "hello",
+      displayMessage: { text: "hello" },
+    })).rejects.toThrow("model preflight failed");
+
+    expect(engine.consumeRenderedSessionReminderBlock).not.toHaveBeenCalled();
+  });
+
+  it("does not rerender through the legacy API when the render API reports no reminder", async () => {
+    const session = makeFakeSession();
+    const engine = {
+      ensureSessionLoaded: vi.fn(async () => session),
+      promptSession: vi.fn(async (sessionPath, text, opts) => session.prompt(text, opts)),
+      emitEvent: vi.fn(),
+      setUiContext: vi.fn(),
+      renderSessionReminderBlock: vi.fn(() => null),
+      consumeSessionReminderBlock: vi.fn(() => reminderBlock),
+      consumeRenderedSessionReminderBlock: vi.fn(),
+    };
+
+    await submitDesktopSessionMessage(engine, {
+      sessionPath: "/tmp/desk.jsonl",
+      text: "hello",
+      displayMessage: { text: "hello" },
+    });
+
+    expect(engine.promptSession).toHaveBeenCalledWith("/tmp/desk.jsonl", "hello", undefined);
+    expect(engine.consumeSessionReminderBlock).not.toHaveBeenCalled();
+  });
+
+  it("preserves legacy consume-only and legacy numeric-render integrations", async () => {
+    const legacySession = makeFakeSession();
+    const consumeOnlyEngine = {
+      ensureSessionLoaded: vi.fn(async () => legacySession),
+      promptSession: vi.fn(async (sessionPath, text, opts) => legacySession.prompt(text, opts)),
+      emitEvent: vi.fn(),
+      setUiContext: vi.fn(),
+      consumeSessionReminderBlock: vi.fn(() => reminderBlock),
+    };
+    await submitDesktopSessionMessage(consumeOnlyEngine, {
+      sessionPath: "/tmp/legacy.jsonl",
+      text: "hello",
+      displayMessage: { text: "hello" },
+    });
+    expect(consumeOnlyEngine.promptSession).toHaveBeenCalledWith(
+      "/tmp/legacy.jsonl",
+      `${reminderBlock}\n\nhello`,
+      undefined,
+    );
+
+    const numericSession = makeFakeSession();
+    const numericEngine = {
+      ensureSessionLoaded: vi.fn(async () => numericSession),
+      promptSession: vi.fn(async (sessionPath, text, opts) => numericSession.prompt(text, opts)),
+      emitEvent: vi.fn(),
+      setUiContext: vi.fn(),
+      renderSessionReminderBlock: vi.fn(() => ({ block: reminderBlock, now: 1783231500000 })),
+      consumeRenderedSessionReminderBlock: vi.fn(),
+    };
+    await submitDesktopSessionMessage(numericEngine, {
+      sessionPath: "/tmp/numeric.jsonl",
+      text: "hello",
+      displayMessage: { text: "hello" },
+    });
+    expect(numericEngine.consumeRenderedSessionReminderBlock)
+      .toHaveBeenCalledWith("/tmp/numeric.jsonl", 1783231500000);
+  });
+
+  it("puts reminder, beforeUser context, attachment marker, and body in stable interjection order", async () => {
+    const session = makeFakeSession();
+    const engine = {
+      ensureSessionLoaded: vi.fn(async () => session),
+      isSessionStreaming: vi.fn(() => true),
+      steerSession: vi.fn(() => true),
+      emitEvent: vi.fn(),
+      setUiContext: vi.fn(),
+      renderSessionReminderBlock: vi.fn(() => ({ block: reminderBlock, receipt })),
+      consumeRenderedSessionReminderBlock: vi.fn(),
+    };
+
+    await submitDesktopSessionInterjection(engine, {
+      sessionPath: "/tmp/desk.jsonl",
+      text: "interject now",
+      imageAttachmentPaths: ["/tmp/image.png"],
+      displayMessage: { text: "interject now" },
+      context: { beforeUser: "world lore" },
+    });
+
+    expect(engine.steerSession).toHaveBeenCalledWith(
+      "/tmp/desk.jsonl",
+      `${reminderBlock}\n\nworld lore\n\n[attached_image: /tmp/image.png]\ninterject now`,
+    );
+    expect(engine.consumeRenderedSessionReminderBlock).toHaveBeenCalledWith("/tmp/desk.jsonl", receipt);
+  });
+
+  it("keeps a rendered receipt pending when steerSession rejects", async () => {
+    const session = makeFakeSession();
+    const engine = {
+      ensureSessionLoaded: vi.fn(async () => session),
+      isSessionStreaming: vi.fn(() => true),
+      steerSession: vi.fn(() => false),
+      emitEvent: vi.fn(),
+      setUiContext: vi.fn(),
+      renderSessionReminderBlock: vi.fn(() => ({ block: reminderBlock, receipt })),
+      consumeRenderedSessionReminderBlock: vi.fn(),
+    };
+
+    await expect(submitDesktopSessionInterjection(engine, {
+      sessionPath: "/tmp/desk.jsonl",
+      text: "interject now",
+      displayMessage: { text: "interject now" },
+    })).rejects.toThrow("session_busy");
+
+    expect(engine.consumeRenderedSessionReminderBlock).not.toHaveBeenCalled();
+  });
+});

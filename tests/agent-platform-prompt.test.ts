@@ -101,7 +101,8 @@ describe("Agent platform prompt identity", () => {
       forceExperienceEnabled: false,
     });
 
-    expect(prompt).toContain("Current date and time:");
+    expect(prompt).toContain("Session start time:");
+    expect(prompt).not.toContain("Current date and time:");
     expect(prompt).toContain("15:53");
     expect(prompt).toContain("Your day starts at 04:00.");
     expect(prompt).not.toMatch(/\b(?:AM|PM)\b/);

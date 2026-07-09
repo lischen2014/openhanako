@@ -411,6 +411,7 @@ export class Agent {
         getSessionIdForPath: (sessionPath) => (
           this._cb?.getEngine?.()?.getSessionIdForPath?.(sessionPath)
         ),
+        envChangeLedger: this._cb?.getEngine?.()?.getEnvChangeLedger?.() || null,
         onCompiled: () => {
           // _systemPrompt 是非 session 路径（巡检/cron/频道/DM/bridge owner 新建）
           // 共享的 cache，必须按 master 构建，不被 per-session 开关污染。
@@ -518,6 +519,9 @@ export class Agent {
       getSessionFolderScope: (sessionPath) => this._cb?.getEngine?.()?.getSessionFolderScope?.(sessionPath) || null,
       getBridgeContext: (sessionPath) => this._cb?.getEngine?.()?.getBridgeContextForSessionPath?.(sessionPath, { agentId: this.id }) || null,
       listOpenSubagentThreads: (sessionPath) => this._cb?.getSubagentThreadStore?.()?.listOpenDirectBySession?.(sessionPath) || [],
+      onTimeObserved: (sessionPath, observedAt) => (
+        this._cb?.getEngine?.()?.noteSessionTimeObserved?.(sessionPath, observedAt)
+      ),
     });
     // 10. 设置修改工具
     this._updateSettingsTool = createUpdateSettingsTool({
@@ -1512,7 +1516,7 @@ export class Agent {
       ...(tz ? { timeZone: tz } : {}),
     };
     const dateTime = new Intl.DateTimeFormat("en-US", fmtOpts as any).format(now);
-    parts.push(`\nCurrent date and time: ${dateTime}`);
+    parts.push(`\nSession start time: ${dateTime}`);
     parts.push(isZh
       ? "你的一天从 04:00 开始。04:00 之前的对话属于前一天。"
       : "Your day starts at 04:00. Conversations before 04:00 belong to the previous day.");

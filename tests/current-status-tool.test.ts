@@ -50,6 +50,7 @@ describe("current_status tool", () => {
     const tool = createCurrentStatusTool();
 
     expect(tool.description).toContain('key="time"');
+    expect(tool.description).toContain("Session start time");
     expect(tool.description).toContain("stale");
   });
 
@@ -142,6 +143,64 @@ describe("current_status tool", () => {
     });
     expect(JSON.stringify(payload)).not.toContain("Hana");
     expect(JSON.stringify(payload)).not.toContain("claude-sonnet-4-5");
+  });
+
+  it("records the exact session and same timestamp after get time succeeds", async () => {
+    const now = new Date("2026-05-03T19:30:00.000Z");
+    const onTimeObserved = vi.fn();
+    const sessionPath = "/tmp/agents/hana/sessions/time.jsonl";
+    const tool = createCurrentStatusTool({
+      now: () => now,
+      getTimezone: () => "UTC",
+      onTimeObserved,
+    });
+
+    const payload = textPayload(await tool.execute(
+      "call_time",
+      { action: "get", key: "time" },
+      null,
+      null,
+      makeCtx(sessionPath),
+    ));
+
+    expect(payload.time.iso).toBe(now.toISOString());
+    expect(onTimeObserved).toHaveBeenCalledOnce();
+    expect(onTimeObserved).toHaveBeenCalledWith(sessionPath, now.getTime());
+  });
+
+  it("does not record time for list, logical_date, or a missing session path", async () => {
+    const onTimeObserved = vi.fn();
+    const tool = createCurrentStatusTool({
+      now: () => new Date("2026-05-03T19:30:00.000Z"),
+      onTimeObserved,
+    });
+
+    await (tool.execute as any)("call_list", { action: "list" });
+    await (tool.execute as any)("call_date", { action: "get", key: "logical_date" });
+    await (tool.execute as any)("call_time", { action: "get", key: "time" });
+
+    expect(onTimeObserved).not.toHaveBeenCalled();
+  });
+
+  it("does not record time when the time provider fails", async () => {
+    const onTimeObserved = vi.fn();
+    const tool = createCurrentStatusTool({
+      onTimeObserved,
+      providers: [{
+        key: "time",
+        description: "failing time provider",
+        get: async () => { throw new Error("clock unavailable"); },
+      }],
+    });
+
+    await expect(tool.execute(
+      "call_time",
+      { action: "get", key: "time" },
+      null,
+      null,
+      makeCtx("/tmp/agents/hana/sessions/failure.jsonl"),
+    )).rejects.toThrow("clock unavailable");
+    expect(onTimeObserved).not.toHaveBeenCalled();
   });
 
   it("computes logical date in the configured timezone with the 4am boundary", async () => {

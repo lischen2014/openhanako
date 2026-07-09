@@ -29,7 +29,8 @@ export const SESSION_CAPABILITY_FINGERPRINT_VERSION = 1;
  * emits, zh + en — see core/agent.ts buildSystemPrompt):
  *  - Memory block: from the "## 记忆使用规则" / "## Memory Rules" heading
  *    (includes "# 置顶记忆" / "# Pinned Memories" and "# 记忆" / "# Memory"
- *    sections) up to the trailing "Current date and time:" clock line.
+ *    sections) up to the trailing legacy "Current date and time:" or current
+ *    "Session start time:" clock line.
  *    memory.md is recompiled in the background and pinned.md is writable by
  *    the agent mid-conversation.
  *  - Appearance summary: "## 你的样子" / "## Your Appearance" up to the
@@ -37,7 +38,7 @@ export const SESSION_CAPABILITY_FINGERPRINT_VERSION = 1;
  *    is refreshed asynchronously from the avatar. The end anchor requires a
  *    newline right after the heading so "## Workspace Instructions" (the
  *    AGENTS.md block, which IS user-managed config) can never match.
- *  - Clock line: "Current date and time: ..." (every occurrence).
+ *  - Clock line: either supported clock label (every occurrence).
  *
  * Each segment pattern matches the newline seam in front of its stable end
  * anchor with the dynamic block itself optional, and rewrites the whole seam
@@ -51,16 +52,16 @@ export const SESSION_CAPABILITY_FINGERPRINT_VERSION = 1;
  * team roster, workspace instruction files (AGENTS.md / CLAUDE.md), and
  * feature-gated behavior sections.
  */
-const MEMORY_SEAM_PATTERN = /\n+(?:## (?:记忆使用规则|Memory Rules)\n[\s\S]*?\n+)?(?=Current date and time: )/g;
+const MEMORY_SEAM_PATTERN = /\n+(?:## (?:记忆使用规则|Memory Rules)\n[\s\S]*?\n+)?(?=(?:Current date and time|Session start time): )/g;
 const APPEARANCE_SEAM_PATTERN = /\n+(?:## (?:你的样子|Your Appearance)\n[\s\S]*?\n+)?(?=## (?:工作台|Workspace)\n)/g;
-const CLOCK_LINE_PATTERN = /^Current date and time: .*$/gm;
+const CLOCK_LINE_PATTERN = /^(?:Current date and time|Session start time): .*$/gm;
 
 export function normalizeSystemPromptForFingerprint(systemPrompt) {
   const text = typeof systemPrompt === "string" ? systemPrompt : String(systemPrompt ?? "");
   return text
     .replace(MEMORY_SEAM_PATTERN, "\n\n")
     .replace(APPEARANCE_SEAM_PATTERN, "\n\n")
-    .replace(CLOCK_LINE_PATTERN, "Current date and time: <normalized>");
+    .replace(CLOCK_LINE_PATTERN, "Session start time: <normalized>");
 }
 
 /**

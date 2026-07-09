@@ -224,6 +224,7 @@ export class PluginManager {
   declare _commands: any;
   declare _configSchemas: any;
   declare _dataDir: any;
+  declare _envChangeLedger: any;
   declare _extensionFactories: any;
   declare _getSessionPath: any;
   declare _loadTimeoutMs: any;
@@ -269,6 +270,7 @@ export class PluginManager {
     lifecycleTimeoutMs,
     logSink,
     runtimeContext,
+    envChangeLedger,
   }) {
     this._pluginsDirs = pluginsDirs || (pluginsDir ? [pluginsDir] : []);
     this._dataDir = dataDir;
@@ -282,6 +284,7 @@ export class PluginManager {
     this._resourceWatch = resourceWatch || null;
     this._logSink = typeof logSink === "function" ? logSink : null;
     this._runtimeContext = runtimeContext || null;
+    this._envChangeLedger = envChangeLedger || null;
     this._plugins = new Map();
     this._scanned = [];
     this._opQueue = Promise.resolve();
@@ -430,6 +433,7 @@ export class PluginManager {
     const pluginId = entry.id;
     const pluginKey = entry.pluginKey;
     const source = normalizePluginSource(entry.source);
+    const wasLoaded = entry.status === "loaded";
     this._startPluginRuntimeCleanup(entry);
     this._cleanupPluginContributions(entry);
     this._plugins.delete(pluginKey);
@@ -442,6 +446,7 @@ export class PluginManager {
     }
 
     this._refreshRouteRegistryForId(pluginId);
+    if (wasLoaded) this._recordToolsetChange(pluginId, "unloaded");
   }
 
   reconcileMissingPluginDirectories(options: any = {}) {
@@ -611,7 +616,14 @@ export class PluginManager {
     }
   }
 
-  async _loadPluginWithBoundary(entry) {
+  _recordToolsetChange(pluginId, action) {
+    this._envChangeLedger?.append({
+      type: "toolset_changed",
+      payload: { pluginId, action },
+    });
+  }
+
+  async _loadPluginWithBoundary(entry, { action = "loaded" }: any = {}) {
     const loadToken = Symbol(entry.id);
     entry._loadToken = loadToken;
     entry._loadCancelled = false;
@@ -629,6 +641,7 @@ export class PluginManager {
         throw new Error(`Plugin "${entry.id}" load was cancelled`);
       }
       log.log(`plugin "${entry.id}" loaded (${Date.now() - start}ms)`);
+      this._recordToolsetChange(entry.id, action);
     } catch (err) {
       entry._loadCancelled = true;
       await this._cleanupPluginEntry(entry);
@@ -1358,6 +1371,7 @@ export class PluginManager {
         || [...this._plugins.values()].find(
           p => p.source === source && path.basename(p.pluginDir) === dirName
         );
+      const wasReload = existing?.status === "loaded";
       if (existing) {
         await this.unloadPlugin(existing.id, { pluginKey: existing.pluginKey });
         this._plugins.delete(existing.pluginKey);
@@ -1400,7 +1414,7 @@ export class PluginManager {
       }
 
       try {
-        await this._loadPluginWithBoundary(entry);
+        await this._loadPluginWithBoundary(entry, { action: wasReload ? "reloaded" : "loaded" });
         entry.status = "loaded";
         entry.error = null;
       } catch (err) {
@@ -1487,11 +1501,12 @@ export class PluginManager {
         return entry;
       }
       // Guard: unload before re-loading to prevent duplicate tool/command/route registration
-      if (entry.status === "loaded") {
+      const wasReload = entry.status === "loaded";
+      if (wasReload) {
         await this.unloadPlugin(entry.id, { pluginKey: entry.pluginKey });
       }
       try {
-        await this._loadPluginWithBoundary(entry);
+        await this._loadPluginWithBoundary(entry, { action: wasReload ? "reloaded" : "loaded" });
         entry.status = "loaded";
         entry.error = null;
       } catch (err) {
@@ -1565,12 +1580,14 @@ export class PluginManager {
   async unloadPlugin(pluginId, options: any = {}) {
     const entry = this._resolvePluginEntry(pluginId, options);
     if (!entry) return;
+    const wasLoaded = entry.status === "loaded";
 
     entry._loadCancelled = true;
     await this._cleanupPluginEntry(entry);
 
     entry.status = "unloaded";
     this._refreshRouteRegistryForId(entry.id);
+    if (wasLoaded) this._recordToolsetChange(entry.id, "unloaded");
   }
 
   // ── Public getters (route 层通过这些方法访问，不穿透私有字段) ──

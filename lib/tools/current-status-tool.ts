@@ -106,6 +106,11 @@ function provider(key, description, get) {
   return { key, description, get };
 }
 
+function resolveNow(deps: Record<string, any>): Date {
+  const value = deps.now?.();
+  return value instanceof Date ? value : new Date();
+}
+
 function statusOutput(payload, contentBlocks = [], details = {}) {
   return {
     __currentStatusOutput: true,
@@ -296,10 +301,7 @@ function normalizeProvider(item) {
 }
 
 export function createCurrentStatusRegistry(deps: Record<string, any> = {}) {
-  const getNow = () => {
-    const value = deps.now?.();
-    return value instanceof Date ? value : new Date();
-  };
+  const getNow = () => resolveNow(deps);
   const getTimezone = () => resolveTimezone(deps.getTimezone?.());
   const getStatusModel = ({ sessionPath, ctx }: Record<string, any> = {}) => (
     ctx?.model
@@ -312,8 +314,8 @@ export function createCurrentStatusRegistry(deps: Record<string, any> = {}) {
     provider(
       "time",
       "Current real time, configured timezone, local datetime, and UTC offset.",
-      async () => {
-        const now = getNow();
+      async ({ now: suppliedNow }: Record<string, any> = {}) => {
+        const now = suppliedNow instanceof Date ? suppliedNow : getNow();
         const timeZone = getTimezone();
         return {
           time: {
@@ -425,7 +427,7 @@ export function createCurrentStatusTool(deps: Record<string, any> = {}) {
   return {
     name: "current_status",
     label: "Current Status",
-    description: "Lightweight current-environment status (time, agent identity, UI context, Bridge context, etc.). System prompt time is a snapshot and may be stale; call with key=\"time\" for precise current time. Use action=list to discover available keys.",
+    description: "Lightweight current-environment status (time, agent identity, UI context, Bridge context, etc.). The system prompt's Session start time is a frozen snapshot and may be stale; call with key=\"time\" for precise current time. Use action=list to discover available keys.",
     parameters: Type.Object({
       action: StringEnum(["list", "get"], {
         description: "list returns available status keys; get returns one status key value.",
@@ -461,7 +463,11 @@ export function createCurrentStatusTool(deps: Record<string, any> = {}) {
       }
 
       const sessionPath = getToolSessionPath(ctx);
-      const payload = await item.get({ sessionPath, ctx, signal });
+      const observedNow = key === "time" ? resolveNow(deps) : null;
+      const payload = await item.get({ sessionPath, ctx, signal, now: observedNow });
+      if (key === "time" && sessionPath && observedNow && typeof deps.onTimeObserved === "function") {
+        deps.onTimeObserved(sessionPath, observedNow.getTime());
+      }
       if (isStatusOutput(payload)) {
         return {
           content: [
