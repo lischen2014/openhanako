@@ -3315,6 +3315,9 @@
     "mediaNoDisplayableFiles": "생성 결과에 표시 가능한 파일이 없어요"
   },
   "sessionCollab": {
-    "messagePrefix": "[에이전트 \"{name}\"의 메시지입니다. 사용자 본인이 아닙니다]"
+    "messagePrefix": "[에이전트 \"{name}\"의 메시지입니다. 사용자 본인이 아닙니다]",
+    "fromAgent": "{name}의 메시지",
+    "expand": "펼치기",
+    "collapse": "접기"
   }
 }

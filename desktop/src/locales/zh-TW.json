@@ -3315,6 +3315,9 @@
     "mediaNoDisplayableFiles": "生成结果没有可显示文件"
   },
   "sessionCollab": {
-    "messagePrefix": "[來自 Agent「{name}」的訊息，非使用者本人]"
+    "messagePrefix": "[來自 Agent「{name}」的訊息，非使用者本人]",
+    "fromAgent": "來自 {name} 的訊息",
+    "expand": "展開",
+    "collapse": "收起"
   }
 }

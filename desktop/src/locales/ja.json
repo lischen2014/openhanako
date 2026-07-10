@@ -3315,6 +3315,9 @@
     "mediaNoDisplayableFiles": "生成結果に表示可能なファイルがありません"
   },
   "sessionCollab": {
-    "messagePrefix": "[エージェント「{name}」からのメッセージです。ユーザー本人ではありません]"
+    "messagePrefix": "[エージェント「{name}」からのメッセージです。ユーザー本人ではありません]",
+    "fromAgent": "{name} からのメッセージ",
+    "expand": "展開",
+    "collapse": "折りたたむ"
   }
 }

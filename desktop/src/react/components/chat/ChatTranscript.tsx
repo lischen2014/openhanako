@@ -1,6 +1,7 @@
 import { memo, useCallback, useMemo } from 'react';
 import type { ChatListItem, ChatMessage } from '../../stores/chat-types';
 import { UserMessage } from './UserMessage';
+import { AgentOriginMessage } from './AgentOriginMessage';
 import { AssistantMessage } from './AssistantMessage';
 import { ProcessFoldBlock } from './ProcessFoldBlock';
 import { InterludeBlock } from './InterludeBlock';
@@ -309,7 +310,9 @@ const TranscriptItemView = memo(function TranscriptItemView({
   const showAvatar = msg.role !== prevRole;
 
   if (msg.role === 'user') {
-    return (
+    return msg.origin ? (
+      <AgentOriginMessage message={msg} />
+    ) : (
       <UserMessage
         message={msg}
         showAvatar={showAvatar}

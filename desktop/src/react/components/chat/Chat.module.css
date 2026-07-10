@@ -431,6 +431,65 @@
     animation: hana-chat-soft-down-in 130ms var(--ease-out) both;
 }
 
+/* ── 跨 session Agent 来源消息卡（居中，对标 interludeRow） ── */
+.agentOriginRow {
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    margin: var(--space-16) 0;
+    font-family: var(--font-sans);
+}
+
+.agentOriginCard {
+    background: var(--tool-bg);
+    border-radius: var(--radius-sm);
+    padding: var(--space-12) var(--space-16);
+    width: var(--chat-task-block-width);
+    max-width: 100%;
+    box-sizing: border-box;
+}
+
+.agentOriginHeader {
+    display: flex;
+    align-items: center;
+    gap: var(--space-8);
+    margin-bottom: var(--space-8);
+}
+
+.agentOriginAvatar {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    object-fit: cover;
+    flex-shrink: 0;
+}
+
+.agentOriginName {
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+.agentOriginBody {
+    white-space: pre-wrap;
+    font-size: 13px;
+    line-height: 1.6;
+}
+
+.agentOriginBodyCollapsed {
+    max-height: calc(1.6em * 12);
+    overflow: hidden;
+}
+
+.agentOriginToggle {
+    margin-top: var(--space-8);
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: 12px;
+    padding: 0;
+}
+
 .interludeTrigger {
     width: min(100%, 680px);
     min-width: 0;

@@ -3321,6 +3321,9 @@
     "openInSystemBrowser": "用系统浏览器打开"
   },
   "sessionCollab": {
-    "messagePrefix": "[来自 Agent「{name}」的消息，非用户本人]"
+    "messagePrefix": "[来自 Agent「{name}」的消息，非用户本人]",
+    "fromAgent": "来自 {name} 的消息",
+    "expand": "展开",
+    "collapse": "收起"
   }
 }

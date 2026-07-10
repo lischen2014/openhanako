@@ -3321,6 +3321,9 @@
     "mediaNoDisplayableFiles": "Generation result has no displayable files"
   },
   "sessionCollab": {
-    "messagePrefix": "[Message from agent \"{name}\", not the user]"
+    "messagePrefix": "[Message from agent \"{name}\", not the user]",
+    "fromAgent": "Message from {name}",
+    "expand": "Expand",
+    "collapse": "Collapse"
   }
 }
