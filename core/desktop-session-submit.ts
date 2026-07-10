@@ -74,7 +74,7 @@ function consumeRenderedReminderBlock(engine: any, sessionPath: string, rendered
  * 持久化非桌面来源的消息 origin。写失败只告警不阻断：来源标注是辅助
  * 元数据，不能因为它写不进去就丢掉用户消息本身。
  */
-function recordMessageOriginEntry(session: any, sessionPath: string, displayMessage: any): void {
+export function recordMessageOriginEntry(session: any, sessionPath: string, displayMessage: any): void {
   const source = displayMessage?.source;
   if (!source || source === "desktop") return;
   try {
@@ -86,6 +86,7 @@ function recordMessageOriginEntry(session: any, sessionPath: string, displayMess
       source,
       bridgeSessionKey: displayMessage?.bridgeSessionKey || null,
       timestamp: Date.now(),
+      ...(displayMessage?.origin ? { origin: displayMessage.origin, displayText: displayMessage?.text ?? null } : {}),
     });
   } catch (err) {
     console.warn(`[desktop-session-submit] message origin write failed for ${sessionPath}: ${err?.message || err}`);
@@ -223,6 +224,7 @@ export async function submitDesktopSessionMessage(engine: any, opts: {
         deskContext: displayMessage?.deskContext ?? null,
         source: displayMessage?.source || "desktop",
         bridgeSessionKey: displayMessage?.bridgeSessionKey || null,
+        origin: displayMessage?.origin || null,
       },
     }, sessionPath);
     queueVoiceInputTranscriptions({
@@ -411,6 +413,7 @@ export async function submitDesktopSessionInterjection(engine: any, opts: {
       deskContext: displayMessage?.deskContext ?? null,
       source: displayMessage?.source || "desktop",
       bridgeSessionKey: displayMessage?.bridgeSessionKey || null,
+      origin: displayMessage?.origin || null,
     },
   }, sessionPath);
   queueVoiceInputTranscriptions({

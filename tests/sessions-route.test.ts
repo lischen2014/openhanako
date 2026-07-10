@@ -52,6 +52,9 @@ vi.mock("../core/message-utils.js", () => ({
   isActiveSessionPath: vi.fn(() => true),
   isActiveDesktopSessionPath: vi.fn(() => true),
   isArchivedDesktopSessionPath: vi.fn(() => true),
+  // 本文件的测试不构造 hana-message-origin 条目，恒等直通即等价于真实实现
+  // （annotateOriginMessages 只在遇到该 customType 时才会摘除/注释条目）。
+  annotateOriginMessages: vi.fn((messages) => messages || []),
 }));
 
 vi.mock("../core/session-turn-actions.js", () => ({

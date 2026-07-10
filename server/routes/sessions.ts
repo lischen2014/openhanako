@@ -39,7 +39,9 @@ import {
   isValidSessionPath,
   isActiveDesktopSessionPath,
   isArchivedDesktopSessionPath,
+  annotateOriginMessages,
 } from "../../core/message-utils.ts";
+import { MESSAGE_ORIGIN_RECORD_TYPE } from "../../core/desktop-session-submit.ts";
 import { sessionFileRevision } from "../../core/session-list-projection-cache.ts";
 import {
   extractLatestTodos,
@@ -1180,6 +1182,30 @@ export function createSessionsRoute(engine, hub = null) {
       // 标成「已同步」会让 /rc 消息永久漏掉，issue #1610 的反方向竞态）。
       const revision = await readSessionFileRevision(resolvedSessionPath);
       const sourceMessages = await loadSessionHistoryMessages(engine, resolvedSessionPath);
+      // annotateOriginMessages 会把 origin custom 条目从数组里摘掉、把 origin/displayText
+      // 并进其后第一条 user 消息。下面的主展示循环大量以 sourceIndex 回查
+      // sourceMessages[sourceIndex]（nextImmediateDisplayableAssistantIndex、
+      // recordDeferredInterlude 等），如果直接把循环换成过滤后的短数组，sourceIndex
+      // 会和 sourceMessages 错位，静默污染 deferred/subagent 块的归属。这里改用
+      // zip 只取 annotateOriginMessages 的注释结果、映射回原始下标，循环本身仍遍历
+      // 原始 sourceMessages，不破坏既有 sourceIndex 语义。
+      const originBySourceIndex = new Map();
+      {
+        const annotatedMessages = annotateOriginMessages(sourceMessages);
+        let annotatedIdx = 0;
+        for (let i = 0; i < sourceMessages.length; i += 1) {
+          const original = sourceMessages[i];
+          if (original?.role === "custom" && original.customType === MESSAGE_ORIGIN_RECORD_TYPE) continue;
+          const annotated = annotatedMessages[annotatedIdx];
+          annotatedIdx += 1;
+          if (original?.role === "user" && annotated?.origin) {
+            originBySourceIndex.set(i, {
+              origin: annotated.origin,
+              ...(typeof annotated.displayText === "string" ? { displayText: annotated.displayText } : {}),
+            });
+          }
+        }
+      }
       const sanitizeVisibleContent = isBridgeSessionPath(resolvedSessionPath)
         ? sanitizeBridgeVisibleText
         : (value) => (typeof value === "string" ? value : "");
@@ -1309,6 +1335,7 @@ export function createSessionsRoute(engine, hub = null) {
             const { text, images } = extractTextContent(m.content);
             const visibleImages = filterUnreferencedInlineImages(text, images);
             const content = sanitizeVisibleContent(text);
+            const originInfo = originBySourceIndex.get(sourceIndex);
             messages.push({
               id: String(currentIndex),
               sourceIndex,
@@ -1317,6 +1344,8 @@ export function createSessionsRoute(engine, hub = null) {
               content,
               images: visibleImages.length ? visibleImages : undefined,
               ...(m.timestamp ? { timestamp: m.timestamp } : {}),
+              ...(originInfo?.origin ? { origin: originInfo.origin } : {}),
+              ...(typeof originInfo?.displayText === "string" ? { displayText: originInfo.displayText } : {}),
             });
           }
         } else if (m.role === "assistant") {

@@ -9,6 +9,7 @@ import { isToolCallBlock, getToolArgs } from "./llm-utils.ts";
 import { SessionManager } from "../lib/pi-sdk/index.ts";
 import { isSessionJsonlFilename } from "../lib/session-jsonl.ts";
 import { DEFERRED_RESULT_RECORD_TYPE } from "../lib/deferred-result-notification.ts";
+import { MESSAGE_ORIGIN_RECORD_TYPE } from "./desktop-session-submit.ts";
 import {
   TURN_INPUT_CONSUMPTION_EVENT_TYPE,
   TURN_INPUT_PRESENTATION_EVENT_TYPE,
@@ -163,6 +164,7 @@ function historyMessageFromEntry(entry) {
       entry.customType === DEFERRED_RESULT_RECORD_TYPE
       || entry.customType === TURN_INPUT_PRESENTATION_EVENT_TYPE
       || entry.customType === TURN_INPUT_CONSUMPTION_EVENT_TYPE
+      || entry.customType === MESSAGE_ORIGIN_RECORD_TYPE
     )
   ) {
     const message: Record<string, any> = {
@@ -176,6 +178,30 @@ function historyMessageFromEntry(entry) {
     return message;
   }
   return null;
+}
+
+/** origin custom 条目注释其后第一条 user 消息（契约见 desktop-session-submit recordMessageOriginEntry）。返回过滤掉 origin 条目的新数组。 */
+export function annotateOriginMessages(messages) {
+  const out = [];
+  let pendingOrigin = null;
+  for (const m of messages || []) {
+    if (m?.role === "custom" && m.customType === MESSAGE_ORIGIN_RECORD_TYPE) {
+      pendingOrigin = m.data || null;
+      continue;
+    }
+    if (m?.role === "user" && pendingOrigin?.origin) {
+      out.push({
+        ...m,
+        origin: pendingOrigin.origin,
+        ...(typeof pendingOrigin.displayText === "string" ? { displayText: pendingOrigin.displayText } : {}),
+      });
+      pendingOrigin = null;
+      continue;
+    }
+    if (m?.role === "user") { pendingOrigin = null; }
+    out.push(m);
+  }
+  return out;
 }
 
 async function looksLikePiSessionFile(sessionPath) {
