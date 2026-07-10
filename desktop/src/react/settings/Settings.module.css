@@ -67,14 +67,15 @@
 
 .settings-header-modal {
     display: grid;
-    /* 第二列必须用 1fr，不能写 minmax(0, 640px/960px)：
-       固定 px max track 会抬高 flex 子项的 min-content，把 884px 设置弹窗撑宽
-       （供应商 / 插件市场标 wide 时尤其明显）。内容区宽度仍由 settings-main 的 max-width 约束。 */
-    grid-template-columns: calc(var(--settings-nav-width, 160px) + var(--settings-main-x-padding, var(--space-40))) minmax(0, 1fr);
+    grid-template-columns: calc(var(--settings-nav-width, 160px) + var(--settings-main-x-padding, var(--space-40))) minmax(0, 640px);
     align-items: center;
     padding: var(--space-24) 0 var(--space-16);
     gap: 0;
     -webkit-app-region: no-drag;
+}
+
+.settings-panel-wide.settings-panel-modal .settings-header-modal {
+    grid-template-columns: calc(var(--settings-nav-width, 160px) + var(--settings-main-x-padding, var(--space-40))) minmax(0, 960px);
 }
 
 .settings-return-btn {
@@ -329,6 +330,8 @@
 .settings-main > .settings-tab-content {
     width: 100%;
     max-width: 640px;
+    min-width: 0;
+    overflow-x: hidden;
 }
 
 .settings-main-wide > .settings-tab-title,
@@ -2128,6 +2131,8 @@
     outline: none;
     transition: border-color var(--duration-slow) var(--ease-out);
     width: 100%;
+    min-width: 0;
+    max-width: 100%;
 }
 
 .settings-input:focus {
@@ -4117,6 +4122,8 @@ a.about-link:hover {
     display: flex;
     gap: 0;
     height: 420px;
+    max-width: 100%;
+    min-width: 0;
     background: var(--bg-card, var(--bg));
     border: 1px solid var(--overlay-light);
     border-radius: var(--radius-card, 8px);
@@ -5002,6 +5009,10 @@ a.about-link:hover {
     font-weight: 600;
     margin: 0;
     color: var(--text);
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .pv-empty {

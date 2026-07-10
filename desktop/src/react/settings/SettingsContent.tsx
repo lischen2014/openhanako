@@ -206,7 +206,8 @@ export function SettingsContent({
   const activeTabTitle = tabTitleKey ? t(tabTitleKey) : titleToLabel(dynamicTab?.title);
   const activeTabDescriptionKey = TAB_DESCRIPTION_KEYS[effectiveActiveTab];
   const activeTabDescription = activeTabDescriptionKey ? t(activeTabDescriptionKey) : '';
-  const isWideTab = effectiveActiveTab === 'plugin-marketplace' || effectiveActiveTab === 'providers';
+  // 仅插件市场走 wide（弹窗壳 data-wide=1200）。供应商留在 640，避免 960 轨道把 884 壳撑破。
+  const isWideTab = effectiveActiveTab === 'plugin-marketplace';
 
   const reportActiveTabChange = useCallback((tab: string) => {
     const nextTab = normalizeSettingsTab(tab);

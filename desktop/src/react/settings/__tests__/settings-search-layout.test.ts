@@ -26,27 +26,38 @@ describe('settings search sidebar layout', () => {
   });
 });
 
-describe('settings providers wide layout does not stretch the modal', () => {
-  it('uses a flexible header main column instead of a 960px intrinsic max track', () => {
+describe('settings page width contract', () => {
+  it('keeps the normal header column capped at 640px, not 1fr', () => {
     const css = readProjectFile('desktop/src/react/settings/Settings.module.css');
     const header = cssRule(css, '.settings-header-modal');
 
-    // Fixed px max tracks (640/960) inflate the flex item min-content and stretch
-    // the 884px settings modal when providers/plugin-marketplace are marked wide.
-    expect(header).toMatch(/minmax\(0,\s*1fr\)/);
-    expect(header).not.toMatch(/minmax\(0,\s*640px\)/);
-    expect(css).not.toMatch(
-      /\.settings-panel-wide\.settings-panel-modal\s+\.settings-header-modal\s*\{[^}]*minmax\(0,\s*960px\)/,
+    expect(header).toMatch(/minmax\(0,\s*640px\)/);
+    expect(header).not.toMatch(/minmax\(0,\s*1fr\)/);
+  });
+
+  it('keeps normal tab content at a hard 640px max and clips horizontal overflow', () => {
+    const css = readProjectFile('desktop/src/react/settings/Settings.module.css');
+
+    expect(css).toMatch(
+      /\.settings-main\s*>\s*\.settings-tab-content\s*\{[^}]*max-width:\s*640px;[^}]*overflow-x:\s*hidden;/s,
     );
   });
 
-  it('caps the settings modal card so content cannot grow past the designed width', () => {
+  it('does not mark providers as a wide settings tab', () => {
+    const source = readProjectFile('desktop/src/react/settings/SettingsContent.tsx');
+    const shell = readProjectFile('desktop/src/react/components/SettingsModalShell.tsx');
+
+    expect(source).toMatch(/isWideTab = effectiveActiveTab === 'plugin-marketplace';/);
+    expect(source).not.toMatch(/isWideTab = .*providers/);
+    expect(shell).toMatch(/isWideSettingsPage = settingsModal\.activeTab === 'plugin-marketplace';/);
+    expect(shell).not.toMatch(/activeTab === 'providers'/);
+  });
+
+  it('does not allow the modal card to flex-shrink via min-width: 0', () => {
     const css = readProjectFile('desktop/src/react/components/SettingsModalShell.module.css');
     const card = cssRule(css, '.card');
-    const wideCard = cssRule(css, '.card[data-wide="true"]');
 
-    expect(card).toMatch(/min-width:\s*0;/);
-    expect(card).toMatch(/max-width:\s*min\(884px,\s*calc\(100vw - 2 \* var\(--space-24\)\)\);/);
-    expect(wideCard).toMatch(/max-width:\s*min\(1200px,\s*calc\(100vw - var\(--space-24\) - var\(--space-24\)\)\);/);
+    expect(card).not.toMatch(/min-width:\s*0;/);
+    expect(card).toMatch(/max-width:\s*min\(884px,/);
   });
 });
