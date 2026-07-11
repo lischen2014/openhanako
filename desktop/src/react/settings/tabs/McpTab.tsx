@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useSettingsStore } from '../store';
 import { t } from '../helpers';
 import { SettingsSection } from '../components/SettingsSection';
-import { Toggle } from '../widgets/Toggle';
+import { Toggle } from '@/ui';
 import { AgentConnectorControls } from './mcp/AgentConnectorControls';
 import { ConnectorForm } from './mcp/ConnectorForm';
 import { ConnectorList } from './mcp/ConnectorList';
@@ -159,7 +159,7 @@ export function McpTab() {
         </div>
       </SettingsSection>
 
-      <SettingsSection title={t('settings.mcp.connectorsTitle')} variant="flush">
+      <SettingsSection title={t('settings.mcp.connectorsTitle')} surface="plain">
         <div className={styles['pv-add-form-actions']}>
           <button
             className={styles['pv-add-form-btn']}

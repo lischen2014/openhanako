@@ -271,6 +271,7 @@ import {
   ensureSession,
   loadMessages,
   loadSessions,
+  pendingNewSessionIdentityPatch,
   pinSession,
   reconcileCurrentSessionMessages,
   refreshSessionCapabilities,
@@ -566,6 +567,21 @@ function mockPermissionDefault(mode = 'ask') {
       6000,
     );
     expect(mockState.currentSessionPath).toBe(newPath);
+  });
+
+  describe('pendingNewSessionIdentityPatch (#2101)', () => {
+    it('returns a patch with pendingNewSession true and a non-empty pendingDraftId', () => {
+      const patch = pendingNewSessionIdentityPatch();
+      expect(patch.pendingNewSession).toBe(true);
+      expect(typeof patch.pendingDraftId).toBe('string');
+      expect(patch.pendingDraftId.length).toBeGreaterThan(0);
+    });
+
+    it('generates a distinct pendingDraftId on every call', () => {
+      const first = pendingNewSessionIdentityPatch();
+      const second = pendingNewSessionIdentityPatch();
+      expect(first.pendingDraftId).not.toBe(second.pendingDraftId);
+    });
   });
 
   describe('createNewSession cwd draft', () => {

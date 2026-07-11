@@ -1,44 +1,70 @@
 /**
  * fix-modules.cjs — electron-builder afterPack 钩子
  *
- * electron-builder 的依赖分析有时会漏掉新的子依赖。
- * 这个脚本在打包后重建独立 server 的 node_modules，并检查启动期
- * 必需的外部依赖已经落进最终资源目录。
+ * 职责（启用双 artifact 管线后）：
+ * 1. 校验 extraResources 落地的 seed/ 四件套齐全（renderer 归档 + server 归档 +
+ *    manifest + .sig），归档文件名以 manifest 内容为准 —— extraResources 配置
+ *    被误改时在构建机上炸，不留到用户首启。
+ * 2. 补全 electron-builder 依赖分析漏掉的 app asar 生产依赖，并清理
+ *    node_modules/.bin（绝对 symlink 会让 codesign 报错）。
+ *
+ * 历史：后台更新路径 之前这里还负责把 dist-server 的 node_modules 整树复制进
+ * Resources/server/（extraResources 会过滤 node_modules）。server 树现在
+ * 以单个签名归档进箱、首启在 HANA_HOME 解压，该机器整块删除。双 artifact 路径 起
+ * renderer 树也拆出 asar，走同一份 seed manifest、同一条校验逻辑。
  */
 
 const { execSync } = require("child_process");
 const fs = require("fs");
 const path = require("path");
-const {
-  CRITICAL_BUNDLED_EXTERNALS,
-} = require("../desktop/src/shared/server-readiness.cjs");
 
-const SERVER_NODE_MODULE_REQUIRED_FILES = [
-  ...CRITICAL_BUNDLED_EXTERNALS.map((pkg) => `${pkg}/package.json`),
-  "better-sqlite3/build/Release/better_sqlite3.node",
-];
+/**
+ * 校验 Resources/seed/ 携带完整 seed 四件套（renderer 归档 + server 归档 +
+ * manifest + .sig，启用双 artifact 管线后安装包不再只带 server）。只做存在性
+ * 与结构检查——签名校验是运行时首启的职责（同一代码路径），这里挡的是
+ * 构建配置错误。
+ * @param {string} resourcesDir
+ */
+function assertSeedResourcesReady(resourcesDir) {
+  const seedDir = path.join(resourcesDir, "seed");
+  const manifestPath = path.join(seedDir, "seed-train.json");
+  const sigPath = `${manifestPath}.sig`;
+  if (!fs.existsSync(manifestPath)) {
+    throw new Error(
+      `[fix-modules] seed manifest missing from packaged resources: ${manifestPath}. `
+        + "Run npm run build:server (with HANA_SIGN_KEY) before electron-builder.",
+    );
+  }
+  if (!fs.existsSync(sigPath)) {
+    throw new Error(`[fix-modules] seed manifest signature missing: ${sigPath}`);
+  }
+  const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
 
-function resolveNodeModuleFile(nodeModulesDir, relativePath) {
-  return path.join(nodeModulesDir, ...relativePath.split("/"));
-}
-
-function missingBundledServerNodeModuleFiles(nodeModulesDir) {
-  const missing = [];
-  for (const relativePath of SERVER_NODE_MODULE_REQUIRED_FILES) {
-    try {
-      fs.accessSync(resolveNodeModuleFile(nodeModulesDir, relativePath), fs.constants.R_OK);
-    } catch {
-      missing.push(`node_modules/${relativePath}`);
+  const serverEntries = Object.values(manifest?.artifacts?.server || {});
+  if (serverEntries.length === 0) {
+    throw new Error(
+      `[fix-modules] seed manifest carries no server artifact entries: ${manifestPath}`,
+    );
+  }
+  for (const entry of serverEntries) {
+    const archivePath = path.join(seedDir, entry.path);
+    if (!fs.existsSync(archivePath)) {
+      throw new Error(
+        `[fix-modules] seed archive referenced by the manifest is missing: ${entry.path} (expected at ${archivePath})`,
+      );
     }
   }
-  return missing;
-}
 
-function assertBundledServerNodeModulesReady(nodeModulesDir) {
-  const missing = missingBundledServerNodeModuleFiles(nodeModulesDir);
-  if (missing.length > 0) {
+  const rendererEntry = manifest?.artifacts?.renderer;
+  if (!rendererEntry) {
     throw new Error(
-      `[fix-modules] Packaged server node_modules is incomplete: ${missing.join(", ")}`,
+      `[fix-modules] seed manifest carries no renderer artifact entry: ${manifestPath}`,
+    );
+  }
+  const rendererArchivePath = path.join(seedDir, rendererEntry.path);
+  if (!fs.existsSync(rendererArchivePath)) {
+    throw new Error(
+      `[fix-modules] renderer seed archive referenced by the manifest is missing: ${rendererEntry.path} (expected at ${rendererArchivePath})`,
     );
   }
 }
@@ -75,34 +101,6 @@ function removeNodeModulesBinDirs(nodeModulesDir) {
   return removedDirs;
 }
 
-function copyBundledServerNodeModules(serverDir, serverBuildModules, opts = {}) {
-  if (!fs.existsSync(serverDir)) {
-    throw new Error(
-      `[fix-modules] Packaged server directory is missing: ${serverDir}. ` +
-      "Run npm run build:server before electron-builder.",
-    );
-  }
-
-  if (!fs.existsSync(serverBuildModules)) {
-    throw new Error(
-      `[fix-modules] Built server node_modules is missing: ${serverBuildModules}. ` +
-      "Run npm run build:server before electron-builder.",
-    );
-  }
-
-  const serverNodeModules = path.join(serverDir, "node_modules");
-  fs.rmSync(serverNodeModules, { recursive: true, force: true });
-  fs.cpSync(serverBuildModules, serverNodeModules, { recursive: true });
-  const removedBinDirs = removeNodeModulesBinDirs(serverNodeModules);
-  assertBundledServerNodeModulesReady(serverNodeModules);
-
-  const log = typeof opts.log === "function" ? opts.log : console.log;
-  log(`[fix-modules] 重建 server node_modules → ${serverNodeModules}`);
-  if (removedBinDirs > 0) {
-    log(`[fix-modules] 清理 server node_modules 中 ${removedBinDirs} 个 .bin 目录`);
-  }
-}
-
 exports.default = async function (context) {
   const platformName = context.packager.platform.name;
   const arch = context.arch === 1 ? "x64" : context.arch === 3 ? "arm64" : "x64";
@@ -133,11 +131,9 @@ exports.default = async function (context) {
       throw new Error(`[fix-modules] Computer Use helper is not executable: ${computerUseHelper}`);
     }
   }
-  const serverDir = path.join(resourcesDir, "server");
-  const osDirName = platformName === "mac" ? "mac" : platformName === "windows" ? "win" : "linux";
-  const serverBuildModules = path.join(__dirname, "..", "dist-server", `${osDirName}-${arch}`, "node_modules");
-
-  copyBundledServerNodeModules(serverDir, serverBuildModules);
+  // ── seed 四件套校验（renderer + server 树以签名归档进箱，双 artifact 管线）──
+  assertSeedResourcesReady(resourcesDir);
+  console.log("[fix-modules] seed resources verified (renderer archive + server archive + manifest + sig)");
 
   if (!fs.existsSync(distModules)) return;
 
@@ -199,7 +195,5 @@ exports.default = async function (context) {
   }
 };
 
-exports.SERVER_NODE_MODULE_REQUIRED_FILES = SERVER_NODE_MODULE_REQUIRED_FILES;
-exports.assertBundledServerNodeModulesReady = assertBundledServerNodeModulesReady;
-exports.copyBundledServerNodeModules = copyBundledServerNodeModules;
+exports.assertSeedResourcesReady = assertSeedResourcesReady;
 exports.removeNodeModulesBinDirs = removeNodeModulesBinDirs;

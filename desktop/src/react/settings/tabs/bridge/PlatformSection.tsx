@@ -4,9 +4,8 @@
  */
 import React, { useRef } from 'react';
 import { t } from '../../helpers';
-import { SelectWidget, type SelectOption } from '@/ui';
+import { SelectWidget, Toggle, type SelectOption } from '@/ui';
 import { KeyInput } from '../../widgets/KeyInput';
-import { Toggle } from '../../widgets/Toggle';
 import { BridgeStatusDot, BridgeStatusText, OwnerSelect } from './BridgeWidgets';
 import type { KnownUser } from './BridgeWidgets';
 import { SettingsSection } from '../../components/SettingsSection';

@@ -7,47 +7,47 @@
 .card {
     position: relative;
     display: flex;
-    align-items: flex-start;
-    gap: var(--space-8);
+    align-items: stretch;
     width: 100%;
-    padding: var(--space-8);
-    color: var(--text);
+    /* 卡片 token，跟黑板卡片同质感，任何主题/纹理组合下都不该有区别——
+       故意不叠加宣纸纹理覆盖规则（贴纸曾经是唯一的分歧点）。 */
     background: var(--bg-card);
     border: 1px solid var(--overlay-light);
     border-radius: var(--radius-lg);
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
     animation: hana-fade-up var(--duration-fast) var(--ease-out);
     overflow: hidden;
+    transition: background var(--duration-fast) var(--ease-out);
 }
 
-:global(body.paper-texture) .card {
-    background-image: url(../../../assets/textures/rice-paper.png);
-    background-repeat: repeat;
-    background-size: 160px;
-    background-attachment: fixed;
-    background-blend-mode: var(--paper-texture-card-blend-mode);
+.card:hover {
+    background: color-mix(in srgb, var(--bg-card) 88%, var(--accent) 6%);
 }
 
-.icon {
-    display: inline-flex;
+/* 整张贴纸 = 一颗按钮：点击即触发对应更新动作，没有独立的
+   内层动作按钮。 */
+.cardButton {
+    display: flex;
+    flex: 1;
     align-items: center;
-    justify-content: center;
-    align-self: center;
-    flex: 0 0 24px;
-    width: 24px;
-    height: 24px;
-    margin: 0 2px;
-    color: var(--accent);
-    background: rgba(var(--accent-rgb), 0.09);
-    border-radius: var(--radius-sm);
+    min-width: 0;
+    gap: var(--space-8);
+    padding: var(--space-8) var(--space-6) var(--space-8) var(--space-12);
+    color: inherit;
+    text-align: left;
+    background: transparent;
+    border: none;
+    cursor: default;
+    font: inherit;
 }
 
-.content {
+.textBlock {
     display: flex;
     flex: 1;
     min-width: 0;
     flex-direction: column;
-    gap: var(--space-4);
+    gap: 2px;
+    /* 给右上角的叉留出空间，不被标题行挤到 */
     padding-right: var(--space-16);
 }
 
@@ -59,38 +59,23 @@
     overflow-wrap: anywhere;
 }
 
-.actions {
-    display: flex;
-    align-items: center;
-    gap: var(--space-4);
-    margin-top: var(--space-4);
+.subtitle {
+    min-width: 0;
+    color: var(--text-muted);
+    font-family: var(--font-mono);
+    font-size: var(--fs-caption);
+    font-variant-numeric: tabular-nums;
 }
 
-.actionButton {
+.refreshIcon {
     display: inline-flex;
+    flex: 0 0 auto;
     align-items: center;
     justify-content: center;
-    gap: var(--space-4);
-    min-height: 24px;
-    padding: 0 var(--space-8);
-    color: var(--text);
-    background: transparent;
-    border: 1px solid color-mix(in srgb, var(--accent) 22%, transparent);
-    border-radius: 3px;
-    cursor: default;
-    font: inherit;
-    font-size: var(--fs-hint);
-    transition: color var(--duration-fast) var(--ease-out),
-                border-color var(--duration-fast) var(--ease-out),
-                background var(--duration-fast) var(--ease-out);
-}
-
-.actionButton:hover,
-.actionButton:focus-visible {
+    align-self: center;
+    width: 22px;
+    height: 22px;
     color: var(--accent);
-    background: rgba(var(--accent-rgb), 0.07);
-    border-color: color-mix(in srgb, var(--accent) 38%, transparent);
-    outline: none;
 }
 
 .closeButton {
@@ -108,10 +93,16 @@
     border: none;
     border-radius: 3px;
     cursor: default;
-    opacity: 0.66;
+    /* 保留关闭入口，但默认淡出；hover/focus 卡片时浮现。 */
+    opacity: 0;
     transition: opacity var(--duration-fast) var(--ease-out),
                 color var(--duration-fast) var(--ease-out),
                 background var(--duration-fast) var(--ease-out);
+}
+
+.card:hover .closeButton,
+.card:focus-within .closeButton {
+    opacity: 0.66;
 }
 
 .closeButton:hover,

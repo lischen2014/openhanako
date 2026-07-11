@@ -84,10 +84,47 @@ describe("manifest: parse/validate", () => {
     expect(() => validateManifest(manifest)).toThrow(/sha256/i);
   });
 
-  it("rejects missing renderer artifact entry", () => {
+  // Schema compatibility rule: `artifacts`
+  // requires AT LEAST ONE known kind; every present entry is fully
+  // validated; an absent kind is legal for legacy server-only seeds.
+  it("accepts a server-only manifest (no renderer entry)", () => {
     const manifest = baseManifest();
     delete (manifest.artifacts as any).renderer;
-    expect(() => validateManifest(manifest)).toThrow(/renderer/i);
+    expect(() => validateManifest(manifest)).not.toThrow();
+  });
+
+  it("accepts a renderer-only manifest (no server entry)", () => {
+    const manifest = baseManifest();
+    delete (manifest.artifacts as any).server;
+    expect(() => validateManifest(manifest)).not.toThrow();
+  });
+
+  it("rejects an empty artifacts object", () => {
+    const manifest = baseManifest({ artifacts: {} });
+    expect(() => validateManifest(manifest)).toThrow(/at least one/i);
+  });
+
+  it("rejects an unknown artifact kind", () => {
+    const manifest = baseManifest();
+    (manifest.artifacts as any).firmware = {
+      version: "1.0.0",
+      sha256: "d".repeat(64),
+      size: 1,
+      path: "firmware-1.0.0.tar.gz",
+    };
+    expect(() => validateManifest(manifest)).toThrow(/unknown/i);
+  });
+
+  it("rejects a present-but-empty server kind (a kind that is present must carry entries)", () => {
+    const manifest = baseManifest();
+    (manifest.artifacts as any).server = {};
+    expect(() => validateManifest(manifest)).toThrow(/server/i);
+  });
+
+  it("still fully validates a renderer entry when it is present", () => {
+    const manifest = baseManifest();
+    (manifest.artifacts as any).renderer.sha256 = "not-hex";
+    expect(() => validateManifest(manifest)).toThrow(/sha256/i);
   });
 });
 

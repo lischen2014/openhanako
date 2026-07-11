@@ -1,11 +1,78 @@
 /* ═══════════════════════════════════════════
  * 设置页共享结构组件样式
- * 对应 SETTINGS-SPEC.md v2
+ * 设置页共享布局契约
  * 该 CSS module 独立于 Settings.module.css
  * 迁移后的设置页结构样式只在共享组件里表达语义
  * ═══════════════════════════════════════════ */
 
 /* ─── Section ─── */
+
+.page {
+    display: block;
+    width: 100%;
+    min-width: 0;
+    overflow-x: hidden;
+}
+
+.surface {
+    width: 100%;
+    min-width: 0;
+}
+
+.surfaceCard {
+    display: flex;
+    flex-direction: column;
+    background: var(--bg-card);
+    border: var(--border-width, 1px) solid var(--border);
+    border-radius: var(--radius-card, 8px);
+}
+
+.surfacePlain {
+    background: none;
+    border: none;
+    border-radius: 0;
+}
+
+.stack,
+.inline,
+.grid {
+    min-width: 0;
+}
+
+.stack {
+    display: flex;
+    flex-direction: column;
+}
+
+.inline {
+    display: flex;
+}
+
+.inlineWrap {
+    flex-wrap: wrap;
+}
+
+.grid {
+    display: grid;
+}
+
+.grid-1 { grid-template-columns: minmax(0, 1fr); }
+.grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+
+.gap-xs { gap: var(--space-4); }
+.gap-sm { gap: var(--space-8); }
+.gap-md { gap: var(--space-16); }
+.gap-lg { gap: var(--space-24); }
+.gap-xl { gap: var(--space-40); }
+
+.align-start { align-items: flex-start; }
+.align-center { align-items: center; }
+.align-end { align-items: flex-end; }
+.justify-start { justify-content: flex-start; }
+.justify-center { justify-content: center; }
+.justify-between { justify-content: space-between; }
+.justify-end { justify-content: flex-end; }
 
 .section {
     margin-bottom: var(--space-40);
@@ -33,7 +100,7 @@
     color: var(--text);
     letter-spacing: 0.05em;
     margin: 0;
-    /* SPEC §4.1：左对齐，不画装饰线。整体 margin-bottom 由 sectionHeader 承担 */
+    /* 左对齐，不画装饰线；整体 margin-bottom 由 sectionHeader 承担。 */
 }
 
 .sectionContext {
@@ -58,21 +125,10 @@
 .sectionBody {
     display: flex;
     flex-direction: column;
-    background: var(--bg-card);
-    border: var(--border-width, 1px) solid var(--border);
-    border-radius: var(--radius-card, 8px);
     /* 左右 padding 移到 row/warning 自己上，让分隔线能贴卡片 border */
 }
 
-.sectionCard {
-    display: flex;
-    flex-direction: column;
-    background: var(--bg-card);
-    border: var(--border-width, 1px) solid var(--border);
-    border-radius: var(--radius-card, 8px);
-}
-
-.sectionBody > .sectionCard:not(:first-child) {
+.sectionBody > .surface:not(:first-child) {
     margin-top: var(--space-16);
 }
 
@@ -90,15 +146,6 @@
     text-align: center;
 }
 
-/* Variant 覆盖：hero / double-column / flush 不加卡片背景 */
-.sectionHero .sectionBody,
-.sectionDoubleColumn .sectionBody,
-.sectionFlush .sectionBody {
-    background: none;
-    border: none;
-    padding: 0;
-}
-
 .sectionHero .sectionBody {
     align-items: center;
 }
@@ -108,19 +155,14 @@
     /* pv-layout 内部保留原样式，这里只做外壳 */
 }
 
-/* Flush variant：内部已自带视觉容器（如 theme-options、input/textarea），不需要外层卡片 */
-.sectionFlush {
-    /* body 不加卡片 */
-}
-
-/* flush 下 row 不做左右 inset（无卡片容器需要内缩），也不画 row + row divider
+/* Plain surface 下 row 不做左右 inset（无卡片容器需要内缩），也不画 row + row divider
  * （字段本身就是独立视觉元素，靠自身的 border/bg 分隔，不需要水平线） */
-.sectionFlush > .sectionBody > .row {
+.sectionPlain > .sectionBody > .row {
     padding-left: 0;
     padding-right: 0;
 }
 
-.sectionFlush > .sectionBody > .row + .row::before {
+.sectionPlain > .sectionBody > .row + .row::before {
     display: none;
 }
 
@@ -299,7 +341,7 @@
     gap: var(--space-8);
 }
 
-/* ─── NumberInput（SPEC §3.6 Number-Unit Row 用）─── */
+/* ─── NumberInput（布局约束 Number-Unit Row 用）─── */
 
 .numberInput {
     display: flex;

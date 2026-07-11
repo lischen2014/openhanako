@@ -2,10 +2,9 @@
 /**
  * scripts/artifact-keygen.mjs
  *
- * Generates an ed25519 keypair for signing SWIFT artifact train manifests
- * (.docs/book/swift/work-items/c2-pipeline-design-v0.md §4). Run once per
+ * Generates an ed25519 keypair for signing artifact train manifests. Run once per
  * key ceremony. The private key must NEVER be committed — it goes to
- * offline storage, later to `openhanako-dev` Actions secrets (C5).
+ * offline storage, later to the designated Actions secret store.
  *
  * Usage:
  *   node scripts/artifact-keygen.mjs --out <private-key-path> [--key-id <id>]

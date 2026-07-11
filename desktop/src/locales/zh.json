@@ -913,7 +913,11 @@
       "{name} 闻到了某个下午的橘子味",
       "那些对话还带着体温"
     ],
-    "installing": "{name} 正在更新到 v{version}，请稍候……"
+    "installing": "{name} 正在更新到 v{version}，请稍候……",
+    "preparing": {
+      "named": "{name} 正在准备新家……",
+      "anonymous": "你的助手正在准备新家……"
+    }
   },
   "settings": {
     "title": "设置",
@@ -1294,6 +1298,17 @@
       "updateInstallManualHint": "点「重启更新」后安装，直接退出不会自动安装",
       "updateInstall": "重启更新",
       "updateInstallNow": "重启立即更新",
+      "updateApply": "更新",
+      "updateApplyAutoHint": "不点击也会在下次启动时自动生效",
+      "trainStickerTitle": "新版本已就绪",
+      "shellStickerTitle": "平台更新可用，需重启",
+      "shellStickerTitleBlocking": "完成此更新后才能继续接收新版本",
+      "updateHistoryTitle": "更新历史",
+      "updateHistorySubtitle": "最近 5 个已发布版本",
+      "updateHistoryLoading": "正在读取更新历史…",
+      "updateHistoryOffline": "暂时无法连接发布网站，当前展示随应用保存的版本。",
+      "updateHistoryPartial": "目前只找到部分带有更新说明的版本。",
+      "updateHistoryUnavailable": "暂时无法读取更新历史，请稍后再试。",
       "updateProgress": "{percent}%",
       "updateError": "检查更新失败",
       "updateLatest": "已是最新版本",
@@ -2864,7 +2879,8 @@
     "tray": {
       "show": "显示 HanaAgent",
       "settings": "设置",
-      "quit": "退出"
+      "quit": "退出",
+      "repairArtifacts": "修复组件…"
     },
     "dialog": {
       "selectFolder": "选择工作文件夹",
@@ -2880,10 +2896,16 @@
       "serverFilesNotReady": "自动更新刚完成，新版本文件还在落地（缺少 {missing}），已等待 {waited}s 仍未就绪。请稍后重新启动 HanaAgent。",
       "serverModuleMissing": "Server 启动时找不到模块 {module}。\n通常是自动更新刚完成、新版本文件还在写入磁盘导致的。\n建议：等待 1-2 分钟后重新启动 HanaAgent；若反复出现，请前往 GitHub 反馈。",
       "installFailedTitle": "HanaAgent 更新",
-      "installFailedBody": "更新安装失败：\n{error}\n\n请重启 HanaAgent 后重试，或前往设置页面手动检查更新。"
+      "installFailedBody": "更新安装失败：\n{error}\n\n请重启 HanaAgent 后重试，或前往设置页面手动检查更新。",
+      "repairArtifactsTitle": "修复组件",
+      "repairArtifactsBody": "此操作会把 HanaAgent 的应用组件重置为安装包自带的版本，并重启应用。你的数据（助手、会话、设置）不受影响。",
+      "repairArtifactsConfirm": "修复并重启",
+      "repairArtifactsCancel": "取消",
+      "trainUpdateApplyFailedBody": "HanaAgent v{version}\n\n更新应用失败：\n{error}\n\n请重新启动应用。"
     },
     "notification": {
-      "ready": "通知已就绪"
+      "ready": "通知已就绪",
+      "componentQuarantined": "组件已自动回退到上一版本，功能不受影响"
     }
   },
   "devtools": {

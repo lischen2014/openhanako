@@ -3,7 +3,7 @@ import { hanaFetch } from '../api';
 import { t } from '../helpers';
 import { SettingsSection } from '../components/SettingsSection';
 import { SettingsRow } from '../components/SettingsRow';
-import { Toggle } from '../widgets/Toggle';
+import { Toggle } from '@/ui';
 import { useSettingsStore } from '../store';
 import { updateSettingsSnapshot } from '../actions';
 import styles from '../Settings.module.css';

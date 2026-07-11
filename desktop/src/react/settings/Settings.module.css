@@ -12,6 +12,14 @@
     background-color: var(--bg);
 }
 
+.settings-content-root {
+    width: 100%;
+    height: 100%;
+    min-width: 0;
+    min-height: 0;
+    flex: 1 1 auto;
+}
+
 .settings-panel-modal {
     --settings-nav-width: 180px;
     --settings-main-x-padding: var(--space-40);
@@ -67,15 +75,11 @@
 
 .settings-header-modal {
     display: grid;
-    grid-template-columns: calc(var(--settings-nav-width, 160px) + var(--settings-main-x-padding, var(--space-40))) minmax(0, 640px);
+    grid-template-columns: calc(var(--settings-nav-width, 160px) + var(--settings-main-x-padding, var(--space-40))) minmax(0, 1fr);
     align-items: center;
-    padding: var(--space-24) 0 var(--space-16);
+    padding: var(--space-24) var(--settings-main-x-padding, var(--space-40)) var(--space-16) 0;
     gap: 0;
     -webkit-app-region: no-drag;
-}
-
-.settings-panel-wide.settings-panel-modal .settings-header-modal {
-    grid-template-columns: calc(var(--settings-nav-width, 160px) + var(--settings-main-x-padding, var(--space-40))) minmax(0, 960px);
 }
 
 .settings-return-btn {
@@ -327,17 +331,11 @@
 
 .settings-main > .settings-tab-title,
 .settings-main > .settings-tab-heading,
-.settings-main > .settings-tab-content {
+.settings-main > [data-settings-page] {
     width: 100%;
-    max-width: 640px;
+    max-width: 100%;
     min-width: 0;
     overflow-x: hidden;
-}
-
-.settings-main-wide > .settings-tab-title,
-.settings-main-wide > .settings-tab-heading,
-.settings-main-wide > .settings-tab-content {
-    max-width: 960px;
 }
 
 .settings-panel-modal .settings-main::before {
@@ -1758,6 +1756,131 @@
     text-align: center;
 }
 
+.settings-form-actions-center {
+    align-items: center;
+}
+
+.settings-section-inset {
+    padding: var(--space-8) var(--space-16);
+}
+
+.settings-page-primary-action {
+    display: flex;
+    justify-content: center;
+    margin-top: var(--space-16);
+}
+
+.settings-empty-inset {
+    margin: 0;
+    padding: var(--space-16);
+}
+
+.settings-section-lead {
+    margin: 0 0 var(--space-16);
+    color: var(--text-muted);
+    font-size: var(--fs-hint);
+    line-height: 1.4;
+}
+
+.settings-section-hint {
+    margin-bottom: var(--space-8);
+    color: var(--text-muted);
+    font-size: var(--fs-hint);
+    line-height: 1.5;
+    white-space: pre-line;
+}
+
+.settings-credential-status {
+    display: flex;
+    align-items: center;
+    gap: var(--space-6);
+    margin-bottom: var(--space-16);
+    color: var(--text-muted);
+    font-size: var(--fs-caption);
+}
+
+.settings-credential-dot {
+    display: inline-block;
+    width: var(--space-6);
+    height: var(--space-6);
+    flex-shrink: 0;
+    border-radius: 50%;
+    background: var(--text-muted);
+}
+
+.settings-credential-dot.on {
+    background: var(--success);
+}
+
+.settings-default-badge {
+    flex-shrink: 0;
+    padding: var(--border-width, 1px) var(--space-6);
+    border-radius: var(--space-4);
+    background: var(--accent-light);
+    color: var(--accent);
+    font-size: 0.6rem;
+    font-weight: 500;
+}
+
+.media-defaults {
+    margin-top: var(--space-16);
+    padding-top: var(--space-16);
+    border-top: 1px solid var(--overlay-light);
+}
+
+.media-defaults-title {
+    margin-bottom: var(--space-10);
+    color: var(--text-secondary);
+    font-size: var(--fs-caption);
+    font-weight: 600;
+}
+
+.media-defaults-stack,
+.media-config-field {
+    display: flex;
+    flex-direction: column;
+}
+
+.media-defaults-stack,
+.media-config-grid {
+    gap: var(--space-12);
+}
+
+.media-config-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.media-config-grid-single {
+    grid-template-columns: minmax(0, 1fr);
+}
+
+.media-config-field {
+    gap: var(--space-4);
+    min-width: 0;
+}
+
+.media-config-label {
+    color: var(--text-muted);
+    font-size: 0.65rem;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+}
+
+.pv-list-group-label-muted {
+    color: var(--text-muted);
+}
+
+.pv-list-item-disabled {
+    opacity: 0.3;
+    pointer-events: none;
+}
+
+.pv-list-item-coming-soon {
+    font-size: var(--fs-hint);
+    font-style: italic;
+}
+
 /* 助手名字输入框 */
 .agent-name-input {
     width: 200px;
@@ -3047,9 +3170,7 @@
 
 /* Theme cards */
 .theme-options {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-8);
+    /* Columns and gaps are owned by SettingsGrid. */
 }
 
 .theme-card {
@@ -3268,9 +3389,7 @@
 
 /* Font cards */
 .font-options {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: var(--space-8);
+    /* Columns and gaps are owned by SettingsGrid. */
 }
 
 .font-card {
@@ -3661,6 +3780,18 @@
 .about-check-update-btn:hover {
     color: var(--text-body);
     border-color: var(--text-muted);
+}
+
+.about-update-actions {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-4);
+    margin-top: var(--space-4);
+}
+
+.about-update-actions .about-check-update-btn {
+    margin-top: 0;
 }
 
 .about-info {
@@ -6268,6 +6399,122 @@ a.about-link:hover {
     padding: var(--space-16);
 }
 
+/* 更新历史复用记忆浮层的窗口骨架，正文使用独立的发布文档排版。 */
+.update-history-viewer {
+    max-height: min(70vh, calc(100vh - var(--space-40) - var(--space-40)));
+}
+
+.update-history-subtitle {
+    margin-top: var(--space-4);
+    color: var(--text-muted);
+    font-size: var(--fs-hint);
+    line-height: 1.4;
+}
+
+.update-history-body {
+    padding: 0;
+}
+
+.update-history-state {
+    padding: var(--space-40) var(--space-24);
+    color: var(--text-muted);
+    font-size: var(--fs-ui);
+    line-height: 1.6;
+    text-align: center;
+}
+
+.update-history-notice {
+    margin: var(--space-16) var(--space-24) 0;
+    padding: var(--space-8) var(--space-12);
+    color: var(--text-muted);
+    background: var(--overlay-subtle);
+    border: 1px solid var(--overlay-light);
+    border-radius: var(--radius-input);
+    font-size: var(--fs-hint);
+    line-height: 1.4;
+}
+
+.update-history-release {
+    padding: var(--space-24);
+    border-top: 1px solid var(--overlay-light);
+}
+
+.update-history-notice + .update-history-release,
+.update-history-release:first-child {
+    border-top: 0;
+}
+
+.update-history-release-header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+}
+
+.update-history-version {
+    margin: 0;
+    color: var(--text);
+    font-family: var(--font-mono);
+    font-size: var(--fs-title);
+    font-weight: 600;
+    line-height: 1.4;
+}
+
+.update-history-summary {
+    margin: var(--space-8) 0 var(--space-16);
+    color: var(--text);
+    font-size: var(--fs-body);
+    line-height: 1.6;
+}
+
+.update-history-items {
+    border-top: 1px solid var(--overlay-light);
+}
+
+.update-history-item {
+    padding: var(--space-12) 0;
+    border-top: 1px solid var(--overlay-light);
+}
+
+.update-history-item:first-child {
+    border-top: 0;
+}
+
+.update-history-item:last-child {
+    padding-bottom: 0;
+}
+
+.update-history-item-heading {
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-8);
+}
+
+.update-history-kind {
+    flex-shrink: 0;
+    padding: var(--space-2) var(--space-6);
+    color: var(--text-muted);
+    background: var(--overlay-subtle);
+    border-radius: var(--radius-sm);
+    font-size: var(--fs-micro);
+    font-weight: 600;
+    line-height: 1.4;
+}
+
+.update-history-item-title {
+    margin: 0;
+    color: var(--text);
+    font-size: var(--fs-ui);
+    font-weight: 600;
+    line-height: 1.4;
+}
+
+.update-history-item-summary {
+    margin: var(--space-6) 0 0;
+    color: var(--text-muted);
+    font-size: var(--fs-caption);
+    line-height: 1.6;
+}
+
 :global(.memory-viewer-empty) {
     text-align: center;
     color: var(--text-muted);
@@ -7484,8 +7731,7 @@ a.about-link:hover {
 /* 截图分享：宽度预览卡片 */
 
 .ss-layout-group {
-  display: flex;
-  gap: var(--space-16);
+  /* Columns and gaps are owned by SettingsGrid. */
 }
 
 .ss-layout-card {

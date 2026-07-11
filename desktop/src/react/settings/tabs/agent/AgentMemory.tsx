@@ -4,7 +4,7 @@ import { t, autoSaveConfig, savePins } from '../../helpers';
 import { hanaFetch } from '../../api';
 import { PinItem } from './AgentPins';
 import { SettingsSection } from '../../components/SettingsSection';
-import { Toggle } from '../../widgets/Toggle';
+import { Toggle } from '@/ui';
 import styles from '../../Settings.module.css';
 
 type MemoryHealthStatus = 'healthy' | 'degraded' | 'unhealthy' | 'disabled' | 'unavailable';

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { cleanup, render, waitFor } from '@testing-library/react';
+import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import React from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { InputArea } from '../../components/InputArea';
@@ -128,7 +128,11 @@ vi.mock('../../components/input/InputContextRow', () => ({
 }));
 
 vi.mock('../../components/input/InputControlBar', () => ({
-  InputControlBar: () => null,
+  InputControlBar: (props: { canSend: boolean; hasInput: boolean }) => React.createElement('div', {
+    'data-testid': 'input-control-bar',
+    'data-can-send': String(props.canSend),
+    'data-has-input': String(props.hasInput),
+  }),
 }));
 
 vi.mock('../../hooks/use-slash-items', () => ({
@@ -153,6 +157,16 @@ function paragraphDoc(text: string) {
     content: text
       ? [{ type: 'paragraph', content: [{ type: 'text', text }] }]
       : [],
+  };
+}
+
+function skillBadgeDoc(name: string) {
+  return {
+    type: 'doc',
+    content: [{
+      type: 'paragraph',
+      content: [{ type: 'skillBadge', attrs: { name } }, { type: 'text', text: ' ' }],
+    }],
   };
 }
 
@@ -281,6 +295,24 @@ describe('InputArea draft sync', () => {
     });
   });
 
+  it('enables send after draft restore without requiring another keystroke', async () => {
+    // #2101 / 架构契约：程序性写入编辑器后必须回读同步 React 镜像；
+    // 恢复草稿后未再按键，hasInput/canSend 也应为 true（TipTap 为正文权威）。
+    seedPendingComposer('晚上好啊');
+
+    render(React.createElement(InputArea));
+
+    await waitFor(() => {
+      expect(setContentCallsWithText('晚上好啊')).toBe(true);
+    });
+
+    await waitFor(() => {
+      const bar = screen.getByTestId('input-control-bar');
+      expect(bar.getAttribute('data-has-input')).toBe('true');
+      expect(bar.getAttribute('data-can-send')).toBe('true');
+    });
+  });
+
   it('does not inject home draft text after pending activation when the session draft is empty', async () => {
     seedPendingComposer('晚上好啊');
 
@@ -316,5 +348,119 @@ describe('InputArea draft sync', () => {
       expect(setContentCallsWithText('晚上好啊')).toBe(false);
       expect(editorMocks.setContent).toHaveBeenCalledWith('', { emitUpdate: false });
     });
+  });
+
+  it('restores a badge-only draft even though its serialized text is empty (#2101)', async () => {
+    // skillBadge 是 atom 节点，serializeEditor 对它输出空文本；草稿 text=''
+    // 不代表草稿不存在——文档存在性必须以 draftDoc 为准，不能用 text 真值推导。
+    editorState.doc = paragraphDoc('');
+    useStore.setState({
+      currentSessionPath: '/session/draft-sync.jsonl',
+      currentSessionId: 'sess_draft_sync',
+      currentAgentId: 'hana',
+      pendingNewSession: false,
+      pendingDraftId: null,
+      connected: true,
+      welcomeVisible: false,
+      streamingSessions: [],
+      inlineErrors: {},
+      attachedFiles: [],
+      attachedFilesBySession: {},
+      docContextAttached: false,
+      quoteCandidate: null,
+      quotedSelections: [],
+      quotedSelection: null,
+      models: [{
+        id: 'deepseek-chat',
+        provider: 'deepseek',
+        name: 'DeepSeek Chat',
+        input: ['text'],
+        isCurrent: true,
+      }],
+      sessionModelsByPath: {},
+      previewItems: [],
+      previewOpen: false,
+      chatSessions: {},
+      serverPort: 3210,
+      serverToken: null,
+      modelSwitching: false,
+      sessions: [{
+        path: '/session/draft-sync.jsonl',
+        sessionId: 'sess_draft_sync',
+        agentId: 'hana',
+        agentName: 'Hana',
+      }],
+      sessionLocatorsById: { sess_draft_sync: { path: '/session/draft-sync.jsonl' } },
+      drafts: { sess_draft_sync: '' },
+      draftDocs: { sess_draft_sync: skillBadgeDoc('demo') },
+      draftsHydratedAt: Date.now(),
+    } as never);
+
+    render(React.createElement(InputArea));
+
+    await waitFor(() => {
+      expect(setContentCallsWithText('demo')).toBe(true);
+    });
+  });
+
+  it('does not wipe a skill badge already present in the editor when the restore effect re-runs (#2101)', async () => {
+    // 编辑器里已经有 badge（比如刚从斜杠菜单插入），草稿 store 里的镜像与之结构一致。
+    // 恢复 effect 不能因为 text='' 就把它当成"无草稿"清空。
+    const badgeDoc = skillBadgeDoc('demo');
+    editorState.doc = badgeDoc;
+    useStore.setState({
+      currentSessionPath: '/session/draft-sync.jsonl',
+      currentSessionId: 'sess_draft_sync',
+      currentAgentId: 'hana',
+      pendingNewSession: false,
+      pendingDraftId: null,
+      connected: true,
+      welcomeVisible: false,
+      streamingSessions: [],
+      inlineErrors: {},
+      attachedFiles: [],
+      attachedFilesBySession: {},
+      docContextAttached: false,
+      quoteCandidate: null,
+      quotedSelections: [],
+      quotedSelection: null,
+      models: [{
+        id: 'deepseek-chat',
+        provider: 'deepseek',
+        name: 'DeepSeek Chat',
+        input: ['text'],
+        isCurrent: true,
+      }],
+      sessionModelsByPath: {},
+      previewItems: [],
+      previewOpen: false,
+      chatSessions: {},
+      serverPort: 3210,
+      serverToken: null,
+      modelSwitching: false,
+      sessions: [{
+        path: '/session/draft-sync.jsonl',
+        sessionId: 'sess_draft_sync',
+        agentId: 'hana',
+        agentName: 'Hana',
+      }],
+      sessionLocatorsById: { sess_draft_sync: { path: '/session/draft-sync.jsonl' } },
+      drafts: { sess_draft_sync: '' },
+      draftDocs: { sess_draft_sync: skillBadgeDoc('demo') },
+      draftsHydratedAt: Date.now(),
+    } as never);
+
+    render(React.createElement(InputArea));
+
+    await waitFor(() => {
+      // 恢复 effect 至少跑过一次（组件已挂载并渲染）
+      expect(screen.getByTestId('editor')).toBeTruthy();
+    });
+
+    const wipedWithEmptyContent = editorMocks.setContent.mock.calls.some((call) => {
+      const payload = call[0];
+      return payload === '' || payload == null;
+    });
+    expect(wipedWithEmptyContent).toBe(false);
   });
 });

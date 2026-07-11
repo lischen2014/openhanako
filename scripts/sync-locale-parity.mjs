@@ -4,10 +4,9 @@
  *
  * Priority for missing keys:
  *   1. Existing value in target locale
- *   2. Infinity worktree target locale (when present)
- *   3. scripts/i18n-backfill-{locale}.json
- *   4. zh source for zh-TW (with simplified→traditional conversion)
- *   5. en.json value (logged as fallback)
+ *   2. scripts/i18n-backfill-{locale}.json
+ *   3. zh source for zh-TW (with simplified→traditional conversion)
+ *   4. en.json value (logged as fallback)
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -15,7 +14,6 @@ import { fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const LOCALES_DIR = path.join(ROOT, 'desktop/src/locales');
-const INFINITY_DIR = path.join(ROOT, '.claude/worktrees/infinity-chalkboard');
 const TARGETS = ['zh', 'zh-TW', 'ja', 'ko'];
 
 function loadJson(filePath) {
@@ -71,12 +69,6 @@ function loadBackfill(locale) {
   return loadJson(filePath);
 }
 
-function loadOptionalLocale(root, locale) {
-  const filePath = path.join(root, 'desktop/src/locales', `${locale}.json`);
-  if (!fs.existsSync(filePath)) return null;
-  return loadJson(filePath);
-}
-
 function toTraditional(text) {
   if (typeof text !== 'string') return text;
   return text
@@ -94,9 +86,6 @@ function toTraditional(text) {
 
 function translateValue(locale, key, enValue, sources) {
   if (get(sources.target, key) !== undefined) return null;
-  if (sources.infinity && get(sources.infinity, key) !== undefined) {
-    return get(sources.infinity, key);
-  }
   if (sources.backfill[key] !== undefined) return sources.backfill[key];
   if (locale === 'zh-TW') {
     const zhValue = get(sources.zh, key);
@@ -108,12 +97,9 @@ function translateValue(locale, key, enValue, sources) {
 function syncTarget(locale, enLeaves, en) {
   const targetPath = path.join(LOCALES_DIR, `${locale}.json`);
   const target = loadJson(targetPath);
-  const infinity = fs.existsSync(INFINITY_DIR)
-    ? loadOptionalLocale(INFINITY_DIR, locale)
-    : null;
   const zh = locale === 'zh-TW' ? loadJson(path.join(LOCALES_DIR, 'zh.json')) : null;
   const backfill = loadBackfill(locale);
-  const sources = { target, infinity, backfill, zh };
+  const sources = { target, backfill, zh };
 
   let added = 0;
   let englishFallback = 0;

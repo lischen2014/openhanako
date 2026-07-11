@@ -913,7 +913,11 @@
       "{name} はある午後のオレンジの香りがしました",
       "あの会話はまだ温もりを残しています"
     ],
-    "installing": "{name} を v{version} に更新しています。少々お待ちください……"
+    "installing": "{name} を v{version} に更新しています。少々お待ちください……",
+    "preparing": {
+      "named": "{name} が新しい住まいを準備しています……",
+      "anonymous": "あなたのアシスタントが新しい住まいを準備しています……"
+    }
   },
   "settings": {
     "title": "設定",
@@ -1228,6 +1232,17 @@
       "updateInstallManualHint": "「再起動して更新」を押すとインストールします。終了だけでは自動インストールしません",
       "updateInstall": "再起動して更新",
       "updateInstallNow": "今すぐ再起動して更新",
+      "updateApply": "更新",
+      "updateApplyAutoHint": "クリックしなくても次回起動時に自動的に適用されます",
+      "trainStickerTitle": "新しいバージョンの準備ができました",
+      "shellStickerTitle": "プラットフォームの更新が利用可能です（再起動が必要）",
+      "shellStickerTitleBlocking": "この更新を完了しないと新しいバージョンを受信できません",
+      "updateHistoryTitle": "更新履歴",
+      "updateHistorySubtitle": "最近公開された5つのバージョン",
+      "updateHistoryLoading": "更新履歴を読み込んでいます…",
+      "updateHistoryOffline": "リリースサイトに接続できないため、アプリに保存されたバージョンを表示しています。",
+      "updateHistoryPartial": "更新内容がある公開バージョンの一部のみ表示しています。",
+      "updateHistoryUnavailable": "更新履歴を一時的に読み込めません。後でもう一度お試しください。",
       "updateProgress": "{percent}%",
       "updateError": "アップデートの確認に失敗しました",
       "updateLatest": "最新バージョンです",
@@ -2863,7 +2878,8 @@
     "tray": {
       "show": "HanaAgent を表示",
       "settings": "設定",
-      "quit": "終了"
+      "quit": "終了",
+      "repairArtifacts": "コンポーネントを修復…"
     },
     "dialog": {
       "selectFolder": "作業フォルダを選択",
@@ -2879,10 +2895,16 @@
       "serverFilesNotReady": "自動アップデートが完了したばかりで、新バージョンのファイルがまだディスクに書き込まれていません（{missing} が見つかりません）。{waited} 秒待機しましたが完了しませんでした。しばらくしてから HanaAgent を再起動してください。",
       "serverModuleMissing": "Server 起動失敗：モジュール {module} が見つかりません。\n通常、自動アップデート完了直後にファイルがまだディスクに書き込み中の場合に発生します。\n推奨：1〜2 分待ってから HanaAgent を再起動してください。問題が続く場合は GitHub で報告してください。",
       "installFailedTitle": "HanaAgent アップデート",
-      "installFailedBody": "アップデートのインストールに失敗しました：\n{error}\n\nHanaAgent を再起動してからもう一度お試しください。または設定ページで手動でアップデートを確認してください。"
+      "installFailedBody": "アップデートのインストールに失敗しました：\n{error}\n\nHanaAgent を再起動してからもう一度お試しください。または設定ページで手動でアップデートを確認してください。",
+      "repairArtifactsTitle": "コンポーネントの修復",
+      "repairArtifactsBody": "この操作は HanaAgent のアプリコンポーネントをインストール時のバージョンにリセットし、アプリを再起動します。データ（エージェント、セッション、設定）は影響を受けません。",
+      "repairArtifactsConfirm": "修復して再起動",
+      "repairArtifactsCancel": "キャンセル",
+      "trainUpdateApplyFailedBody": "HanaAgent v{version}\n\n更新の適用に失敗しました：\n{error}\n\nアプリを再起動してください。"
     },
     "notification": {
-      "ready": "通知が有効になりました"
+      "ready": "通知が有効になりました",
+      "componentQuarantined": "コンポーネントは自動的に前のバージョンにロールバックされました。機能には影響ありません"
     }
   },
   "devtools": {

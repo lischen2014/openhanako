@@ -5,8 +5,7 @@ import { t } from '../helpers';
 import { updateSettingsSnapshot } from '../actions';
 import { SettingsSection } from '../components/SettingsSection';
 import { SettingsRow } from '../components/SettingsRow';
-import { Toggle } from '../widgets/Toggle';
-import { SelectWidget } from '../widgets/SelectWidget';
+import { SelectWidget, Toggle } from '@/ui';
 import {
   normalizeBrowserPreferences,
   type BrowserAgentOpenBehavior,

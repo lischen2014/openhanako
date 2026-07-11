@@ -300,7 +300,7 @@ Tools can automatically render visual cards in the chat by declaring `card` in t
 - `type: "iframe"` / `type: "webview"` for plugin web UI, remote pages, standalone HTML, or complex browser UI. The old `iframe` type remains compatible; new docs treat it as the WebView escape hatch.
 - `type: "chat.surface"` for showing a plugin-owned `plugin_private` / `private` session transcript natively in the current chat stream. It accepts `sessionId/sessionRef`; the host verifies same-plugin ownership before rendering.
 
-Naming boundary: future composable native cards belong to Infinity Chalkboard / Card Kernel. `workbench` is a legacy code namespace, not a public concept for new plugin authors. See `.docs/INFINITY-CHALKBOARD.md`.
+Naming boundary: `workbench` is a legacy code namespace, not a public concept for new plugin authors. The public surface today is `chat.surface` for native transcripts plus WebView/iframe UI.
 
 ```js
 return {
@@ -348,7 +348,7 @@ return {
 ```
 
 In main, `chat.surface` is a thin native transcript surface. Rich composer and
-native card composition belong to the Infinity Chalkboard / Card Kernel layer.
+native card composition are not part of the public SDK contract yet.
 
 ### Skills (Knowledge Injection)
 

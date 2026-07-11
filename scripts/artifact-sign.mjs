@@ -2,9 +2,8 @@
 /**
  * scripts/artifact-sign.mjs
  *
- * Signs (or verifies) a SWIFT train manifest with the artifact-core
- * ed25519 scheme (.docs/book/swift/work-items/c2-pipeline-design-v0.md
- * §2, §4). Sign mode writes `<manifest>.sig` next to the manifest file
+ * Signs (or verifies) an artifact train manifest with the artifact-core
+ * Ed25519 scheme. Sign mode writes `<manifest>.sig` next to the manifest file
  * (raw detached signature bytes, algorithm `null` per Node's Ed25519
  * API). Verify mode checks an existing `.sig` against a public key.
  *

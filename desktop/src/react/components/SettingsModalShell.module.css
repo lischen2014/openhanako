@@ -44,8 +44,9 @@
 }
 
 .card {
-  width: min(884px, calc(100vw - 2 * var(--space-24)));
-  max-width: min(884px, calc(100vw - 2 * var(--space-24)));
+  --settings-shell-width: 884px;
+  width: min(var(--settings-shell-width), calc(100vw - 2 * var(--space-24)));
+  max-width: min(var(--settings-shell-width), calc(100vw - 2 * var(--space-24)));
   height: min(840px, calc(100vh - var(--space-24) - var(--space-24)));
   min-height: min(500px, calc(100vh - var(--space-24) - var(--space-24)));
   display: flex;
@@ -65,11 +66,6 @@
     transform var(--settings-modal-open-dur) var(--settings-modal-ease),
     opacity var(--settings-modal-open-dur) var(--settings-modal-ease);
   will-change: transform, opacity;
-}
-
-.card[data-wide="true"] {
-  width: min(1200px, calc(100vw - var(--space-24) - var(--space-24)));
-  max-width: min(1200px, calc(100vw - var(--space-24) - var(--space-24)));
 }
 
 .card.open {

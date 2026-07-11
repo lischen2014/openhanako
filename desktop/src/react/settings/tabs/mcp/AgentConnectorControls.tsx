@@ -1,7 +1,7 @@
 import React from 'react';
 import { AgentSelect } from '../bridge/AgentSelect';
 import { SettingsSection } from '../../components/SettingsSection';
-import { Toggle } from '../../widgets/Toggle';
+import { Toggle } from '@/ui';
 import { t } from '../../helpers';
 import styles from '../../Settings.module.css';
 import type { McpAgentConnectorConfig, McpConnector } from './types';

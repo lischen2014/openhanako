@@ -48,7 +48,8 @@ describe('memory viewer layout contract', () => {
   });
 
   it('uses the taller, wider default settings modal size', () => {
-    expect(cssRule(modalCss, '.card')).toMatch(/width:\s*min\(884px,\s*calc\(100vw - 2 \* var\(--space-24\)\)\);/);
+    expect(cssRule(modalCss, '.card')).toMatch(/--settings-shell-width:\s*884px;/);
+    expect(cssRule(modalCss, '.card')).toMatch(/width:\s*min\(var\(--settings-shell-width\),\s*calc\(100vw - 2 \* var\(--space-24\)\)\);/);
     expect(cssRule(modalCss, '.card')).toMatch(/height:\s*min\(840px,\s*calc\(100vh - var\(--space-24\) - var\(--space-24\)\)\);/);
   });
 });

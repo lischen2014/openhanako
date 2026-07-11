@@ -193,7 +193,7 @@ export function PluginMarketplaceTab() {
         </div>
       </div>
 
-      <SettingsSection variant="flush">
+      <SettingsSection surface="plain">
         {!marketplace ? (
           <p className={`${styles['settings-muted-note']} ${styles['skills-empty']}`}>
             {t('settings.plugins.marketLoading')}

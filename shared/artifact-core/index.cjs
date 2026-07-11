@@ -3,9 +3,8 @@
 /**
  * shared/artifact-core/index.cjs
  *
- * Aggregator for the SWIFT artifact-core library. Namespaced (not
- * flattened) so future consumers (C3 slice B build wiring, C4 update
- * manager) can require exactly the surface they need without name
+ * Aggregator for the artifact-core library. Namespaced rather than
+ * flattened so build and update consumers can require exactly the surface they need without name
  * collisions between modules.
  */
 

@@ -913,7 +913,11 @@
       "{name} 聞到了某個下午的橘子味",
       "那些對話還帶著體溫"
     ],
-    "installing": "{name} 正在更新到 v{version}，請稍候……"
+    "installing": "{name} 正在更新到 v{version}，請稍候……",
+    "preparing": {
+      "named": "{name} 正在準備新家……",
+      "anonymous": "你的助手正在準備新家……"
+    }
   },
   "settings": {
     "title": "設定",
@@ -1228,6 +1232,17 @@
       "updateInstallManualHint": "點「重啟更新」後安裝，直接退出不會自動安裝",
       "updateInstall": "重新啟動更新",
       "updateInstallNow": "重新啟動立即更新",
+      "updateApply": "更新",
+      "updateApplyAutoHint": "不點擊也會在下次啟動時自動生效",
+      "trainStickerTitle": "新版本已就緒",
+      "shellStickerTitle": "平台更新可用，需重新啟動",
+      "shellStickerTitleBlocking": "完成此更新後才能繼續接收新版本",
+      "updateHistoryTitle": "更新歷史",
+      "updateHistorySubtitle": "最近 5 個已發佈版本",
+      "updateHistoryLoading": "正在讀取更新歷史…",
+      "updateHistoryOffline": "暫時無法連線發佈網站，目前顯示隨應用程式儲存的版本。",
+      "updateHistoryPartial": "目前只找到部分附有更新說明的版本。",
+      "updateHistoryUnavailable": "暫時無法讀取更新歷史，請稍後再試。",
       "updateProgress": "{percent}%",
       "updateError": "檢查更新失敗",
       "updateLatest": "已是最新版本",
@@ -2863,7 +2878,8 @@
     "tray": {
       "show": "顯示 HanaAgent",
       "settings": "設定",
-      "quit": "結束"
+      "quit": "結束",
+      "repairArtifacts": "修復元件…"
     },
     "dialog": {
       "selectFolder": "選擇工作資料夾",
@@ -2879,10 +2895,16 @@
       "serverFilesNotReady": "自動更新剛完成，新版本檔案仍在寫入磁碟（缺少 {missing}），已等待 {waited} 秒仍未就緒。請稍後重新啟動 HanaAgent。",
       "serverModuleMissing": "Server 啟動失敗：找不到模組 {module}。\n通常是自動更新剛完成、新版本檔案仍在寫入磁碟所致。\n建議：等待 1-2 分鐘後重新啟動 HanaAgent；若反覆出現，請至 GitHub 回報。",
       "installFailedTitle": "HanaAgent 更新",
-      "installFailedBody": "更新安裝失敗：\n{error}\n\n請重新啟動 HanaAgent 後重試，或前往設定頁面手動檢查更新。"
+      "installFailedBody": "更新安裝失敗：\n{error}\n\n請重新啟動 HanaAgent 後重試，或前往設定頁面手動檢查更新。",
+      "repairArtifactsTitle": "修復元件",
+      "repairArtifactsBody": "此操作會將 HanaAgent 的應用元件重設為安裝包內建的版本，並重新啟動應用程式。你的資料（助手、對話、設定）不受影響。",
+      "repairArtifactsConfirm": "修復並重新啟動",
+      "repairArtifactsCancel": "取消",
+      "trainUpdateApplyFailedBody": "HanaAgent v{version}\n\n更新套用失敗：\n{error}\n\n請重新啟動應用程式。"
     },
     "notification": {
-      "ready": "通知已就緒"
+      "ready": "通知已就緒",
+      "componentQuarantined": "元件已自動回退到上一版本，功能不受影響"
     }
   },
   "devtools": {

@@ -2,8 +2,8 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSettingsStore } from '../store';
 import { hanaFetch } from '../api';
 import { t, VALID_THEMES, autoSaveConfig } from '../helpers';
-import { SelectWidget } from '@/ui';
-import { Toggle } from '../widgets/Toggle';
+import { SelectWidget, Toggle } from '@/ui';
+import { SettingsGrid } from '../components/SettingsPrimitives';
 import { SettingsSection } from '../components/SettingsSection';
 import { SettingsRow } from '../components/SettingsRow';
 import { NumberInput } from '../components/NumberInput';
@@ -301,8 +301,8 @@ export function InterfaceTab() {
 
   return (
     <div className={`${styles['settings-tab-content']} ${styles['active']}`} data-tab="interface">
-      <SettingsSection title={t('settings.appearance.theme')} variant="flush">
-        <div className={styles['theme-options']}>
+      <SettingsSection title={t('settings.appearance.theme')} surface="plain">
+        <SettingsGrid columns={3} className={styles['theme-options']}>
           {VALID_THEMES.map(theme => (
             <button
               key={theme}
@@ -319,15 +319,15 @@ export function InterfaceTab() {
               <div className={styles['theme-card-mode']}>{t(THEME_MODE_KEYS[theme])}</div>
             </button>
           ))}
-        </div>
+        </SettingsGrid>
       </SettingsSection>
 
       <SettingsSection
         title={t('settings.appearance.font')}
         description={t('settings.appearance.fontHint')}
-        variant="flush"
+        surface="plain"
       >
-        <div className={styles['font-options']} aria-label={t('settings.appearance.font')}>
+        <SettingsGrid columns={2} className={styles['font-options']} aria-label={t('settings.appearance.font')}>
           {READING_FONT_PRESETS.map(preset => (
             <button
               key={preset.id}
@@ -348,7 +348,7 @@ export function InterfaceTab() {
               <span className={styles['font-card-desc']}>{t(preset.descriptionKey)}</span>
             </button>
           ))}
-        </div>
+        </SettingsGrid>
         <SettingsSection.Card>
           <SettingsRow
             label={t('settings.appearance.bodyFontSizeOffset')}

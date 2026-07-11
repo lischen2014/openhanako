@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from "react";
 import { t, autoSaveConfig } from "../../helpers";
-import { Toggle } from "../../widgets/Toggle";
+import { Toggle } from "@/ui";
 import { SettingsSection } from "../../components/SettingsSection";
 import { SettingsRow } from "../../components/SettingsRow";
 

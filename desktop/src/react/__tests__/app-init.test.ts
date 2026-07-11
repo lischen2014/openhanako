@@ -11,6 +11,10 @@ const mockLoadAvatars = vi.fn();
 const mockLoadSessions = vi.fn(async () => {});
 const mockLoadPendingNewSessionPermissionDefault = vi.fn(async () => {});
 const mockSwitchSession = vi.fn(async () => {});
+const mockPendingNewSessionIdentityPatch = vi.fn(() => ({
+  pendingNewSession: true as const,
+  pendingDraftId: 'test-pending-draft-id',
+}));
 const mockConnectWebSocket = vi.fn();
 const mockGetWebSocket = vi.fn<() => WebSocket | null>(() => null);
 const mockSetStatus = vi.fn();
@@ -54,6 +58,7 @@ vi.mock('../stores/session-actions', () => ({
   loadSessions: mockLoadSessions,
   loadPendingNewSessionPermissionDefault: mockLoadPendingNewSessionPermissionDefault,
   switchSession: mockSwitchSession,
+  pendingNewSessionIdentityPatch: mockPendingNewSessionIdentityPatch,
 }));
 
 vi.mock('../stores/session-project-actions', () => ({

@@ -4,7 +4,7 @@
 import React from 'react';
 import { t } from '../../helpers';
 import { hanaFetch } from '../../api';
-import { Toggle } from '../../widgets/Toggle';
+import { Toggle } from '@/ui';
 import { BridgeStatusDot, BridgeStatusText } from './BridgeWidgets';
 import { SettingsSection } from '../../components/SettingsSection';
 import bridgeStyles from '../BridgeTab.module.css';

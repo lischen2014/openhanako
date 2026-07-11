@@ -5,10 +5,9 @@ import {
   t, lookupModelMeta, formatContext, autoSaveGlobalModels,
 } from '../../helpers';
 import { loadSettingsConfig } from '../../actions';
-import { SelectWidget } from '@/ui';
+import { SelectWidget, Toggle } from '@/ui';
 import { ModelWidget } from '../../widgets/ModelWidget';
 import { KeyInput } from '../../widgets/KeyInput';
-import { Toggle } from '../../widgets/Toggle';
 import styles from '../../Settings.module.css';
 import {
   AUTO_SEARCH_PROVIDER,

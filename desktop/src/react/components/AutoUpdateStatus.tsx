@@ -8,6 +8,14 @@ interface AutoUpdateStatusProps {
   state: AutoUpdateState | null;
   agentName?: string;
   onInstall?: () => void | Promise<unknown>;
+  /**
+   * 'shell'（默认既有行为）= electron-updater 的"重启更新"语义：装好后
+   * 需要重启进程才生效，按钮文案与手动重启提示保持原样。
+   * 'train' = 列车更新的"刷新即生效"语义：按钮文案是"更新"，
+   * 不需要重启提示——即使不点，也会在下次自然启动时自动生效，用一句不同
+   * 的提示语说明这点，而不是复用壳更新"退出不会自动安装"的措辞。
+   */
+  variant: 'shell' | 'train';
 }
 
 const t = (key: string, vars?: Record<string, string | number>) => window.t?.(key, vars) ?? key;
@@ -88,7 +96,7 @@ function ReleaseDigestEntry({ digest }: { digest: ReleaseDigest | null | undefin
   );
 }
 
-export function AutoUpdateStatus({ state, agentName = 'Hanako', onInstall }: AutoUpdateStatusProps) {
+export function AutoUpdateStatus({ state, agentName = 'Hanako', onInstall, variant }: AutoUpdateStatusProps) {
   if (!state || state.status === 'idle') {
     return null;
   }
@@ -114,6 +122,8 @@ export function AutoUpdateStatus({ state, agentName = 'Hanako', onInstall }: Aut
   }
 
   if (state.status === 'downloaded') {
+    const actionLabel = variant === 'train' ? t('settings.about.updateApply') : t('settings.about.updateInstall');
+    const hintText = variant === 'train' ? t('settings.about.updateApplyAutoHint') : t('settings.about.updateInstallManualHint');
     return (
       <div className={styles.root}>
         <div className={styles.column}>
@@ -121,13 +131,13 @@ export function AutoUpdateStatus({ state, agentName = 'Hanako', onInstall }: Aut
             <span className={styles.message}>{t('settings.about.updateReadyInstall', { version: state.version ?? '' })}</span>
             {onInstall && (
               <button type="button" className={styles.action} onClick={() => void onInstall()}>
-                <span>{t('settings.about.updateInstall')}</span>
+                <span>{actionLabel}</span>
                 <InstallIcon />
               </button>
             )}
             <ReleaseDigestEntry digest={state.digest} />
           </div>
-          <div className={`${styles.message} ${styles.hint}`}>{t('settings.about.updateInstallManualHint')}</div>
+          <div className={`${styles.message} ${styles.hint}`}>{hintText}</div>
         </div>
       </div>
     );

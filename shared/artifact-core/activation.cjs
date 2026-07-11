@@ -4,8 +4,7 @@
  * shared/artifact-core/activation.cjs
  *
  * Archive activation + boot resolution + crash-sentinel primitives for
- * the SWIFT artifact pipeline
- * (.docs/book/swift/work-items/c2-pipeline-design-v0.md §6).
+ * signed runtime artifacts.
  *
  * `activateFromArchive` is the sole path by which a downloaded (or seed)
  * archive becomes a bootable version: quarantine short-circuit -> sha256
@@ -54,8 +53,8 @@ function versionDirName(kind, artifactEntry, platformArch) {
  * under `{homeDir}/artifacts/{kind}/...`, writes a `.verified` receipt,
  * and atomically writes the channel's `next` pointer. Does NOT touch
  * `current`/`previous` — promotion to `current` happens at boot
- * (`pointer-store.promote`), never mid-session (C2 §6: "running sessions
- * are never hot-swapped").
+ * (`pointer-store.promote`), never mid-session: running sessions are not
+ * hot-swapped.
  *
  * Short-circuits (throws immediately, no filesystem work) if
  * `manifest.train` is already quarantined on this channel.
@@ -154,7 +153,7 @@ async function isPointerActivationValid(pointer) {
 }
 
 /**
- * Boot-time resolution: `current` -> `previous` -> `null` (C2 §6). A slot
+ * Boot-time resolution: `current` -> `previous` -> `null`. A slot
  * is valid only if its `.verified` receipt exists and its recorded
  * sha256 matches the pointer's own sha256, and the versioned directory
  * still exists. Returns `null` when no slot is bootable, at which point
@@ -184,7 +183,7 @@ function sentinelPath(homeDir, channel) {
  * Boot writes a sentinel for the train it's about to run. Consecutive
  * writes for the SAME train increment a counter; a boot for a different
  * train (or a fresh channel) resets it to 1. Pair with `clearSentinel`
- * once the boot is confirmed healthy (C2 §6: "a healthy 60s clears it").
+ * once the boot is confirmed healthy; a healthy 60-second window clears it.
  * @param {string} homeDir
  * @param {string} channel
  * @param {number} train

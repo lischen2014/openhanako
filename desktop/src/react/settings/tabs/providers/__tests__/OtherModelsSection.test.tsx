@@ -36,13 +36,6 @@ vi.mock('@/ui', () => ({
       select-widget
     </button>
   ),
-}));
-
-vi.mock('../../../widgets/KeyInput', () => ({
-  KeyInput: () => <input data-testid="key-input" />,
-}));
-
-vi.mock('../../../widgets/Toggle', () => ({
   Toggle: ({ on, onChange, label }: { on: boolean; onChange: (next: boolean) => void; label?: string }) => (
     <button
       type="button"
@@ -52,6 +45,10 @@ vi.mock('../../../widgets/Toggle', () => ({
       {label}
     </button>
   ),
+}));
+
+vi.mock('../../../widgets/KeyInput', () => ({
+  KeyInput: () => <input data-testid="key-input" />,
 }));
 
 import { OtherModelsSection } from '../OtherModelsSection';

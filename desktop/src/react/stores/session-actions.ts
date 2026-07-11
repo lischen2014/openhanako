@@ -42,6 +42,16 @@ function nextPendingDraftId(): string {
   return `pending-${Date.now().toString(36)}-${_pendingDraftSequence.toString(36)}`;
 }
 
+/**
+ * pending 新会话身份补丁：任何把 store 切入 "welcome / 待建会话" 态的入口都必须
+ * 展开这个补丁，而不是裸设 `pendingNewSession: true`。currentPendingSessionDraft()
+ * 要求 pendingDraftId 非空才认这是一个有效的待建草稿；裸设会让身份残缺，
+ * submitEditorMessage 的 ensureSession 门槛就此失效，发送静默无响应（#2101）。
+ */
+export function pendingNewSessionIdentityPatch(): { pendingNewSession: true; pendingDraftId: string } {
+  return { pendingNewSession: true, pendingDraftId: nextPendingDraftId() };
+}
+
 function invalidateSessionSwitches(): void {
   _switchVersion += 1;
   _switchAbortController?.abort();
@@ -1107,8 +1117,7 @@ export async function createNewSession(options: CreateNewSessionOptions = {}): P
     selectedWorkspaceLabel: defaultWorkspaceLabel,
     workspaceFolders: [],
     selectedAgentId: null,
-    pendingNewSession: true,
-    pendingDraftId: nextPendingDraftId(),
+    ...pendingNewSessionIdentityPatch(),
     pendingProjectId,
     pendingNewSessionThinkingLevel: null,
     pendingNewSessionPermissionMode: null,

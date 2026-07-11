@@ -177,6 +177,30 @@ describe('draft sync notifications', () => {
     expect(slice.drafts['__home__']).toBe('home text');
   });
 
+  it('is a no-op when text and doc are unchanged (keeps referential identity)', () => {
+    const onSet = vi.fn();
+    registerDraftSyncListener({ onSet, onClear: vi.fn() });
+    const slice = makeSlice();
+    const doc = {
+      type: 'doc',
+      content: [{ type: 'paragraph', content: [{ type: 'text', text: 'hello' }] }],
+    };
+
+    slice.setDraft('__home__', 'hello', doc);
+    const draftsAfterFirst = slice.drafts;
+    const draftDocsAfterFirst = slice.draftDocs;
+    expect(onSet).toHaveBeenCalledTimes(1);
+
+    slice.setDraft('__home__', 'hello', {
+      type: 'doc',
+      content: [{ type: 'paragraph', content: [{ type: 'text', text: 'hello' }] }],
+    });
+
+    expect(onSet).toHaveBeenCalledTimes(1);
+    expect(slice.drafts).toBe(draftsAfterFirst);
+    expect(slice.draftDocs).toBe(draftDocsAfterFirst);
+  });
+
   it('exposes draftsHydratedAt with initial 0', () => {
     const slice = makeSlice();
     expect(slice.draftsHydratedAt).toBe(0);

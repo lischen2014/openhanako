@@ -14,6 +14,8 @@ const labels: Record<string, string> = {
   'settings.about.updateReadyInstall': 'v{version} 已就绪',
   'settings.about.updateInstall': '重启更新',
   'settings.about.updateInstallManualHint': '点重启更新后安装，直接退出不会自动安装',
+  'settings.about.updateApply': '更新',
+  'settings.about.updateApplyAutoHint': '不点击也会在下次启动时自动生效',
   'settings.about.updateInstalling': '正在安装更新，HanaAgent 会自动重启…',
   'settings.about.updateNeedInstall': '请先将 HanaAgent 移动到应用程序文件夹',
   'settings.about.updateDigestCta': '此次更新你将获得',
@@ -65,6 +67,7 @@ describe('AutoUpdateStatus', () => {
           progress: { percent: 42.6, bytesPerSecond: 0, transferred: 0, total: 0 },
         })}
         agentName="小花"
+        variant="shell"
       />,
     );
 
@@ -80,6 +83,7 @@ describe('AutoUpdateStatus', () => {
       <AutoUpdateStatus
         state={updateState({ status: 'downloaded', version: '0.118.0' })}
         onInstall={onInstall}
+        variant="shell"
       />,
     );
 
@@ -87,6 +91,25 @@ describe('AutoUpdateStatus', () => {
     expect(screen.getByText('点重启更新后安装，直接退出不会自动安装')).toBeTruthy();
 
     fireEvent.click(screen.getByRole('button', { name: /重启更新/ }));
+    expect(onInstall).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows the apply-now label and no-restart hint for the train variant', () => {
+    const onInstall = vi.fn();
+
+    render(
+      <AutoUpdateStatus
+        state={updateState({ status: 'downloaded', version: '0.500.0' })}
+        onInstall={onInstall}
+        variant="train"
+      />,
+    );
+
+    expect(screen.getByText('v0.500.0 已就绪')).toBeTruthy();
+    expect(screen.getByText('不点击也会在下次启动时自动生效')).toBeTruthy();
+    expect(screen.queryByText('点重启更新后安装，直接退出不会自动安装')).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: /更新/ }));
     expect(onInstall).toHaveBeenCalledTimes(1);
   });
 
@@ -118,6 +141,7 @@ describe('AutoUpdateStatus', () => {
             ],
           },
         })}
+        variant="shell"
       />,
     );
 
@@ -131,12 +155,12 @@ describe('AutoUpdateStatus', () => {
 
   it('renders installing and dmg install guidance without a modal contract', () => {
     const { rerender } = render(
-      <AutoUpdateStatus state={updateState({ status: 'installing' })} />,
+      <AutoUpdateStatus state={updateState({ status: 'installing' })} variant="shell" />,
     );
 
     expect(screen.getByText('正在安装更新，HanaAgent 会自动重启…')).toBeTruthy();
 
-    rerender(<AutoUpdateStatus state={updateState({ status: 'error', error: 'running_from_dmg' })} />);
+    rerender(<AutoUpdateStatus state={updateState({ status: 'error', error: 'running_from_dmg' })} variant="shell" />);
     expect(screen.getByText('请先将 HanaAgent 移动到应用程序文件夹')).toBeTruthy();
   });
 });

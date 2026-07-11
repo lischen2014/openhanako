@@ -1,4 +1,5 @@
 import React from 'react';
+import styles from './Toggle.module.css';
 
 export interface ToggleProps {
   on: boolean | undefined;
@@ -19,7 +20,7 @@ export function Toggle({ on, onChange, label, ariaLabel, title, disabled = false
     loading ? 'loading' : '',
   ].filter(Boolean).join(' ');
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+    <div className={styles.root}>
       <button
         className={className}
         type="button"

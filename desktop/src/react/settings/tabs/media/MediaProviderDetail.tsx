@@ -144,8 +144,8 @@ export function MediaProviderDetail({ providerId, provider, capability = 'imageG
     const description = property.description || label;
     if (Array.isArray(property.enum)) {
       return (
-        <div key={key} style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-          <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }} title={description}>
+        <div key={key} className={styles['media-config-field']}>
+          <span className={styles['media-config-label']} title={description}>
             {label}
           </span>
           <SelectWidget
@@ -162,8 +162,8 @@ export function MediaProviderDetail({ providerId, provider, capability = 'imageG
     const isNumber = property.type === 'number' || property.type === 'integer'
       || (Array.isArray(property.type) && (property.type.includes('number') || property.type.includes('integer')));
     return (
-      <div key={key} style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-        <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }} title={description}>
+      <div key={key} className={styles['media-config-field']}>
+        <span className={styles['media-config-label']} title={description}>
           {label}
         </span>
         <input
@@ -255,12 +255,8 @@ export function MediaProviderDetail({ providerId, provider, capability = 'imageG
       </div>
 
       {/* Credential status */}
-      <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginBottom: 'var(--space-16)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-        <span style={{
-          width: 6, height: 6, borderRadius: '50%',
-          background: provider.hasCredentials ? 'var(--success)' : 'var(--text-muted)',
-          display: 'inline-block',
-        }} />
+      <div className={styles['settings-credential-status']}>
+        <span className={`${styles['settings-credential-dot']}${provider.hasCredentials ? ' ' + styles.on : ''}`} />
         {provider.hasCredentials ? t('settings.media.credentialOk') : t('settings.media.credentialMissing')}
       </div>
 
@@ -278,11 +274,7 @@ export function MediaProviderDetail({ providerId, provider, capability = 'imageG
                   <span className={styles['pv-fav-item-name']} title={m.id}>{m.name || m.id}</span>
                   <span className={styles['pv-fav-item-id']}>{m.id}</span>
                   {isDefault(m.id) && (
-                    <span style={{
-                      fontSize: '0.6rem', color: 'var(--accent)',
-                      background: 'var(--accent-light)', padding: '1px 6px',
-                      borderRadius: '4px', fontWeight: 500, flexShrink: 0,
-                    }}>
+                    <span className={styles['settings-default-badge']}>
                       {t('settings.media.default')}
                     </span>
                   )}
@@ -357,15 +349,15 @@ export function MediaProviderDetail({ providerId, provider, capability = 'imageG
 
       {/* Provider-specific defaults */}
       {provider.models.length > 0 && (
-        <div style={{ marginTop: 'var(--space-16)', paddingTop: 'var(--space-16)', borderTop: '1px solid var(--overlay-light)' }}>
-          <div style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '10px' }}>
+        <div className={styles['media-defaults']}>
+          <div className={styles['media-defaults-title']}>
             {t('settings.media.providerDefaults')}
           </div>
           {schemaDrivenDefaults ? (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-12)' }}>
-              <div style={{ display: 'grid', gridTemplateColumns: modelModes.length > 1 ? '1fr 1fr' : '1fr', gap: 'var(--space-12)' }}>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                  <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+            <div className={styles['media-defaults-stack']}>
+              <div className={`${styles['media-config-grid']}${modelModes.length > 1 ? '' : ' ' + styles['media-config-grid-single']}`}>
+                <div className={styles['media-config-field']}>
+                  <span className={styles['media-config-label']}>
                     {capability === 'videoGeneration' ? t('settings.media.videoModels') : t('settings.media.models')}
                   </span>
                   <SelectWidget
@@ -378,8 +370,8 @@ export function MediaProviderDetail({ providerId, provider, capability = 'imageG
                   />
                 </div>
                 {modelModes.length > 1 && (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                    <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                  <div className={styles['media-config-field']}>
+                    <span className={styles['media-config-label']}>
                       Mode
                     </span>
                     <SelectWidget
@@ -393,15 +385,15 @@ export function MediaProviderDetail({ providerId, provider, capability = 'imageG
                   </div>
                 )}
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-12)' }}>
+              <div className={styles['media-config-grid']}>
                 {schemaEntries.map(([key, property]) => renderSchemaControl(key, property))}
               </div>
             </div>
           ) : (
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-12)' }}>
+            <div className={styles['media-config-grid']}>
               {capability === 'imageGeneration' && fallbackResolutions.length > 0 && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                  <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                <div className={styles['media-config-field']}>
+                  <span className={styles['media-config-label']}>
                     {t('settings.media.size')}
                   </span>
                   <SelectWidget
@@ -415,8 +407,8 @@ export function MediaProviderDetail({ providerId, provider, capability = 'imageG
                 </div>
               )}
               {fallbackRatios.length > 0 && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                  <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                <div className={styles['media-config-field']}>
+                  <span className={styles['media-config-label']}>
                     {t('settings.media.aspectRatio')}
                   </span>
                   <SelectWidget

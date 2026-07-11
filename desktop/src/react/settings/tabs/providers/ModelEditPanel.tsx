@@ -3,7 +3,7 @@ import { useSettingsStore } from '../../store';
 import { t, lookupModelMeta, CONTEXT_PRESETS, OUTPUT_PRESETS } from '../../helpers';
 import { hanaFetch } from '../../api';
 import { ComboInput } from '../../widgets/ComboInput';
-import { Toggle } from '../../widgets/Toggle';
+import { Toggle } from '@/ui';
 import styles from '../../Settings.module.css';
 
 function finiteNumber(value: unknown): number | undefined {

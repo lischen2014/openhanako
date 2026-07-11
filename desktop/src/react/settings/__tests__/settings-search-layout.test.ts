@@ -19,45 +19,54 @@ describe('settings search sidebar layout', () => {
     expect(css).toContain('--settings-nav-width: 180px;');
   });
 
-  it('keeps the modal shell wide enough after expanding the navigation rail', () => {
+  it('keeps the modal shell at the single 884px width token', () => {
     const css = readProjectFile('desktop/src/react/components/SettingsModalShell.module.css');
 
-    expect(css).toContain('width: min(884px, calc(100vw - 2 * var(--space-24)));');
+    expect(css).toContain('--settings-shell-width: 884px;');
+    expect(css).toContain('width: min(var(--settings-shell-width), calc(100vw - 2 * var(--space-24)));');
+    expect(css).not.toContain('1200px');
   });
 });
 
 describe('settings page width contract', () => {
-  it('keeps the normal header column capped at 640px, not 1fr', () => {
+  it('derives the header content track from the remaining shell width', () => {
     const css = readProjectFile('desktop/src/react/settings/Settings.module.css');
     const header = cssRule(css, '.settings-header-modal');
 
-    expect(header).toMatch(/minmax\(0,\s*640px\)/);
-    expect(header).not.toMatch(/minmax\(0,\s*1fr\)/);
+    expect(header).toMatch(/minmax\(0,\s*1fr\)/);
+    expect(header).toMatch(/padding:[^;]*var\(--settings-main-x-padding/);
+    expect(header).not.toMatch(/640px|960px/);
   });
 
-  it('keeps normal tab content at a hard 640px max and clips horizontal overflow', () => {
+  it('keeps every tab on the full derived content track', () => {
     const css = readProjectFile('desktop/src/react/settings/Settings.module.css');
 
     expect(css).toMatch(
-      /\.settings-main\s*>\s*\.settings-tab-content\s*\{[^}]*max-width:\s*640px;[^}]*overflow-x:\s*hidden;/s,
+      /\.settings-main\s*>\s*\[data-settings-page\]\s*\{[^}]*width:\s*100%;[^}]*max-width:\s*100%;[^}]*min-width:\s*0;[^}]*overflow-x:\s*hidden;/s,
     );
+    expect(css).not.toMatch(/settings-main-wide|settings-panel-wide/);
   });
 
-  it('does not mark providers as a wide settings tab', () => {
+  it('does not allow any tab to widen the shell', () => {
     const source = readProjectFile('desktop/src/react/settings/SettingsContent.tsx');
     const shell = readProjectFile('desktop/src/react/components/SettingsModalShell.tsx');
 
-    expect(source).toMatch(/isWideTab = effectiveActiveTab === 'plugin-marketplace';/);
-    expect(source).not.toMatch(/isWideTab = .*providers/);
-    expect(shell).toMatch(/isWideSettingsPage = settingsModal\.activeTab === 'plugin-marketplace';/);
-    expect(shell).not.toMatch(/activeTab === 'providers'/);
+    expect(source).not.toMatch(/isWideTab|settings-panel-wide|settings-main-wide/);
+    expect(shell).not.toMatch(/isWideSettingsPage|data-wide/);
   });
 
-  it('does not allow the modal card to flex-shrink via min-width: 0', () => {
-    const css = readProjectFile('desktop/src/react/components/SettingsModalShell.module.css');
-    const card = cssRule(css, '.card');
+  it('closes the shell-to-content flex sizing chain', () => {
+    const shellCss = readProjectFile('desktop/src/react/components/SettingsModalShell.module.css');
+    const settingsCss = readProjectFile('desktop/src/react/settings/Settings.module.css');
+    const source = readProjectFile('desktop/src/react/settings/SettingsContent.tsx');
+    const card = cssRule(shellCss, '.card');
+    const root = cssRule(settingsCss, '.settings-content-root');
 
     expect(card).not.toMatch(/min-width:\s*0;/);
-    expect(card).toMatch(/max-width:\s*min\(884px,/);
+    expect(card).toMatch(/max-width:\s*min\(var\(--settings-shell-width\),/);
+    expect(root).toMatch(/width:\s*100%/);
+    expect(root).toMatch(/flex:\s*1 1 auto/);
+    expect(root).toMatch(/min-width:\s*0/);
+    expect(source).toContain("className={styles['settings-content-root']}");
   });
 });

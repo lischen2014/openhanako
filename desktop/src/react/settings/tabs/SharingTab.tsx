@@ -5,6 +5,7 @@ import { SettingsSection } from '../components/SettingsSection';
 import { SettingsRow } from '../components/SettingsRow';
 import { NumberInput } from '../components/NumberInput';
 import { SelectWidget } from '@/ui';
+import { SettingsGrid } from '../components/SettingsPrimitives';
 import {
   FOLLOW_READING_FONT_ID,
   READING_FONT_PRESETS,
@@ -77,8 +78,8 @@ export function SharingTab() {
 
   return (
     <div className={`${styles['settings-tab-content']} ${styles['active']}`} data-tab="sharing">
-      <SettingsSection title={t('settings.screenshot.color')} variant="flush">
-        <div className={styles['theme-options']}>
+      <SettingsSection title={t('settings.screenshot.color')} surface="plain">
+        <SettingsGrid columns={3} className={styles['theme-options']}>
           {([
             { key: 'light' as const, bg: '#F8F5ED', color: '#3B3D3F', accent: '#537D96' },
             { key: 'dark' as const, bg: '#2D4356', color: '#C8D1D8', accent: '#A76F6F' },
@@ -94,11 +95,11 @@ export function SharingTab() {
               <div className={styles['theme-card-mode']} style={{ color: accent }}>{t('settings.screenshot.title')}</div>
             </button>
           ))}
-        </div>
+        </SettingsGrid>
       </SettingsSection>
 
-      <SettingsSection title={t('settings.screenshot.width')} variant="flush">
-        <div className={styles['ss-layout-group']}>
+      <SettingsSection title={t('settings.screenshot.width')} surface="plain">
+        <SettingsGrid columns={2} gap="md" className={styles['ss-layout-group']}>
           {([
             { width: 'mobile' as const, title: t('settings.screenshot.mobileTitle'), desc: t('settings.screenshot.mobileDesc') },
             { width: 'desktop' as const, title: t('settings.screenshot.desktopTitle'), desc: t('settings.screenshot.desktopDesc') },
@@ -123,7 +124,7 @@ export function SharingTab() {
               </button>
             );
           })}
-        </div>
+        </SettingsGrid>
       </SettingsSection>
 
       <SettingsSection title={t('settings.screenshot.font')}>

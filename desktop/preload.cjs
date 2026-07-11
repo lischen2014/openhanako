@@ -37,13 +37,17 @@ contextBridge.exposeInMainWorld("hana", {
   getAppVersion: () => ipcRenderer.invoke("get-app-version"),
   getPendingAnnouncement: () => ipcRenderer.invoke("get-pending-announcement"),
   ackAnnouncement: () => ipcRenderer.invoke("ack-announcement"),
-  checkUpdate: () => ipcRenderer.invoke("check-update"),
   // Auto-update (Windows)
   autoUpdateCheck: () => ipcRenderer.invoke("auto-update-check"),
   autoUpdateDownload: () => ipcRenderer.invoke("auto-update-download"),
   autoUpdateInstall: () => ipcRenderer.invoke("auto-update-install"),
   autoUpdateState: () => ipcRenderer.invoke("auto-update-state"),
   autoUpdateSetChannel: (ch) => ipcRenderer.invoke("auto-update-set-channel", ch),
+  // 列车更新（OTA）：暂存状态查询 / 手动检查 / 立即应用
+  trainUpdateStatus: () => ipcRenderer.invoke("train-update-status"),
+  trainUpdateCheck: () => ipcRenderer.invoke("train-update-check"),
+  trainUpdateApply: () => ipcRenderer.invoke("train-update-apply"),
+  getUpdateDigestHistory: () => ipcRenderer.invoke("get-update-digest-history"),
   getAutoLaunchStatus: () => ipcRenderer.invoke("get-auto-launch-status"),
   setAutoLaunchEnabled: (enabled) => ipcRenderer.invoke("set-auto-launch-enabled", enabled),
   getKeepAwakeStatus: () => ipcRenderer.invoke("get-keep-awake-status"),

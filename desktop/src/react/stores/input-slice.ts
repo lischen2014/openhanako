@@ -145,6 +145,26 @@ export const createInputSlice = (
   setDraft: (sessionPath, text, doc) =>
     set((s) => {
       const key = sessionScopedKey(s as any, sessionPath) || sessionPath;
+      const prevText = Object.prototype.hasOwnProperty.call(s.drafts, key)
+        ? s.drafts[key]
+        : Object.prototype.hasOwnProperty.call(s.drafts, sessionPath)
+          ? s.drafts[sessionPath]
+          : undefined;
+      const prevDoc = Object.prototype.hasOwnProperty.call(s.draftDocs, key)
+        ? s.draftDocs[key]
+        : Object.prototype.hasOwnProperty.call(s.draftDocs, sessionPath)
+          ? s.draftDocs[sessionPath]
+          : undefined;
+      const nextDoc = doc ?? null;
+      const sameText = prevText === text;
+      const sameDoc = nextDoc
+        ? !!prevDoc && JSON.stringify(prevDoc) === JSON.stringify(nextDoc)
+        : prevDoc === undefined;
+      // 内容未变则保持 drafts/draftDocs 引用不变，避免 InputArea 订阅方空转，
+      // 也让「恢复走 emitUpdate」时不会 update→setDraft→effect 死循环。
+      if (sameText && sameDoc && prevText !== undefined) {
+        return {};
+      }
       const drafts = { ...s.drafts, [key]: text };
       const draftDocs = { ...s.draftDocs };
       if (doc) draftDocs[key] = doc;

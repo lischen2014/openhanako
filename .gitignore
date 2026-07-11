@@ -32,6 +32,9 @@ TODO.md
 # ═══════════════════════════════════════════
 dist/
 dist-server/
+dist-server-artifact/
+dist-renderer-artifact/
+desktop/dist-splash/
 dist-server-bundle/
 dist-computer-use/
 desktop/main.bundle.cjs

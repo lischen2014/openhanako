@@ -913,7 +913,11 @@
       "{name} smelled oranges from an afternoon",
       "Those conversations still carry warmth"
     ],
-    "installing": "{name} is updating to v{version}, please wait…"
+    "installing": "{name} is updating to v{version}, please wait…",
+    "preparing": {
+      "named": "{name} is preparing a new home…",
+      "anonymous": "Your assistant is preparing a new home…"
+    }
   },
   "settings": {
     "title": "Settings",
@@ -1294,6 +1298,17 @@
       "updateInstallManualHint": "Install after clicking Restart to update; quitting will not install automatically",
       "updateInstall": "Restart to update",
       "updateInstallNow": "Restart and update now",
+      "updateApply": "Update",
+      "updateApplyAutoHint": "It will still apply automatically at the next launch if you skip this",
+      "trainStickerTitle": "New version ready",
+      "shellStickerTitle": "Platform update available, restart needed",
+      "shellStickerTitleBlocking": "This update is required to keep receiving new versions",
+      "updateHistoryTitle": "Update history",
+      "updateHistorySubtitle": "The 5 most recent published versions",
+      "updateHistoryLoading": "Loading update history…",
+      "updateHistoryOffline": "The release site is unavailable. Showing the version saved with this app.",
+      "updateHistoryPartial": "Only some published versions currently include update notes.",
+      "updateHistoryUnavailable": "Update history is temporarily unavailable. Please try again later.",
       "updateProgress": "{percent}%",
       "updateError": "Update check failed",
       "updateLatest": "You're up to date",
@@ -2869,7 +2884,8 @@
     "tray": {
       "show": "Show HanaAgent",
       "settings": "Settings",
-      "quit": "Quit"
+      "quit": "Quit",
+      "repairArtifacts": "Repair Components…"
     },
     "dialog": {
       "selectFolder": "Select Working Folder",
@@ -2885,10 +2901,16 @@
       "serverFilesNotReady": "Auto-update just completed; new version files still landing on disk (missing {missing}). Waited {waited}s without success. Please restart HanaAgent shortly.",
       "serverModuleMissing": "Server startup failed: cannot find module {module}.\nThis typically happens right after an auto-update, while new files are still being written to disk.\nRecommendation: wait 1-2 minutes and restart HanaAgent. Report on GitHub if it persists.",
       "installFailedTitle": "HanaAgent Update",
-      "installFailedBody": "Update installation failed:\n{error}\n\nPlease restart HanaAgent and try again, or check for updates manually in Settings."
+      "installFailedBody": "Update installation failed:\n{error}\n\nPlease restart HanaAgent and try again, or check for updates manually in Settings.",
+      "repairArtifactsTitle": "Repair Components",
+      "repairArtifactsBody": "This resets HanaAgent's app components to the originally installed version and restarts the app. Your data (agents, sessions, settings) is not affected.",
+      "repairArtifactsConfirm": "Repair and Restart",
+      "repairArtifactsCancel": "Cancel",
+      "trainUpdateApplyFailedBody": "HanaAgent v{version}\n\nUpdate failed to apply:\n{error}\n\nPlease restart the app."
     },
     "notification": {
-      "ready": "Notifications enabled"
+      "ready": "Notifications enabled",
+      "componentQuarantined": "A component was automatically rolled back to the previous version; functionality is unaffected"
     }
   },
   "devtools": {

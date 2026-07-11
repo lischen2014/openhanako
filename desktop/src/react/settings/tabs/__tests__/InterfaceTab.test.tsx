@@ -227,14 +227,14 @@ describe('InterfaceTab appearance state', () => {
     expect(css).toMatch(/\.stepSliderTicks span\s*\{[\s\S]*transform:\s*translateX\(-50%\)/);
   });
 
-  it('keeps standard row padding inside nested setting cards in flush sections', () => {
+  it('keeps standard row padding inside nested setting cards on plain surfaces', () => {
     const css = readSettingsComponentStyles();
 
-    expect(css).toMatch(/\.sectionFlush\s*>\s*\.sectionBody\s*>\s*\.row\s*\{[\s\S]*padding-left:\s*0/);
-    expect(css).toMatch(/\.sectionFlush\s*>\s*\.sectionBody\s*>\s*\.row\s*\{[\s\S]*padding-right:\s*0/);
-    expect(css).toMatch(/\.sectionFlush\s*>\s*\.sectionBody\s*>\s*\.row\s*\+\s*\.row::before\s*\{[\s\S]*display:\s*none/);
-    expect(css).not.toMatch(/\.sectionFlush\s+\.row\s*\{/);
-    expect(css).not.toMatch(/\.sectionFlush\s+\.row\s*\+\s*\.row::before\s*\{/);
+    expect(css).toMatch(/\.sectionPlain\s*>\s*\.sectionBody\s*>\s*\.row\s*\{[\s\S]*padding-left:\s*0/);
+    expect(css).toMatch(/\.sectionPlain\s*>\s*\.sectionBody\s*>\s*\.row\s*\{[\s\S]*padding-right:\s*0/);
+    expect(css).toMatch(/\.sectionPlain\s*>\s*\.sectionBody\s*>\s*\.row\s*\+\s*\.row::before\s*\{[\s\S]*display:\s*none/);
+    expect(css).not.toMatch(/\.sectionPlain\s+\.row\s*\{/);
+    expect(css).not.toMatch(/\.sectionPlain\s+\.row\s*\+\s*\.row::before\s*\{/);
   });
 
   it('hides fourth through sixth heading typography controls', () => {

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { t, autoSaveConfig } from '../../helpers';
-import { Toggle } from '../../widgets/Toggle';
+import { Toggle } from '@/ui';
 import { loadSettingsConfig } from '../../actions';
 import { SettingsSection } from '../../components/SettingsSection';
 import styles from '../../Settings.module.css';

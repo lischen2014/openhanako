@@ -1,0 +1,62 @@
+{
+  "schema": 2,
+  "entries": [
+    {
+      "schemaVersion": 1,
+      "tag": "v0.380.10",
+      "version": "0.380.10",
+      "previousTag": "v0.380.9",
+      "generatedAt": "2026-07-11T00:31:45.000Z",
+      "noUserFacingChanges": false,
+      "summary": {
+        "zh": "手动压缩上下文改为按会话身份定位，并明确反馈成功、无需压缩或失败结果。",
+        "en": "Manual context compaction now targets sessions by ID and clearly reports accepted, noop, or failed outcomes."
+      },
+      "counts": {
+        "feature": 0,
+        "fix": 1,
+        "improvement": 0,
+        "migration": 0
+      },
+      "source": {
+        "owner": "liliMozi",
+        "repo": "openhanako",
+        "commitRange": "v0.380.9..b32b5415b",
+        "releaseUrl": "https://github.com/liliMozi/openhanako/releases/tag/v0.380.10",
+        "releaseNotes": ""
+      },
+      "items": [
+        {
+          "id": "manual-compaction-session-id",
+          "kind": "fix",
+          "importance": "high",
+          "title": {
+            "zh": "手动压缩按会话 ID 生效",
+            "en": "Manual compaction is session-ID authoritative"
+          },
+          "summary": {
+            "zh": "手动压缩会准确作用在当前会话，并给出成功、无需压缩或失败的明确反馈，不再静默按路径猜测。",
+            "en": "Manual compaction now hits the focused session reliably and surfaces accepted, noop, or failure feedback instead of silent path-based guesses."
+          },
+          "details": [
+            {
+              "zh": "桌面与移动端手动压缩均改为以会话 ID 为准。",
+              "en": "Desktop and mobile manual compaction both resolve targets by session ID."
+            },
+            {
+              "zh": "旧的路径寻址仍在协议边界兼容转换，但结果会明确回传。",
+              "en": "Legacy path addressing remains converted at the protocol boundary, with explicit terminal outcomes."
+            }
+          ],
+          "sources": [
+            {
+              "type": "commit",
+              "ref": "b32b5415b",
+              "title": "fix: make manual compaction session-id authoritative"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

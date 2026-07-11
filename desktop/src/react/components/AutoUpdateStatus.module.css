@@ -218,6 +218,22 @@
   margin-top: 4px;
 }
 
+/* 合订本（多版本分组）里每一节的版本号小节标题 */
+.digestVersionHeading {
+  margin: 0 0 var(--space-6);
+  color: var(--text);
+  font: inherit;
+  font-size: var(--fs-body);
+  font-weight: 600;
+  line-height: 1.45;
+}
+
+section + section .digestVersionHeading {
+  margin-top: var(--space-16);
+  padding-top: var(--space-16);
+  border-top: 1px solid var(--overlay-light, rgba(0, 0, 0, 0.06));
+}
+
 .hint {
   margin-top: 2px;
   opacity: 0.7;

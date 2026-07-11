@@ -338,7 +338,7 @@ route.get("/live-scores", async (c) => {
 - `type: "iframe"` / `type: "webview"`：用于插件自己的 Web UI、远程网站、单独 HTML 或复杂浏览器 UI。旧 `iframe` 卡继续兼容；新文档把它定位成正式 WebView escape hatch。
 - `type: "chat.surface"`：用于把插件自己创建的 `plugin_private` / `private` session 作为原生聊天 transcript 嵌进当前聊天流。它只接受 `sessionId/sessionRef`，宿主会校验该 session 属于当前 plugin 且不是公开 session。
 
-命名边界：未来可组合 native cards 属于 Infinity Chalkboard / Card Kernel。`workbench` 是旧代码 namespace，不作为新插件作者需要学习的公开概念。详见 `.docs/INFINITY-CHALKBOARD.md`。
+命名边界：`workbench` 是旧代码 namespace，不作为新插件作者需要学习的公开概念。当前公开能力以 `chat.surface` 的原生 transcript 和 WebView/iframe UI 为准。
 
 WebView 卡片示例：
 
@@ -387,7 +387,7 @@ return {
 };
 ```
 
-`chat.surface` 在 main 当前版本是薄兼容层，只提供原生 transcript 展示；复杂 composer、可组合 native cards 和组件生态会由 Infinity Chalkboard / Card Kernel 继续扩展。
+`chat.surface` 在 main 当前版本只提供原生 transcript 展示；复杂 composer、可组合 native cards 和组件生态尚未进入公开 SDK 契约。
 
 ### Skills（知识注入）
 
@@ -678,7 +678,7 @@ const value = await ctx.config.get("agentMode", { scope: "per-agent", agentId: "
 - 悬停 tab 时显示插件全名（tooltip）
 - Tab 超过 5 个时自动折叠到 overflow 下拉菜单，用户可拖拽排序
 
-插件页面通过 WebView/iframe 渲染。旧 iframe 是兼容名称，新的插件设计可以把它理解成 WebView：适合展示已有 Web 应用、远程网站或单独 HTML。Hana 原生聊天 surface 和未来 Infinity Chalkboard native cards 不依赖 WebView/iframe。新插件建议使用 `@hana/plugin-sdk` 发送握手和宿主请求：
+插件页面通过 WebView/iframe 渲染。旧 iframe 是兼容名称，新的插件设计可以把它理解成 WebView：适合展示已有 Web 应用、远程网站或单独 HTML。Hana 原生聊天 surface 不依赖 WebView/iframe。新插件建议使用 `@hana/plugin-sdk` 发送握手和宿主请求：
 
 ```js
 import { hana } from '@hana/plugin-sdk';

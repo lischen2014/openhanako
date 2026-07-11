@@ -22,6 +22,7 @@ import {
 } from '../services/server-connection';
 import { isWebRuntime } from '../utils/platform-runtime';
 import { mergeWorkspaceHistory, normalizeWorkspacePath, removeWorkspaceHistoryEntries } from '../../../../shared/workspace-history.ts';
+import { pendingNewSessionIdentityPatch } from './session-actions';
 
 /* eslint-disable @typescript-eslint/no-explicit-any -- store setState 回调及 IPC callback data */
 
@@ -263,7 +264,7 @@ export async function applyStudioWorkspace(workspace: Pick<StudioWorkspace, 'mou
   void activateWorkspaceDesk(null, { mountId, label, nativeRootPath, reload: false });
   const s = useStore.getState();
   if (!s.pendingNewSession) {
-    useStore.setState({ currentSessionPath: null, pendingNewSession: true });
+    useStore.setState({ currentSessionPath: null, ...pendingNewSessionIdentityPatch() });
     clearChat();
     useStore.getState().requestInputFocus();
   }
@@ -1299,7 +1300,7 @@ export async function applyFolder(folder: string): Promise<void> {
   void activateWorkspaceDesk(normalized, { mountId: null, reload: false });
   const s = useStore.getState();
   if (!s.pendingNewSession) {
-    useStore.setState({ currentSessionPath: null, pendingNewSession: true });
+    useStore.setState({ currentSessionPath: null, ...pendingNewSessionIdentityPatch() });
     clearChat();
     useStore.getState().requestInputFocus();
   }

@@ -3,8 +3,7 @@
 /**
  * shared/artifact-core/manifest.cjs
  *
- * Schema-1 train manifest parse/validate/verify for the SWIFT artifact
- * pipeline (.docs/book/swift/work-items/c2-pipeline-design-v0.md §2, §4).
+ * Schema-1 train manifest parse/validate/verify for signed runtime artifacts.
  *
  * Signatures are raw ed25519 over the exact manifest file bytes (Node
  * `crypto`, algorithm `null` — required for Ed25519 keys). Verification
@@ -40,8 +39,8 @@ function validateArtifactEntry(entry, label) {
 }
 
 /**
- * Structural validation of a parsed manifest object against schema 1
- * (C2 §2). Throws a descriptive Error on the first violation found.
+ * Structural validation of a parsed manifest object against schema 1.
+ * Throws a descriptive Error on the first violation found.
  * @param {unknown} value
  * @returns {object} the same value, narrowed, for chaining
  */
@@ -80,11 +79,33 @@ function validateManifest(value) {
   ) {
     fail("rollout.{percent,salt} invalid (percent must be 0-100, salt a string)");
   }
+  // Schema compatibility rule:
+  // `artifacts` requires AT LEAST ONE known kind (renderer, server); every
+  // entry that IS present is fully validated exactly as before; an absent
+  // kind is legal for legacy server-only seeds. Unknown kinds are still
+  // rejected. Consumers MUST hard-error when the kind they need is missing;
+  // "one train ships the full tested trio" stays a release-publishing
+  // policy, not a schema constraint.
   if (!isPlainObject(value.artifacts)) fail("artifacts must be an object");
-  validateArtifactEntry(value.artifacts.renderer, "artifacts.renderer");
-  if (!isPlainObject(value.artifacts.server)) fail("artifacts.server must be an object");
-  for (const [platformArch, entry] of Object.entries(value.artifacts.server)) {
-    validateArtifactEntry(entry, `artifacts.server.${platformArch}`);
+  const artifactKinds = Object.keys(value.artifacts);
+  if (artifactKinds.length === 0) {
+    fail("artifacts must contain at least one known kind (renderer, server)");
+  }
+  for (const kind of artifactKinds) {
+    if (kind === "renderer") {
+      validateArtifactEntry(value.artifacts.renderer, "artifacts.renderer");
+    } else if (kind === "server") {
+      if (!isPlainObject(value.artifacts.server)) fail("artifacts.server must be an object");
+      const serverEntries = Object.entries(value.artifacts.server);
+      if (serverEntries.length === 0) {
+        fail("artifacts.server must carry at least one platform-arch entry when present");
+      }
+      for (const [platformArch, entry] of serverEntries) {
+        validateArtifactEntry(entry, `artifacts.server.${platformArch}`);
+      }
+    } else {
+      fail(`artifacts contains unknown kind ${JSON.stringify(kind)}`);
+    }
   }
   if (!Array.isArray(value.mirrors) || !value.mirrors.every((m) => typeof m === "string")) {
     fail("mirrors must be an array of strings");
@@ -110,7 +131,7 @@ function parseManifest(bytes) {
 /**
  * Verifies a detached ed25519 signature over the exact manifest bytes,
  * against a pinned keyset. Requires manifest.keyId to be present in the
- * keyset (C2 §4 — verification requires the manifest's keyId to be
+ * keyset (verification requires the manifest's keyId to be
  * present AND the signature to check out).
  * @param {Buffer} manifestBytes - exact bytes that were signed
  * @param {Buffer} sigBytes - detached ed25519 signature
@@ -143,7 +164,7 @@ function verifyManifest(manifestBytes, sigBytes, keyset) {
 }
 
 /**
- * Anti-rollback check (C2 §2): a manifest's train must be strictly
+ * Anti-rollback check: a manifest's train must be strictly
  * greater than the currently activated train. `currentTrain` of
  * `null`/`undefined` means "nothing activated yet" (seed case) and always
  * passes.

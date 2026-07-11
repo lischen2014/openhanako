@@ -1,7 +1,9 @@
-import React from 'react';
+import React, { useId } from 'react';
 import styles from './settings-components.module.css';
+import { SettingsSurface } from './SettingsPrimitives';
 
-type Variant = 'default' | 'hero' | 'double-column' | 'flush' | 'list';
+type Variant = 'default' | 'hero' | 'double-column' | 'list';
+type Surface = 'card' | 'plain';
 
 interface SettingsSectionProps {
   title?: React.ReactNode;
@@ -10,6 +12,7 @@ interface SettingsSectionProps {
    *  用于表达"这个 section 针对哪个对象"——context 选中什么，section 内的配置就作用于什么。 */
   context?: React.ReactNode;
   variant?: Variant;
+  surface?: Surface;
   children: React.ReactNode;
   className?: string;
 }
@@ -23,11 +26,7 @@ interface CardProps extends React.HTMLAttributes<HTMLDivElement> {
 }
 
 function Card({ children, className, ...rest }: CardProps) {
-  return (
-    <div className={[styles.sectionCard, className].filter(Boolean).join(' ')} {...rest}>
-      {children}
-    </div>
-  );
+  return <SettingsSurface className={className} {...rest}>{children}</SettingsSurface>;
 }
 
 function Footer({ children }: FooterProps) {
@@ -60,12 +59,24 @@ function Warning({ children, className, ...rest }: WarningProps) {
   return <div className={[styles.sectionWarning, className].filter(Boolean).join(' ')} {...rest}>{children}</div>;
 }
 
-function SettingsSectionBase({ title, description, context, variant = 'default', children, className }: SettingsSectionProps) {
+function SettingsSectionBase({
+  title,
+  description,
+  context,
+  variant = 'default',
+  surface,
+  children,
+  className,
+}: SettingsSectionProps) {
+  const id = useId();
+  const titleId = title ? `${id}-title` : undefined;
+  const descriptionId = description ? `${id}-description` : undefined;
+  const effectiveSurface = surface ?? (variant === 'hero' || variant === 'double-column' ? 'plain' : 'card');
   const rootClass = [
     styles.section,
     variant === 'hero' && styles.sectionHero,
     variant === 'double-column' && styles.sectionDoubleColumn,
-    variant === 'flush' && styles.sectionFlush,
+    effectiveSurface === 'plain' && styles.sectionPlain,
     variant === 'list' && styles.sectionList,
     className,
   ].filter(Boolean).join(' ');
@@ -77,15 +88,17 @@ function SettingsSectionBase({ title, description, context, variant = 'default',
   ].filter(Boolean).join(' ');
 
   return (
-    <section className={rootClass}>
+    <section className={rootClass} aria-labelledby={titleId} aria-describedby={descriptionId}>
       {hasHeader && (
         <div className={headerClass}>
-          {title && <h2 className={styles.sectionTitle}>{title}</h2>}
+          {title && <h2 id={titleId} className={styles.sectionTitle}>{title}</h2>}
           {context && <div className={styles.sectionContext}>{context}</div>}
         </div>
       )}
-      {description && <div className={styles.sectionDescription}>{description}</div>}
-      <div className={styles.sectionBody}>{children}</div>
+      {description && <div id={descriptionId} className={styles.sectionDescription}>{description}</div>}
+      <SettingsSurface variant={effectiveSurface} className={styles.sectionBody}>
+        {children}
+      </SettingsSurface>
     </section>
   );
 }

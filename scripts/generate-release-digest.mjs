@@ -5,9 +5,12 @@ import process from "node:process";
 import { pathToFileURL } from "node:url";
 import {
   DIGEST_ASSET_NAME,
+  DIGEST_HISTORY_ASSET_NAME,
   DIGEST_SCHEMA_VERSION,
   RELEASE_DIGEST_JSON_SCHEMA,
+  appendDigestToHistory,
   assertValidReleaseDigest,
+  assertValidReleaseDigestHistory,
 } from "./release-digest-schema.mjs";
 
 const DEFAULT_REPOSITORY = "liliMozi/openhanako";
@@ -25,6 +28,8 @@ export function parseArgs(argv = process.argv.slice(2), env = process.env) {
     releaseNotesFile: null,
     releaseUrl: "",
     noLlm: false,
+    appendHistory: false,
+    historyFile: DIGEST_HISTORY_ASSET_NAME,
     model: env.OPENAI_MODEL || DEFAULT_MODEL,
   };
 
@@ -41,6 +46,8 @@ export function parseArgs(argv = process.argv.slice(2), env = process.env) {
     else if (arg === "--release-url") args.releaseUrl = argv[++i];
     else if (arg === "--model") args.model = argv[++i];
     else if (arg === "--no-llm") args.noLlm = true;
+    else if (arg === "--append-history") args.appendHistory = true;
+    else if (arg === "--history-file") args.historyFile = argv[++i];
     else if (arg === "--help" || arg === "-h") args.help = true;
     else throw new Error(`Unknown argument: ${arg}`);
   }
@@ -49,7 +56,8 @@ export function parseArgs(argv = process.argv.slice(2), env = process.env) {
   args.owner ||= envOwner;
   args.repo ||= envRepo;
 
-  if (!args.tag && !args.help) {
+  // --append-history 只搬运既有摘要文件，不接触 git/LLM，不需要 tag
+  if (!args.tag && !args.help && !args.appendHistory) {
     throw new Error("Missing release tag. Pass --tag vX.Y.Z or run from a tag workflow.");
   }
 
@@ -70,6 +78,9 @@ Options:
   --release-url <url>        Optional release URL embedded into digest source
   --model <model>           OpenAI model. Default: ${DEFAULT_MODEL}
   --no-llm                  Only collect/write the source packet; do not call OpenAI
+  --append-history          Append the digest at --out into the v2 rolling history, then exit
+                            (no git, no LLM; the hand-written digest workflow's second step)
+  --history-file <path>     v2 rolling history JSON path. Default: ${DIGEST_HISTORY_ASSET_NAME}
 `);
 }
 
@@ -251,10 +262,44 @@ async function writeJson(filePath, value) {
   await fs.promises.writeFile(filePath, `${JSON.stringify(value, null, 2)}\n`, "utf-8");
 }
 
+async function readJsonIfExists(filePath) {
+  try {
+    return JSON.parse(await fs.promises.readFile(filePath, "utf-8"));
+  } catch (error) {
+    if (error && error.code === "ENOENT") return null;
+    throw error;
+  }
+}
+
+/**
+ * 手写工作流的第二步：读取 --out 的 v1 单版摘要，
+ * 追加进 --history-file 的 v2 滚动史册（新版本插头部、同版本幂等覆盖、
+ * 旧版本拒绝、超 50 条裁掉最老），整体校验通过后落盘。史册文件不存在
+ * 时以该摘要为唯一条目新建（首次迁移）。损坏的现有史册文件直接抛错，
+ * 不静默重建（项目铁律：禁止非用户预期的 fallback）。
+ */
+export async function appendDigestFileToHistoryFile(digestPath, historyPath) {
+  const digest = JSON.parse(await fs.promises.readFile(digestPath, "utf-8"));
+  const existing = await readJsonIfExists(historyPath);
+  if (existing !== null) {
+    assertValidReleaseDigestHistory(existing);
+  }
+  const history = appendDigestToHistory(existing, digest);
+  assertValidReleaseDigestHistory(history);
+  await writeJson(historyPath, history);
+  return history;
+}
+
 export async function run(argv = process.argv.slice(2), { env = process.env, fetchImpl = fetch } = {}) {
   const args = parseArgs(argv, env);
   if (args.help) {
     printHelp();
+    return;
+  }
+
+  if (args.appendHistory) {
+    const history = await appendDigestFileToHistoryFile(args.out, args.historyFile);
+    console.log(`Appended ${args.out} into ${args.historyFile} (${history.entries.length} entries, head ${history.entries[0].version})`);
     return;
   }
 
@@ -276,7 +321,8 @@ export async function run(argv = process.argv.slice(2), { env = process.env, fet
     model: args.model,
   });
   await writeJson(args.out, digest);
-  console.log(`Wrote ${args.out} for ${digest.tag}`);
+  const history = await appendDigestFileToHistoryFile(args.out, args.historyFile);
+  console.log(`Wrote ${args.out} for ${digest.tag}; history ${args.historyFile} now has ${history.entries.length} entries`);
 }
 
 if (process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url) {

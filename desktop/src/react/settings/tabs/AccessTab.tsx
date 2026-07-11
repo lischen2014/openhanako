@@ -14,7 +14,7 @@ import {
   upsertServerConnection,
   writePersistedServerConnectionState,
 } from '../../services/server-connection';
-import { Toggle } from '../widgets/Toggle';
+import { Toggle } from '@/ui';
 import { SettingsSection } from '../components/SettingsSection';
 import { SettingsRow } from '../components/SettingsRow';
 import styles from '../Settings.module.css';

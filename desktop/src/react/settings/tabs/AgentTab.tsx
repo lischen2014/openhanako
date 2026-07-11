@@ -4,7 +4,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { useSettingsStore } from '../store';
 import { hanaFetch } from '../api';
 import { t, autoSaveConfig } from '../helpers';
-import { SelectWidget, ProviderIcon, ProviderGroupHeader, selectWidgetStyles } from '@/ui';
+import { SelectWidget, Toggle, ProviderIcon, ProviderGroupHeader, selectWidgetStyles } from '@/ui';
 import { browseAgent, setPrimaryAgent, loadSettingsConfig, loadAgents } from '../actions';
 import { AgentCardStack } from './agent/AgentCardStack';
 import { YuanSelector } from './agent/YuanSelector';
@@ -13,7 +13,6 @@ import { AgentToolsSection } from './agent/AgentToolsSection';
 import { CharacterCardPreviewOverlay, type CharacterCardPlan } from '../overlays/CharacterCardPreviewOverlay';
 import { SettingsSection } from '../components/SettingsSection';
 import { SettingsRow } from '../components/SettingsRow';
-import { Toggle } from '../widgets/Toggle';
 import { readConfigBoolean } from '../resource-state';
 import styles from '../Settings.module.css';
 import {
@@ -230,8 +229,7 @@ export function AgentTab() {
   return (
     <div className={`${styles['settings-tab-content']} ${styles['active']}`} data-tab="agent">
       {/* Agent 卡片堆叠 */}
-      <section className={styles['settings-section']}>
-        <h2 className={styles['settings-section-title']}>{t('settings.agent.title')}</h2>
+      <SettingsSection title={t('settings.agent.title')} surface="plain">
         <AgentCardStack
           agents={agents}
           selectedId={selectedSettingsAgentId}
@@ -338,11 +336,10 @@ export function AgentTab() {
           </button>
         </div>
         {/* 图片模型选择器暂时隐藏，后续重新设计 */}
-      </section>
+      </SettingsSection>
 
-      {/* 关于 Ta（保持原样，不改） */}
-      <section className={styles['settings-section']}>
-        <h2 className={styles['settings-section-title']}>{t('settings.about.title')}</h2>
+      {/* 关于 Ta 的内容保持原样，外层归入标准 Section。 */}
+      <SettingsSection title={t('settings.about.title')} surface="plain">
         <div className={`${styles['settings-form-field']} ${styles['settings-form-field-center']}`}>
           <span className={styles['settings-form-hint']}>{t('settings.agent.yuanHint')}</span>
           <YuanSelector
@@ -386,12 +383,12 @@ export function AgentTab() {
           />
           <span className={styles['settings-form-hint']}>{t('settings.agent.ishikiHint')}</span>
         </div>
-        <div className={styles['settings-form-field']} style={{ display: 'flex', justifyContent: 'center' }}>
+        <div className={`${styles['settings-form-field']} ${styles['settings-form-actions-center']}`}>
           <button className={styles['settings-save-btn-sm']} onClick={saveAgent}>
             {t('settings.save')}
           </button>
         </div>
-      </section>
+      </SettingsSection>
 
       {/* 以下是本 phase 需要改造的部分：Memory / Experience / Tools */}
 
@@ -415,7 +412,7 @@ export function AgentTab() {
             }}
           />}
         />
-        <div style={{ padding: 'var(--space-8) var(--space-16)' }}>
+        <div className={styles['settings-section-inset']}>
           {experienceEnabled === undefined ? null : experienceEnabled === false ? (
             <div className={styles['exp-empty']}>{t('settings.experience.paused')}</div>
           ) : expCategories.length === 0 ? (

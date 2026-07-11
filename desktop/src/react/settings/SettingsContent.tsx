@@ -41,6 +41,7 @@ import { ClearMemoryConfirm } from './overlays/ClearMemoryConfirm';
 import { BridgeTutorial } from './overlays/BridgeTutorial';
 import { WechatQrcodeOverlay } from './overlays/WechatQrcodeOverlay';
 import { InputContextMenu } from '../components/InputContextMenu';
+import { SettingsPage } from './components/SettingsPrimitives';
 import styles from './Settings.module.css';
 
 const TAB_COMPONENTS: Record<string, React.ComponentType> = {
@@ -206,9 +207,6 @@ export function SettingsContent({
   const activeTabTitle = tabTitleKey ? t(tabTitleKey) : titleToLabel(dynamicTab?.title);
   const activeTabDescriptionKey = TAB_DESCRIPTION_KEYS[effectiveActiveTab];
   const activeTabDescription = activeTabDescriptionKey ? t(activeTabDescriptionKey) : '';
-  // 仅插件市场走 wide（弹窗壳 data-wide=1200）。供应商留在 640，避免 960 轨道把 884 壳撑破。
-  const isWideTab = effectiveActiveTab === 'plugin-marketplace';
-
   const reportActiveTabChange = useCallback((tab: string) => {
     const nextTab = normalizeSettingsTab(tab);
     lastReportedActiveTabRef.current = nextTab;
@@ -227,9 +225,9 @@ export function SettingsContent({
 
   return (
     <ErrorBoundary region="settings">
-      <div data-input-ctx-zone="settings">
+      <div className={styles['settings-content-root']} data-input-ctx-zone="settings">
         <div
-          className={`settings-panel ${isModal ? styles['settings-panel-modal'] : ''}${isWideTab ? ' ' + styles['settings-panel-wide'] : ''}`}
+          className={`settings-panel ${isModal ? styles['settings-panel-modal'] : ''}`}
           id="settingsPanel"
         >
           <div className={`settings-header ${isModal ? styles['settings-header-modal'] : ''}`}>
@@ -257,7 +255,7 @@ export function SettingsContent({
           </div>
           <div className={styles['settings-body']}>
             <SettingsNav onTabChange={reportActiveTabChange} />
-            <div className={`${styles['settings-main']}${isWideTab ? ' ' + styles['settings-main-wide'] : ''}`}>
+            <div className={styles['settings-main']}>
               {!isModal && (
                 <div className={styles['settings-tab-heading']}>
                   <h1 className={styles['settings-tab-title']}>{activeTabTitle}</h1>
@@ -267,7 +265,9 @@ export function SettingsContent({
                 </div>
               )}
               <ErrorBoundary region={effectiveActiveTab} resetKeys={[effectiveActiveTab]}>
-                <ActiveTab />
+                <SettingsPage tab={effectiveActiveTab}>
+                  <ActiveTab />
+                </SettingsPage>
               </ErrorBoundary>
             </div>
           </div>

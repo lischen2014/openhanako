@@ -414,7 +414,7 @@ export const startRun = defineTool({
 });
 ```
 
-The helper requires `sessionId` / `sessionRef`; passing only a legacy `sessionPath` throws. Hana resolves the current path through the session manifest and only renders sessions owned by the same plugin with `plugin_private` or `private` visibility. Main currently provides a thin native transcript surface; richer composer and native card composition are reserved for the Infinity Chalkboard / Card Kernel layer.
+The helper requires `sessionId` / `sessionRef`; passing only a legacy `sessionPath` throws. Hana resolves the current path through the session manifest and only renders sessions owned by the same plugin with `plugin_private` or `private` visibility. Main currently provides a thin native transcript surface; richer composer and native card composition are not part of the public runtime contract yet.
 
 ## Provider contributions
 

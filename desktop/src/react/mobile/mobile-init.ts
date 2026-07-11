@@ -3,7 +3,7 @@ import { hanaFetch } from '../hooks/use-hana-fetch';
 import { sessionIdForPathFromLocatorState, sessionScopedValue } from '../stores/session-slice';
 import { applyAgentIdentity, loadAvatars } from '../stores/agent-actions';
 import { activateWorkspaceDesk } from '../stores/desk-actions';
-import { loadMessages } from '../stores/session-actions';
+import { loadMessages, pendingNewSessionIdentityPatch } from '../stores/session-actions';
 import { connectWebSocket, getWebSocket } from '../services/websocket';
 import { configureAppEventActions } from '../services/app-event-actions';
 import { configureWsMessageHandler } from '../services/ws-message-handler';
@@ -85,7 +85,7 @@ export async function initializeMobileRuntime(principal: MobilePrincipal): Promi
     previewOpen: false,
     currentSessionPath: null,
     pendingSessionSwitchPath: null,
-    pendingNewSession: true,
+    ...pendingNewSessionIdentityPatch(),
     welcomeVisible: true,
   });
 
@@ -178,7 +178,7 @@ export async function loadMobileSessions({
     useStore.setState({
       currentSessionPath: null,
       pendingSessionSwitchPath: null,
-      pendingNewSession: true,
+      ...pendingNewSessionIdentityPatch(),
       welcomeVisible: true,
     });
   }

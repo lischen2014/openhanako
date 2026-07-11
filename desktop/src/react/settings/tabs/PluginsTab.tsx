@@ -6,8 +6,7 @@ import { t } from '../helpers';
 import styles from '../Settings.module.css';
 import { SettingsSection } from '../components/SettingsSection';
 import { SettingsRow } from '../components/SettingsRow';
-import { SelectWidget, type SelectOption } from '../widgets/SelectWidget';
-import { Toggle } from '../widgets/Toggle';
+import { SelectWidget, Toggle, type SelectOption } from '@/ui';
 
 const platform = window.platform;
 
@@ -435,7 +434,7 @@ export function PluginsTab() {
     <div className={`${styles['settings-tab-content']} ${styles['active']}`} data-tab="plugins">
       <SettingsSection
         title={t('settings.plugins.marketplaceTitle')}
-        variant="flush"
+        surface="plain"
       >
         {marketplaceBody}
       </SettingsSection>
@@ -443,7 +442,7 @@ export function PluginsTab() {
       {/* 管理插件：dropzone + 列表 + 路径提示，同一 flush section；reload 按钮放 context */}
       <SettingsSection
         title={t('settings.plugins.manageTitle')}
-        variant="flush"
+        surface="plain"
         context={<div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>{diagnosticsButton}{reloadButton}</div>}
       >
         {/* 安装区：dropzone 自带虚线边框卡 */}
@@ -558,7 +557,7 @@ export function PluginsTab() {
       {diagnostics && (
         <SettingsSection
           title={t('settings.plugins.diagnosticsTitle')}
-          variant="flush"
+          surface="plain"
           context={
             <span className={styles['skills-source-badge']} style={{ marginRight: 0 }}>
               {t('settings.plugins.diagnosticsSummary', {

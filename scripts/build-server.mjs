@@ -58,6 +58,7 @@ import {
 } from "./build-server-plugin-runtime-deps.mjs";
 import { copyServerRuntimeAssets } from "./build-server-runtime-assets.mjs";
 import { pruneRuntimeDeadFiles } from "./build-server-prune.mjs";
+import { packDualKindSeed } from "./build-server-artifact.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, "..");
@@ -698,5 +699,27 @@ if (isWin) {
   fs.chmodSync(cliWrapper, 0o755);
 }
 console.log("[build-server] wrapper created");
+
+// ── 11. server + renderer 树 → 一份签名 seed 归档（双 artifact 管线）──
+// ⚠️ 顺序铁律：先签名，后装箱。Apple notary
+// 会递归解包 tar.gz 校验箱内每个 Mach-O，而 electron-builder 阶段的签名看
+// 不进归档内部；packDualKindSeed 在 packTree 之前对 server 树内 Mach-O 做
+// 签名（本地 ad-hoc codesign；æ­£å¼ CI 换 Developer ID 时必须保持同一顺序——
+// 把 Developer ID 签名步骤插到 packDualKindSeed 之前或替换其签名器实现，
+// 绝不允许"先装箱再签外壳"）。这一步必须是 build-server 的最后一步：server
+// 树在装箱后不允许再被任何步骤触碰。renderer 树（desktop/dist-renderer/）
+// 由 build:renderer 在本脚本之前产出（package.json 的 build:client 组合脚本
+// 保证顺序）；纯 web 静态资源，不需要签名，只做"不含 Mach-O"的断言。
+// HANA_SIGN_KEY 未设置时这里硬报错（安装包必须携带签名 seed）；本地验证用
+// artifact-keygen.mjs 生成一次性密钥对，配 HANA_SIGN_KEYSET 指向其 keyset。
+await packDualKindSeed({
+  outDir,
+  rendererDistDir: path.join(ROOT, "desktop", "dist-renderer"),
+  rendererArtifactOutDir: path.join(ROOT, "dist-renderer-artifact"),
+  artifactOutDir: path.join(ROOT, "dist-server-artifact", `${osDirName}-${arch}`),
+  version: rootPkg.version,
+  platform,
+  arch,
+});
 
 console.log("[build-server] Done!");

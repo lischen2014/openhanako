@@ -3,8 +3,7 @@
 /**
  * shared/artifact-core/ustar.cjs
  *
- * Minimal ustar tar reader/writer for the SWIFT artifact pipeline
- * (.docs/book/swift/work-items/c2-pipeline-design-v0.md §1).
+ * Minimal ustar tar reader/writer for signed runtime artifacts.
  *
  * We control the producer (packTree), so the consumer (extract) can be
  * strict by construction: only plain files and directories are accepted.

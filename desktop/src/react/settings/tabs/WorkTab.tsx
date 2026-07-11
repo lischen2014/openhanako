@@ -3,7 +3,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { useSettingsStore } from '../store';
 import { t, autoSaveConfig } from '../helpers';
 import { hanaFetch } from '../api';
-import { Toggle } from '../widgets/Toggle';
+import { Toggle } from '@/ui';
 import { AgentSelect } from './bridge/AgentSelect';
 import { BridgePermissionModeSelect, type BridgePermissionMode } from './bridge/BridgeWidgets';
 import { SettingsSection } from '../components/SettingsSection';

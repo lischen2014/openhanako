@@ -1,7 +1,12 @@
 import fs from "node:fs";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
-import { DIGEST_ASSET_NAME, assertValidReleaseDigest } from "./release-digest-schema.mjs";
+import {
+  DIGEST_ASSET_NAME,
+  DIGEST_HISTORY_SCHEMA_VERSION,
+  assertValidReleaseDigest,
+  assertValidReleaseDigestHistory,
+} from "./release-digest-schema.mjs";
 
 function parseArgs(argv = process.argv.slice(2), env = process.env) {
   const args = {
@@ -51,6 +56,27 @@ export function validateDigestForTag(digest, tag) {
   return digest;
 }
 
+/**
+ * v2 滚动史册：整体结构校验（含版本严格递减、上限）+ 头部条目必须与
+ * 本次发版 tag 一致（头部就是"本次要发的那一节"）。
+ */
+export function validateHistoryForTag(history, tag) {
+  assertValidReleaseDigestHistory(history);
+  validateDigestForTag(history.entries[0], tag);
+  return history;
+}
+
+/**
+ * 按文件内容自动分流：{schema: 2} → v2 史册校验；否则按 v1 单版摘要
+ * 校验。CI 与本地手写工作流共用此入口，两种文件都能过检。
+ */
+export function validateDigestFileValue(value, tag) {
+  if (value && typeof value === "object" && !Array.isArray(value) && value.schema === DIGEST_HISTORY_SCHEMA_VERSION) {
+    return validateHistoryForTag(value, tag);
+  }
+  return validateDigestForTag(value, tag);
+}
+
 export function readDigestFile(filePath) {
   return JSON.parse(fs.readFileSync(filePath, "utf-8"));
 }
@@ -63,7 +89,7 @@ export function run(argv = process.argv.slice(2), env = process.env) {
   }
 
   const digest = readDigestFile(args.file);
-  validateDigestForTag(digest, args.tag);
+  validateDigestFileValue(digest, args.tag);
   console.log(`Validated ${args.file} for ${args.tag}`);
 }
 

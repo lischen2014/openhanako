@@ -30,7 +30,7 @@ vi.mock('../../actions', () => ({
   updateSettingsSnapshot: (...args: unknown[]) => updateSettingsSnapshot(...args),
 }));
 
-vi.mock('../../widgets/Toggle', () => ({
+vi.mock('@/ui', () => ({
   Toggle: ({
     on,
     onChange,
@@ -58,9 +58,6 @@ vi.mock('../../widgets/Toggle', () => ({
       toggle
     </button>
   ),
-}));
-
-vi.mock('../../widgets/SelectWidget', () => ({
   SelectWidget: ({
     options,
     value,

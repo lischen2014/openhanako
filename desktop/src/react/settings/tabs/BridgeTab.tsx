@@ -13,7 +13,7 @@ import {
 } from '../../utils/bridge-platforms';
 import { SettingsSection } from '../components/SettingsSection';
 import { SettingsRow } from '../components/SettingsRow';
-import { Toggle } from '../widgets/Toggle';
+import { Toggle } from '@/ui';
 import { useSettingsStore } from '../store';
 import styles from '../Settings.module.css';
 
@@ -334,7 +334,7 @@ export function BridgeTab() {
         />
       </SettingsSection>
 
-      <SettingsSection title={t('settings.bridge.agentSettings')} variant="flush">
+      <SettingsSection title={t('settings.bridge.agentSettings')} surface="plain">
         {/* BridgeAgentRow：tab 级 context，水平平铺头像+名字
          * 未超宽时居中显示，超宽时横向滚动；selected 高亮对齐 AgentCardStack */}
         <BridgeAgentRow
@@ -345,14 +345,8 @@ export function BridgeTab() {
 
       {/* 对外意识：hint 在上、textarea 在下，直接作为 section body children（单 textarea 不套 row） */}
       <SettingsSection title={t('settings.agent.publicIshiki')}>
-        <div style={{ padding: 'var(--space-8) var(--space-16)' }}>
-          <div style={{
-            fontSize: '0.7rem',
-            color: 'var(--text-muted)',
-            lineHeight: 1.5,
-            marginBottom: 'var(--space-8)',
-            whiteSpace: 'pre-line',
-          }}>
+        <div className={styles['settings-section-inset']}>
+          <div className={styles['settings-section-hint']}>
             {t('settings.agent.publicIshikiHint')}
           </div>
           <textarea

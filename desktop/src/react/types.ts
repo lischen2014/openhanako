@@ -38,6 +38,12 @@ export interface ReleaseDigest {
   items: ReleaseDigestItem[];
 }
 
+export interface UpdateDigestHistoryResult {
+  entries: ReleaseDigest[];
+  source: 'online' | 'bundled' | 'none';
+  complete: boolean;
+}
+
 export interface AutoUpdateState {
   status: 'idle' | 'checking' | 'available' | 'downloading' | 'downloaded' | 'installing' | 'error' | 'latest';
   version: string | null;
@@ -60,6 +66,14 @@ export interface AutoUpdateState {
     repo?: string;
     feedUrl?: string;
   } | null;
+}
+
+/** IPC 返回形状（train-update-status）：OTA 是否已把一列车暂存就绪 */
+export interface TrainUpdateStatus {
+  staged: boolean;
+  train: number | null;
+  version: string | null;
+  minShellBlocked: boolean;
 }
 
 export interface AutoLaunchStatus {
@@ -511,9 +525,9 @@ export interface PlatformApi {
 
   // ── App info ──
   getAppVersion?(): Promise<string>;
-  getPendingAnnouncement?(): Promise<{ version: string; digest: ReleaseDigest | null } | null>;
+  /** 升级后首启合订本：entries 为 (书签, 当前] 区间的 digest 史册切片，新→旧 */
+  getPendingAnnouncement?(): Promise<{ version: string; entries: ReleaseDigest[] } | null>;
   ackAnnouncement?(): Promise<void>;
-  checkUpdate?(): Promise<{ version: string; downloadUrl: string } | null>;
 
   // ── Auto-update (Windows) ──
   autoUpdateCheck?(): Promise<string | null>;
@@ -522,6 +536,12 @@ export interface PlatformApi {
   autoUpdateState?(): Promise<AutoUpdateState>;
   autoUpdateSetChannel?(channel: 'stable' | 'beta'): Promise<void>;
   onAutoUpdateState?(callback: (state: AutoUpdateState) => void): (() => void) | void;
+  // ── 列车更新（OTA） ──
+  trainUpdateStatus?(): Promise<TrainUpdateStatus>;
+  trainUpdateCheck?(): Promise<{ outcome: string; train?: number; error?: string }>;
+  trainUpdateApply?(): Promise<{ ok: boolean; error?: string }>;
+  /** 关于页更新历史：在线最近五个已发布版本；网络失败时显式返回包内备份来源。 */
+  getUpdateDigestHistory?(): Promise<UpdateDigestHistoryResult>;
   getAutoLaunchStatus?(): Promise<AutoLaunchStatus>;
   setAutoLaunchEnabled?(enabled: boolean): Promise<AutoLaunchStatus>;
   getKeepAwakeStatus?(): Promise<KeepAwakeStatus>;

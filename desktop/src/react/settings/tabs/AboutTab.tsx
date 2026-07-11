@@ -1,22 +1,127 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useSettingsStore } from '../store';
 import { autoSaveConfig, t } from '../helpers';
-import { Toggle } from '../widgets/Toggle';
+import { Toggle } from '@/ui';
 import { loadSettingsConfig } from '../actions';
+import { loadUpdateDigestHistory } from '../update-history-actions';
 import { readConfigBoolean } from '../resource-state';
 import { SettingsSection } from '../components/SettingsSection';
 import { SettingsRow } from '../components/SettingsRow';
 import { ExpandableRow } from '../components/ExpandableRow';
 import { AutoUpdateStatus } from '../../components/AutoUpdateStatus';
+import { digestLocale, digestText, kindLabel } from '../../components/shared/release-digest-text';
 import { useAutoUpdateState } from '../../hooks/use-auto-update-state';
+import { useTrainUpdateState } from '../../hooks/use-train-update-state';
+import { Overlay } from '../../ui';
+import type { UpdateDigestHistoryResult } from '../../types';
 import appIconUrl from '../../../icon.png';
 import styles from '../Settings.module.css';
+
+const EMPTY_HISTORY: UpdateDigestHistoryResult = { entries: [], source: 'none', complete: false };
+
+function UpdateHistoryDialog({
+  open,
+  loading,
+  history,
+  onClose,
+}: {
+  open: boolean;
+  loading: boolean;
+  history: UpdateDigestHistoryResult;
+  onClose: () => void;
+}) {
+  const locale = digestLocale();
+  const showNotice = !loading
+    && history.entries.length > 0
+    && (history.source !== 'online' || !history.complete);
+  const noticeKey = history.source === 'bundled'
+    ? 'settings.about.updateHistoryOffline'
+    : history.source === 'online'
+      ? 'settings.about.updateHistoryPartial'
+      : 'settings.about.updateHistoryUnavailable';
+
+  return (
+    <Overlay
+      scope="inline"
+      open={open}
+      onClose={onClose}
+      backdrop="blur"
+      zIndex={100}
+      className={`${styles['memory-viewer']} ${styles['update-history-viewer']}`}
+      backdropClassName={styles['memory-viewer-backdrop']}
+      disableContainerAnimation
+      contentProps={{
+        role: 'dialog',
+        'aria-modal': 'true',
+        'aria-labelledby': 'update-history-dialog-title',
+      }}
+    >
+      <div className={styles['memory-viewer-header']}>
+        <div>
+          <h3 id="update-history-dialog-title" className={styles['memory-viewer-title']}>
+            {t('settings.about.updateHistoryTitle')}
+          </h3>
+          <div className={styles['update-history-subtitle']}>
+            {t('settings.about.updateHistorySubtitle')}
+          </div>
+        </div>
+        <button
+          type="button"
+          className={styles['memory-viewer-close']}
+          aria-label={t('settings.about.updateDigestClose')}
+          onClick={onClose}
+        >
+          ✕
+        </button>
+      </div>
+      <div className={`${styles['memory-viewer-body']} ${styles['update-history-body']}`}>
+        {loading && (
+          <div className={styles['update-history-state']}>{t('settings.about.updateHistoryLoading')}</div>
+        )}
+        {showNotice && (
+          <div className={styles['update-history-notice']}>{t(noticeKey)}</div>
+        )}
+        {!loading && history.entries.length === 0 && (
+          <div className={styles['update-history-state']}>{t('settings.about.updateHistoryUnavailable')}</div>
+        )}
+        {!loading && history.entries.map((digest) => (
+          <article key={digest.version} className={styles['update-history-release']}>
+            <header className={styles['update-history-release-header']}>
+              <h4 className={styles['update-history-version']}>v{digest.version}</h4>
+            </header>
+            <p className={styles['update-history-summary']}>{digestText(digest.summary, locale)}</p>
+            {digest.items.length > 0 && (
+              <div className={styles['update-history-items']}>
+                {digest.items.map((item) => (
+                  <section
+                    key={`${digest.version}-${item.id || item.kind}-${item.title.en}`}
+                    className={styles['update-history-item']}
+                  >
+                    <div className={styles['update-history-item-heading']}>
+                      <span className={styles['update-history-kind']}>{kindLabel(item.kind)}</span>
+                      <h5 className={styles['update-history-item-title']}>{digestText(item.title, locale)}</h5>
+                    </div>
+                    <p className={styles['update-history-item-summary']}>{digestText(item.summary, locale)}</p>
+                  </section>
+                ))}
+              </div>
+            )}
+          </article>
+        ))}
+      </div>
+    </Overlay>
+  );
+}
 
 export function AboutTab() {
   const hana = window.hana;
   const settingsConfig = useSettingsStore(s => s.settingsConfig);
   const [version, setVersion] = useState('');
-  const autoUpdate = useAutoUpdateState();
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [history, setHistory] = useState<UpdateDigestHistoryResult>(EMPTY_HISTORY);
+  const shellUpdate = useAutoUpdateState();
+  const { state: trainUpdate, minShellBlocked, checkNow: checkTrainNow, applyNow: applyTrainNow } = useTrainUpdateState();
   const isBeta = readConfigBoolean(settingsConfig, cfg => cfg.update_channel === 'beta', false);
   // 默认 true：老用户（preferences 里没写这个字段）保持原有"自动检查"行为
   const autoCheck = readConfigBoolean(settingsConfig, cfg => cfg.auto_check_updates, true);
@@ -26,11 +131,27 @@ export function AboutTab() {
   }, [hana]);
 
   const handleCheck = useCallback(() => {
-    hana?.autoUpdateCheck?.();
-  }, []);
+    void checkTrainNow();
+  }, [checkTrainNow]);
 
-  const handleInstall = useCallback(async () => {
+  const handleApply = useCallback(async () => {
+    await applyTrainNow();
+  }, [applyTrainNow]);
+
+  const handleInstallShell = useCallback(async () => {
     await hana?.autoUpdateInstall?.();
+  }, [hana]);
+
+  const handleHistoryOpen = useCallback(async () => {
+    setHistoryOpen(true);
+    setHistoryLoading(true);
+    try {
+      setHistory(await loadUpdateDigestHistory());
+    } catch {
+      setHistory(EMPTY_HISTORY);
+    } finally {
+      setHistoryLoading(false);
+    }
   }, []);
 
   const handleBetaToggle = useCallback(async (on: boolean) => {
@@ -39,34 +160,51 @@ export function AboutTab() {
     await autoSaveConfig({ update_channel: channel }, { silent: true });
     await loadSettingsConfig();
     hana?.autoUpdateCheck?.();
-  }, []);
+    void checkTrainNow();
+  }, [checkTrainNow, hana]);
 
   const handleAutoCheckToggle = useCallback(async (on: boolean) => {
     await autoSaveConfig({ auto_check_updates: on }, { silent: true });
     await loadSettingsConfig();
   }, []);
 
+  // 平台更新条件行：仅当壳更新待命时出现，平时不渲染——一个
+  // 一年两次的事件不该常年占一行。两层文案：minShell 真的挡住
+  // 新列车时升级成更明确的警告措辞。
+  const showPlatformRow = shellUpdate?.status === 'downloaded';
+  const platformRowLabel = minShellBlocked
+    ? t('settings.about.shellStickerTitleBlocking')
+    : t('settings.about.shellStickerTitle');
+
   return (
     <div className={`${styles['settings-tab-content']} ${styles['active']}`} data-tab="about">
-      {/* Hero：保留原 about-hero 独立视觉组件（icon + name + tagline + version + update + check 按钮） */}
+      {/* Hero：产品版本是唯一常规展示的版本号；更新主位是列车更新
+          （check / "更新" 按钮 / 通道 / 历史，壳版本永不出现在这里）。 */}
       <div className={styles['about-hero']}>
         <img className={styles['about-icon']} src={appIconUrl} alt="HanaAgent" />
         <div className={styles['about-name']}>HanaAgent</div>
         <div className={styles['about-tagline']}>{t('settings.about.tagline')}</div>
         {version && <div className={styles['about-version']}>v{version}</div>}
         <AutoUpdateStatus
-          state={autoUpdate}
+          state={trainUpdate}
           agentName={settingsConfig?.agent?.name || 'Hanako'}
-          onInstall={handleInstall}
+          onInstall={handleApply}
+          variant="train"
         />
-        {(!autoUpdate || autoUpdate.status === 'idle' || autoUpdate.status === 'latest' || autoUpdate.status === 'error') && (
-          <button className={styles['about-check-update-btn']} onClick={handleCheck}>
-            {t('settings.about.updateCheckBtn')}
+        <div className={styles['about-update-actions']}>
+          {(!trainUpdate || trainUpdate.status === 'idle' || trainUpdate.status === 'latest' || trainUpdate.status === 'error') && (
+            <button type="button" className={styles['about-check-update-btn']} onClick={handleCheck}>
+              {t('settings.about.updateCheckBtn')}
+            </button>
+          )}
+          <button type="button" className={styles['about-check-update-btn']} onClick={handleHistoryOpen}>
+            {t('settings.about.updateHistoryTitle')}
           </button>
-        )}
+        </div>
       </div>
 
-      {/* Info：4 个标准 row（license / copyright / github / beta toggle） */}
+      {/* Info：4 个标准 row（license / copyright / github / beta toggle）+
+          仅在壳更新待命时出现的条件行 */}
       <SettingsSection>
         <SettingsRow
           label={t('settings.about.license')}
@@ -104,12 +242,31 @@ export function AboutTab() {
           label={t('settings.about.betaUpdates')}
           control={<Toggle on={isBeta} onChange={handleBetaToggle} />}
         />
+        {showPlatformRow && (
+          <SettingsRow
+            label={platformRowLabel}
+            hint={shellUpdate?.version ? `v${shellUpdate.version}` : undefined}
+            hintVariant={minShellBlocked ? 'warn' : 'default'}
+            control={
+              <button type="button" className={styles['about-check-update-btn']} onClick={handleInstallShell}>
+                {t('settings.about.updateInstall')}
+              </button>
+            }
+          />
+        )}
       </SettingsSection>
 
       {/* License 全文：ExpandableRow 直接作为 tab 末尾元素 */}
       <ExpandableRow label={t('settings.about.licenseToggle')}>
         <pre className={styles['about-license-text']}>{LICENSE_TEXT}</pre>
       </ExpandableRow>
+
+      <UpdateHistoryDialog
+        open={historyOpen}
+        loading={historyLoading}
+        history={history}
+        onClose={() => setHistoryOpen(false)}
+      />
     </div>
   );
 }

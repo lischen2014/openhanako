@@ -21,7 +21,7 @@ vi.mock('../../helpers', () => ({
   },
 }));
 
-vi.mock('../../widgets/Toggle', () => ({
+vi.mock('@/ui', () => ({
   Toggle: ({ on }: { on?: boolean }) => (
     <button type="button" data-testid={`computer-toggle-${on === undefined ? 'loading' : on ? 'on' : 'off'}`}>
       toggle

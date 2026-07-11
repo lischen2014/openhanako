@@ -39,6 +39,28 @@ vi.mock('../../settings/tabs/media/MediaProviderDetail', () => ({
 }));
 
 vi.mock('@/ui', () => ({
+  Toggle: ({
+    on,
+    onChange,
+    label,
+    ariaLabel,
+  }: {
+    on: boolean | undefined;
+    onChange: (next: boolean) => void;
+    label?: string;
+    ariaLabel?: string;
+  }) => (
+    <button
+      type="button"
+      role="switch"
+      aria-label={ariaLabel || label}
+      aria-checked={on === undefined ? 'mixed' : on}
+      disabled={on === undefined}
+      onClick={() => {
+        if (on !== undefined) onChange(!on);
+      }}
+    />
+  ),
   SelectWidget: ({ value, onChange, options, disabled }: {
     value: string;
     onChange: (value: string) => void;

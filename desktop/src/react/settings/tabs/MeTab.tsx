@@ -90,7 +90,7 @@ export function MeTab() {
     <div className={`${styles['settings-tab-content']} ${styles['active']}`} data-tab="me">
       {/* 整页 flush：无 section 白卡，input/textarea 自己就是视觉卡片
        * avatar + 两个字段并列，字段间靠白空间分隔 */}
-      <SettingsSection variant="flush">
+      <SettingsSection surface="plain">
         <div className={styles['settings-avatar-center']}>
           <div className={styles['avatar-upload']} onClick={handleAvatarClick}>
             {userAvatarUrl ? (
@@ -138,7 +138,7 @@ export function MeTab() {
       </SettingsSection>
 
       {/* 保存按钮：tab 底部独立居中，用实心 accent 样式（页面级主动作） */}
-      <div style={{ display: 'flex', justifyContent: 'center', marginTop: 'var(--space-16)' }}>
+      <div className={styles['settings-page-primary-action']}>
         <button className={styles['settings-save-btn-sm']} onClick={save}>
           {t('settings.save')}
         </button>

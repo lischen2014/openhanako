@@ -913,7 +913,11 @@
       "{name}은(는) 어느 오후의 귤 향기를 맡았어요",
       "그 대화들에는 아직 온기가 남아 있어요"
     ],
-    "installing": "{name}을(를) v{version}(으)로 업데이트하고 있어요. 잠시만 기다려 주세요……"
+    "installing": "{name}을(를) v{version}(으)로 업데이트하고 있어요. 잠시만 기다려 주세요……",
+    "preparing": {
+      "named": "{name}은(는) 새로운 보금자리를 준비하고 있어요……",
+      "anonymous": "당신의 어시스턴트가 새로운 보금자리를 준비하고 있어요……"
+    }
   },
   "settings": {
     "title": "설정",
@@ -1228,6 +1232,17 @@
       "updateInstallManualHint": "다시 시작하여 업데이트를 누른 뒤 설치합니다. 종료만으로는 자동 설치하지 않습니다",
       "updateInstall": "재시작하여 업데이트",
       "updateInstallNow": "지금 재시작하여 업데이트",
+      "updateApply": "업데이트",
+      "updateApplyAutoHint": "클릭하지 않아도 다음 실행 시 자동으로 적용됩니다",
+      "trainStickerTitle": "새 버전이 준비되었습니다",
+      "shellStickerTitle": "플랫폼 업데이트 사용 가능, 재시작 필요",
+      "shellStickerTitleBlocking": "새 버전을 계속 받으려면 이 업데이트를 완료해야 합니다",
+      "updateHistoryTitle": "업데이트 기록",
+      "updateHistorySubtitle": "최근에 게시된 5개 버전",
+      "updateHistoryLoading": "업데이트 기록을 불러오는 중…",
+      "updateHistoryOffline": "릴리스 사이트에 연결할 수 없어 앱에 저장된 버전을 표시합니다.",
+      "updateHistoryPartial": "업데이트 설명이 있는 게시 버전 중 일부만 찾았습니다.",
+      "updateHistoryUnavailable": "업데이트 기록을 일시적으로 불러올 수 없습니다. 나중에 다시 시도해 주세요.",
       "updateProgress": "{percent}%",
       "updateError": "업데이트 확인 실패",
       "updateLatest": "최신 버전입니다",
@@ -2863,7 +2878,8 @@
     "tray": {
       "show": "HanaAgent 표시",
       "settings": "설정",
-      "quit": "종료"
+      "quit": "종료",
+      "repairArtifacts": "구성 요소 복구…"
     },
     "dialog": {
       "selectFolder": "작업 폴더 선택",
@@ -2879,10 +2895,16 @@
       "serverFilesNotReady": "자동 업데이트가 방금 완료되었고, 새 버전 파일이 아직 디스크에 쓰이고 있어요 ({missing} 없음). {waited}초 동안 기다렸지만 준비되지 않았어요. 잠시 후 HanaAgent를 다시 시작해 주세요.",
       "serverModuleMissing": "Server 시작 실패: 모듈 {module}을(를) 찾을 수 없어요.\n자동 업데이트가 완료된 직후 파일이 아직 디스크에 쓰이는 중일 때 자주 발생해요.\n권장: 1-2분 기다린 후 HanaAgent를 다시 시작해 주세요. 반복되면 GitHub에 신고해 주세요.",
       "installFailedTitle": "HanaAgent 업데이트",
-      "installFailedBody": "업데이트 설치에 실패했어요:\n{error}\n\nHanaAgent를 다시 시작한 후 재시도하거나, 설정 페이지에서 수동으로 업데이트를 확인해 주세요."
+      "installFailedBody": "업데이트 설치에 실패했어요:\n{error}\n\nHanaAgent를 다시 시작한 후 재시도하거나, 설정 페이지에서 수동으로 업데이트를 확인해 주세요.",
+      "repairArtifactsTitle": "구성 요소 복구",
+      "repairArtifactsBody": "이 작업은 HanaAgent의 앱 구성 요소를 설치 당시 버전으로 재설정하고 앱을 다시 시작해요. 데이터(에이전트, 세션, 설정)는 영향을 받지 않아요.",
+      "repairArtifactsConfirm": "복구 후 재시작",
+      "repairArtifactsCancel": "취소",
+      "trainUpdateApplyFailedBody": "HanaAgent v{version}\n\n업데이트 적용 실패:\n{error}\n\n앱을 다시 시작해 주세요."
     },
     "notification": {
-      "ready": "알림이 준비되었어요"
+      "ready": "알림이 준비되었어요",
+      "componentQuarantined": "구성 요소가 이전 버전으로 자동 복구되었어요. 기능에는 영향이 없어요"
     }
   },
   "devtools": {

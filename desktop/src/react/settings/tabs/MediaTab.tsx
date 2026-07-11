@@ -6,8 +6,7 @@ import { updateSettingsSnapshot } from '../actions';
 import { MediaProviderDetail } from './media/MediaProviderDetail';
 import { SettingsSection } from '../components/SettingsSection';
 import { SettingsRow } from '../components/SettingsRow';
-import { SelectWidget } from '@/ui';
-import { Toggle } from '../widgets/Toggle';
+import { SelectWidget, Toggle } from '@/ui';
 import styles from '../Settings.module.css';
 
 interface MediaProvider {
@@ -138,12 +137,8 @@ function SpeechProviderDetail({
         <h2 className={styles['pv-detail-title']}>{provider.displayName || providerId}</h2>
       </div>
 
-      <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginBottom: 'var(--space-16)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-        <span style={{
-          width: 6, height: 6, borderRadius: '50%',
-          background: provider.hasCredentials ? 'var(--success)' : 'var(--text-muted)',
-          display: 'inline-block',
-        }} />
+      <div className={styles['settings-credential-status']}>
+        <span className={`${styles['settings-credential-dot']}${provider.hasCredentials ? ' ' + styles.on : ''}`} />
         {provider.hasCredentials ? t('settings.media.credentialOk') : t('settings.media.credentialMissing')}
       </div>
 
@@ -160,11 +155,7 @@ function SpeechProviderDetail({
                   <span className={styles['pv-fav-item-name']} title={model.id}>{model.name || model.id}</span>
                   <span className={styles['pv-fav-item-id']}>{model.id}</span>
                   {isDefault(model.id) && (
-                    <span style={{
-                      fontSize: '0.6rem', color: 'var(--accent)',
-                      background: 'var(--accent-light)', padding: '1px 6px',
-                      borderRadius: '4px', fontWeight: 500, flexShrink: 0,
-                    }}>
+                    <span className={styles['settings-default-badge']}>
                       {t('settings.media.default')}
                     </span>
                   )}
@@ -426,12 +417,12 @@ export function MediaTab() {
             })}
 
             <div className={styles['pv-list-divider']} />
-            <div className={styles['pv-list-group-label']} style={{ color: 'var(--text-muted)' }}>
+            <div className={`${styles['pv-list-group-label']} ${styles['pv-list-group-label-muted']}`}>
               {t('settings.media.speechSynthesis')}
             </div>
-            <div className={styles['pv-list-item']} style={{ opacity: 0.3, pointerEvents: 'none' }}>
+            <div className={`${styles['pv-list-item']} ${styles['pv-list-item-disabled']}`}>
               <span className={styles['pv-status-dot']} />
-              <span className={styles['pv-list-item-name']} style={{ fontStyle: 'italic', fontSize: '0.7rem' }}>
+              <span className={`${styles['pv-list-item-name']} ${styles['pv-list-item-coming-soon']}`}>
                 {t('settings.media.comingSoon')}
               </span>
             </div>

@@ -277,6 +277,21 @@ function editorHasInlineNode(editor: Editor | null, nodeType: string): boolean {
   return found;
 }
 
+/**
+ * 发送按钮的可用态（hasContent）与 submitEditorMessage 的空消息拦截曾经各写一份判据，
+ * 后者不含 skills，导致纯 skillBadge 消息在按钮上可点、提交时却被当空消息静默吞掉（#2101）。
+ * 两处必须共用这一份谓词，任何新增的"内容维度"只需要改这一处。
+ */
+function composerPayloadIsEmpty(payload: {
+  hasText: boolean;
+  hasFiles: boolean;
+  hasSkills: boolean;
+  hasDocContext: boolean;
+  hasQuotes: boolean;
+}): boolean {
+  return !payload.hasText && !payload.hasFiles && !payload.hasSkills && !payload.hasDocContext && !payload.hasQuotes;
+}
+
 function plainTextToEditorDocument(text: string): JSONContent {
   return {
     type: 'doc',
@@ -285,6 +300,39 @@ function plainTextToEditorDocument(text: string): JSONContent {
       content: line ? [{ type: 'text', text: line }] : [],
     })),
   };
+}
+
+/**
+ * inputText 是 TipTap 的 React 镜像，不是正文权威。
+ *
+ * 历史：TipTap 落地时 `inputText = editor.getText()` 直接派生（认 TipTap），
+ * 但 editor 变更不触发 React re-render，发送按钮会卡死（bd4844297），
+ * 于是改成 useState + update 事件同步。之后草稿恢复用 emitUpdate:false
+ * 绕开 update，镜像脱节 → #2101。
+ *
+ * 契约：正文权威永远是 editor；任何 emitUpdate:false 写入后必须回读同步镜像。
+ */
+function syncComposerMirrorFromEditor(
+  editor: Editor,
+  setInputText: (text: string) => void,
+): string {
+  const { text } = serializeEditor(editor.getJSON());
+  setInputText(text);
+  return text;
+}
+
+/** 程序性写入编辑器并回读同步镜像（禁止只 setContent 不 sync）。 */
+function applyComposerDocument(
+  editor: Editor,
+  nextDoc: JSONContent | null,
+  setInputText: (text: string) => void,
+): void {
+  if (!nextDoc) {
+    editor.commands.setContent('', { emitUpdate: false });
+  } else {
+    editor.commands.setContent(nextDoc, { emitUpdate: false });
+  }
+  syncComposerMirrorFromEditor(editor, setInputText);
 }
 
 export type { SlashItem };
@@ -1155,7 +1203,7 @@ function InputAreaInner({ surface }: Required<InputAreaProps>) {
     };
   }, []);
 
-  // Sync serialized editor text to React state (drives hasInput / canSend) + slash menu detection + draft save
+  // Sync editor → React mirror (drives hasInput / canSend) + slash menu + draft save
   useEffect(() => {
     if (!editor) return;
     const handler = () => {
@@ -1184,7 +1232,7 @@ function InputAreaInner({ surface }: Required<InputAreaProps>) {
       } else {
         setSlashMenuOpen(false);
       }
-      // 保存草稿到 store（session 内 + 首页 pending 态）
+      // 保存草稿到 store（session 内 + 首页 pending 态）；setDraft 幂等，避免空转
       if (draftKey) {
         setDraft(draftKey, text, editorJson);
       }
@@ -1208,19 +1256,20 @@ function InputAreaInner({ surface }: Required<InputAreaProps>) {
     const draft = draftText;
     const draftDocValue = draftDoc;
     const currentDoc = editor.getJSON();
-    const nextDoc = draft
-      ? (draftDocValue || plainTextToEditorDocument(draft))
-      : null;
+    // 文档存在性以 draftDoc 为准，text 仅是无 doc 时的降级；skillBadge 等 atom
+    // 节点序列化文本为空，用 text 真值判存在会把刚插入的 badge 误删（#2101 skill
+    // 消失回归，触发链 848481a69）。
+    const nextDoc = draftDocValue ?? (draft ? plainTextToEditorDocument(draft) : null);
     const currentSerialized = serializeEditor(currentDoc).text;
     const nextSerialized = draft;
     const currentDocJson = JSON.stringify(currentDoc);
     const nextDocJson = nextDoc ? JSON.stringify(nextDoc) : '';
     if (nextSerialized !== currentSerialized || nextDocJson !== currentDocJson) {
-      if (!nextDoc) {
-        editor.commands.setContent('', { emitUpdate: false });
-      } else {
-        editor.commands.setContent(nextDoc, { emitUpdate: false });
-      }
+      // 程序性写入必须走 applyComposerDocument：写 editor 后回读同步镜像（#2101）
+      applyComposerDocument(editor, nextDoc, setInputText);
+    } else {
+      // 文档已一致时仍回读一次，修复历史 emitUpdate:false 留下的镜像脱节
+      syncComposerMirrorFromEditor(editor, setInputText);
     }
   }, [editor, draftKey, draftText, draftDoc, draftsHydratedAt]);
 
@@ -1247,9 +1296,13 @@ function InputAreaInner({ surface }: Required<InputAreaProps>) {
   }, [fileMenuOpen]);
 
   // Can send?
-  const hasContent = inputText.trim().length > 0 || attachedFiles.length > 0 || docContextAttached || quotedSelections.length > 0
-    || editorHasInlineNode(editor, 'skillBadge')
-    || editorHasInlineNode(editor, 'fileBadge');
+  const hasContent = !composerPayloadIsEmpty({
+    hasText: inputText.trim().length > 0,
+    hasFiles: attachedFiles.length > 0 || editorHasInlineNode(editor, 'fileBadge'),
+    hasSkills: editorHasInlineNode(editor, 'skillBadge'),
+    hasDocContext: docContextAttached,
+    hasQuotes: quotedSelections.length > 0,
+  });
   // capabilityRefreshing / compacting：压缩到 reload 完成之间 session 没有可用
   // runtime，此窗口内发 prompt 会冷建第二个 runtime 与 reload 竞争（#1624 I2）。
   const canSend = hasContent && connected && !isStreaming && !modelSwitching && !pendingSessionSwitchPath && !inputLocked
@@ -1475,7 +1528,14 @@ function InputAreaInner({ surface }: Required<InputAreaProps>) {
 
     const inputFiles = mergeEditorFileRefs(clickedAttachedFiles, fileRefs);
     const hasFiles = inputFiles.length > 0;
-    if ((!text && !hasFiles && !clickedDocContextAttached && clickedQuotes.length === 0) || !connected) return;
+    // 空输入静默 return 是合理行为（不是错误），不加 toast；与按钮侧 hasContent 共用同一份谓词（#2101）。
+    if (composerPayloadIsEmpty({
+      hasText: !!text,
+      hasFiles,
+      hasSkills: skills.length > 0,
+      hasDocContext: clickedDocContextAttached,
+      hasQuotes: clickedQuotes.length > 0,
+    }) || !connected) return;
     if (type === 'prompt' && isStreaming) return;
     if (type === 'interject' && !isStreaming) return;
     if (sending) return;
@@ -1498,10 +1558,22 @@ function InputAreaInner({ surface }: Required<InputAreaProps>) {
       let sessionRef = clickedSessionRef;
       if (clickedPendingDraftId) {
         sessionRef = await ensureSession(clickedPendingDraftId);
-        if (!sessionRef) return;
+        if (!sessionRef) {
+          // ensureSession 拿不到会话身份：不能静默吞掉这次发送，否则用户会以为点了没反应（#2101）。
+          useStore.getState().addToast(t('error.noActiveSession'), 'error', 6000, {
+            dedupeKey: 'send-missing-session',
+          });
+          return;
+        }
         loadSessions();
       }
-      if (!sessionRef) return;
+      if (!sessionRef) {
+        // 走到这里说明既不是 pending 新会话、也没有已激活会话身份——同样是无法发送，显式报错而非静默 return。
+        useStore.getState().addToast(t('error.noActiveSession'), 'error', 6000, {
+          dedupeKey: 'send-missing-session',
+        });
+        return;
+      }
 
       // 分离原生媒体和普通附件；后端决定图片视觉桥、视频/音频原生能力或显式报错。
       const imageFiles = hasFiles ? inputFiles.filter(f => !f.isDirectory && isImageFile(f.name)) : [];

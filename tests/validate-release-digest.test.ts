@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { validateDigestForTag } from "../scripts/validate-release-digest.mjs";
+import { validateDigestForTag, validateDigestFileValue } from "../scripts/validate-release-digest.mjs";
 
 function digest(overrides = {}) {
   return {
@@ -46,5 +46,42 @@ describe("validate-release-digest", () => {
   it("rejects a digest whose version does not match the tag", () => {
     expect(() => validateDigestForTag(digest({ version: "0.425.3" }), "v0.425.4"))
       .toThrow(/digest\.version must be 0\.425\.4/);
+  });
+});
+
+describe("validate-release-digest (v2 history auto-detection)", () => {
+  function history() {
+    return {
+      schema: 2,
+      entries: [
+        digest(),
+        digest({ tag: "v0.425.3", version: "0.425.3", previousTag: "v0.425.2" }),
+      ],
+    };
+  }
+
+  it("validates a v2 history whose head entry matches the tag", () => {
+    const validated = validateDigestFileValue(history(), "v0.425.4");
+    expect(validated.schema).toBe(2);
+    expect(validated.entries[0].version).toBe("0.425.4");
+  });
+
+  it("rejects a v2 history whose head entry does not match the tag", () => {
+    expect(() => validateDigestFileValue(history(), "v0.425.5")).toThrow(/v0\.425\.5/);
+  });
+
+  it("rejects a structurally invalid v2 history (non-decreasing versions)", () => {
+    const broken = {
+      schema: 2,
+      entries: [
+        digest({ tag: "v0.425.3", version: "0.425.3", previousTag: "v0.425.2" }),
+        digest(),
+      ],
+    };
+    expect(() => validateDigestFileValue(broken, "v0.425.3")).toThrow(/decreas|older|version/i);
+  });
+
+  it("still validates a plain v1 single digest", () => {
+    expect(validateDigestFileValue(digest(), "v0.425.4").version).toBe("0.425.4");
   });
 });
