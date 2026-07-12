@@ -63,7 +63,22 @@ function installHana(overrides: Partial<PlatformApi> = {}) {
 }
 
 function Harness() {
-  const { currentVersion, available: availableUpdate, minShellBlocked, lastError, lastCheckedAt, phase, progress, fallbackNotice, checkNow, applyNow, ackFallbackNotice } = useTrainUpdateState();
+  const {
+    currentVersion,
+    available: availableUpdate,
+    minShellBlocked,
+    lastError,
+    lastCheckedAt,
+    manifestSource,
+    manifestReleasedAt,
+    originUnreachable,
+    phase,
+    progress,
+    fallbackNotice,
+    checkNow,
+    applyNow,
+    ackFallbackNotice,
+  } = useTrainUpdateState();
   return (
     <div>
       <div data-testid="currentVersion">{currentVersion || 'none'}</div>
@@ -71,6 +86,9 @@ function Harness() {
       <div data-testid="minShellBlocked">{String(minShellBlocked)}</div>
       <div data-testid="lastError">{lastError ?? 'none'}</div>
       <div data-testid="lastCheckedAt">{lastCheckedAt ?? 'none'}</div>
+      <div data-testid="manifestSource">{manifestSource ?? 'none'}</div>
+      <div data-testid="manifestReleasedAt">{manifestReleasedAt ?? 'none'}</div>
+      <div data-testid="originUnreachable">{String(originUnreachable)}</div>
       <div data-testid="phase">{phase}</div>
       <div data-testid="progress">{progress ? `${progress.receivedBytes}/${progress.totalBytes}` : 'none'}</div>
       <div data-testid="fallbackNotice">{fallbackNotice ? `${fallbackNotice.kind}:${fallbackNotice.fromVersion}->${fallbackNotice.toVersion}` : 'none'}</div>
@@ -114,6 +132,33 @@ describe('useTrainUpdateState', () => {
     await waitFor(() => expect(screen.getByTestId('available').textContent).toBe('0.389.0'));
     expect(screen.getByTestId('lastError').textContent).toBe('network down');
     expect(screen.getByTestId('lastCheckedAt').textContent).toBe('2026-07-11T08:00:00.000Z');
+  });
+
+  it('hydrates manifestSource/manifestReleasedAt/originUnreachable from the cached status on mount, forwarded verbatim', async () => {
+    installHana({
+      trainUpdateStatus: vi.fn().mockResolvedValue(baseStatus({
+        manifestSource: 'mirror',
+        manifestReleasedAt: '2026-07-11T00:00:00.000Z',
+        originUnreachable: true,
+      })),
+    });
+
+    render(<Harness />);
+
+    await waitFor(() => expect(screen.getByTestId('manifestSource').textContent).toBe('mirror'));
+    expect(screen.getByTestId('manifestReleasedAt').textContent).toBe('2026-07-11T00:00:00.000Z');
+    expect(screen.getByTestId('originUnreachable').textContent).toBe('true');
+  });
+
+  it('defaults manifestSource/manifestReleasedAt to null and originUnreachable to false when the status omits them (pre-upgrade shell)', async () => {
+    installHana({ trainUpdateStatus: vi.fn().mockResolvedValue(baseStatus()) });
+
+    render(<Harness />);
+
+    await waitFor(() => expect(screen.getByTestId('currentVersion').textContent).toBe('0.388.0'));
+    expect(screen.getByTestId('manifestSource').textContent).toBe('none');
+    expect(screen.getByTestId('manifestReleasedAt').textContent).toBe('none');
+    expect(screen.getByTestId('originUnreachable').textContent).toBe('false');
   });
 
   it('never reads the legacy staged/train/version fields — only `available` decides whether an update is showing', async () => {

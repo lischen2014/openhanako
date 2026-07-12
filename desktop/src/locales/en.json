@@ -1317,6 +1317,8 @@
       "updateError": "Update check failed",
       "updateLatest": "You're up to date",
       "updateLatestCheckedAt": "Up to date (last checked {time})",
+      "updateManifestReleasedAt": "Shelf manifest issued {date}",
+      "updateManifestReleasedAtViaMirror": "Shelf manifest issued {date} (via backup source)",
       "updateCheckBtn": "Check for updates",
       "updateRetryBtn": "Retry",
       "updateNeedInstall": "Please move HanaAgent to the Applications folder first",

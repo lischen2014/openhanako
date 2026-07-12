@@ -38,6 +38,16 @@ export interface UseTrainUpdateStateResult {
   lastError: string | null;
   /** 最近一次检查完成的时间（ISO 字符串），用于"已是最新"文案里的时间戳。 */
   lastCheckedAt: string | null;
+  /**
+   * 货架清单来源治理留痕，原样转发自 IPC（不在 hook 里做判断，由 UI 决定
+   * 怎么呈现——见 desktop/src/shared/artifact-ota.cjs 的 "dual-source
+   * manifest fetch" 设计注释）。`manifestSource` 是最近一次成功检查采信
+   * 的清单来自产地还是镜像；`manifestReleasedAt` 是该清单自述的签发时间；
+   * `originUnreachable` 标记产地这一轮是否没能参与比较。
+   */
+  manifestSource: 'origin' | 'mirror' | null;
+  manifestReleasedAt: string | null;
+  originUnreachable: boolean;
   /** 当前所处阶段：idle（无事发生）/checking（手动检查中）/downloading/applying。 */
   phase: TrainUpdatePhase;
   /** apply-now 下载阶段的字节进度；不在下载中或没收到过进度事件时为 null。 */
@@ -58,6 +68,9 @@ interface StatusSnapshot {
   minShellBlocked: boolean;
   lastError: string | null;
   lastCheckedAt: string | null;
+  manifestSource: 'origin' | 'mirror' | null;
+  manifestReleasedAt: string | null;
+  originUnreachable: boolean;
   fallbackNotice: CrashFallbackNotice | null;
 }
 
@@ -67,6 +80,9 @@ const IDLE_SNAPSHOT: StatusSnapshot = {
   minShellBlocked: false,
   lastError: null,
   lastCheckedAt: null,
+  manifestSource: null,
+  manifestReleasedAt: null,
+  originUnreachable: false,
   fallbackNotice: null,
 };
 
@@ -81,6 +97,9 @@ function snapshotFromStatus(status: TrainUpdateStatus): StatusSnapshot {
     minShellBlocked: status.minShellBlocked === true,
     lastError: status.lastError ?? null,
     lastCheckedAt: status.lastCheckedAt ?? null,
+    manifestSource: status.manifestSource ?? null,
+    manifestReleasedAt: status.manifestReleasedAt ?? null,
+    originUnreachable: status.originUnreachable === true,
     fallbackNotice: status.fallbackNotice ?? null,
   };
 }

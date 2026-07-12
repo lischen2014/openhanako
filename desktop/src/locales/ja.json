@@ -1251,6 +1251,8 @@
       "updateError": "アップデートの確認に失敗しました",
       "updateLatest": "最新バージョンです",
       "updateLatestCheckedAt": "最新です（最終確認: {time}）",
+      "updateManifestReleasedAt": "配布マニフェストの発行日: {date}",
+      "updateManifestReleasedAtViaMirror": "配布マニフェストの発行日: {date}（バックアップ経由）",
       "updateCheckBtn": "アップデートを確認",
       "updateRetryBtn": "再試行",
       "updateNeedInstall": "先に HanaAgent をアプリケーションフォルダに移動してください",

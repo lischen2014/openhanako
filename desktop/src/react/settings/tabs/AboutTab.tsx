@@ -124,6 +124,14 @@ function formatCheckedAt(iso: string): string {
   return date.toLocaleString();
 }
 
+// 货架清单签发日期：只取日期，不带时间——这条是"清单本身多新"的中性背景
+// 信息，不是"我刚检查过"那个已经有独立时间戳的结论（formatCheckedAt）。
+function formatManifestDate(iso: string): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return iso;
+  return date.toLocaleDateString();
+}
+
 /**
  * 更新区状态机：四态互斥，phase 优先于 idle 分支——一轮检查/下载/应用
  * 正在进行时不该同时冒出"已是最新"这类只在真正 idle 时才成立的结论。
@@ -136,6 +144,8 @@ function TrainUpdateArea({
   available,
   lastError,
   lastCheckedAt,
+  manifestReleasedAt,
+  originUnreachable,
   phase,
   progress,
   onApply,
@@ -145,6 +155,8 @@ function TrainUpdateArea({
   available: { version: string } | null;
   lastError: string | null;
   lastCheckedAt: string | null;
+  manifestReleasedAt: string | null;
+  originUnreachable: boolean;
   phase: 'idle' | 'checking' | 'downloading' | 'applying';
   progress: { receivedBytes: number; totalBytes: number } | null;
   onApply: () => void;
@@ -224,6 +236,22 @@ function TrainUpdateArea({
             {t('settings.about.updateLatestCheckedAt', { time: formatCheckedAt(lastCheckedAt) })}
           </span>
         </div>
+        {/* 中性背景信息：货架清单本身的签发日期，不是告警——不设阈值、不
+            设颜色。仅当产地这一轮没能参与比较时才追加"经备用源"，镜像与
+            产地同车号而采信镜像不算异常，不标注（见 artifact-ota.cjs 的
+            "dual-source manifest fetch" 设计注释）。 */}
+        {manifestReleasedAt && (
+          <div className={updateStyles.row}>
+            <span className={updateStyles.message}>
+              {t(
+                originUnreachable
+                  ? 'settings.about.updateManifestReleasedAtViaMirror'
+                  : 'settings.about.updateManifestReleasedAt',
+                { date: formatManifestDate(manifestReleasedAt) },
+              )}
+            </span>
+          </div>
+        )}
       </div>
     );
   }
@@ -246,6 +274,8 @@ export function AboutTab() {
     minShellBlocked,
     lastError,
     lastCheckedAt,
+    manifestReleasedAt,
+    originUnreachable,
     phase,
     progress,
     checkNow: checkTrainNow,
@@ -324,6 +354,8 @@ export function AboutTab() {
           available={available}
           lastError={lastError}
           lastCheckedAt={lastCheckedAt}
+          manifestReleasedAt={manifestReleasedAt}
+          originUnreachable={originUnreachable}
           phase={phase}
           progress={progress}
           onApply={handleApply}

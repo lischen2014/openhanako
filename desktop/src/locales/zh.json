@@ -1317,6 +1317,8 @@
       "updateError": "检查更新失败",
       "updateLatest": "已是最新版本",
       "updateLatestCheckedAt": "已是最新（上次检查 {time}）",
+      "updateManifestReleasedAt": "货架清单签发于 {date}",
+      "updateManifestReleasedAtViaMirror": "货架清单签发于 {date}（经备用源）",
       "updateCheckBtn": "检查更新",
       "updateRetryBtn": "重试",
       "updateNeedInstall": "请先将 HanaAgent 移动到应用程序文件夹",

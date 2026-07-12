@@ -1251,6 +1251,8 @@
       "updateError": "업데이트 확인 실패",
       "updateLatest": "최신 버전입니다",
       "updateLatestCheckedAt": "최신 상태입니다 (마지막 확인: {time})",
+      "updateManifestReleasedAt": "배포 매니페스트 발행일: {date}",
+      "updateManifestReleasedAtViaMirror": "배포 매니페스트 발행일: {date} (백업 소스 경유)",
       "updateCheckBtn": "업데이트 확인",
       "updateRetryBtn": "다시 시도",
       "updateNeedInstall": "먼저 HanaAgent를 응용 프로그램 폴더로 이동하세요",

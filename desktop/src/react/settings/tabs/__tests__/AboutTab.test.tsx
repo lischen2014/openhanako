@@ -21,6 +21,9 @@ interface TrainOverride {
   minShellBlocked: boolean;
   lastError: string | null;
   lastCheckedAt: string | null;
+  manifestSource: 'origin' | 'mirror' | null;
+  manifestReleasedAt: string | null;
+  originUnreachable: boolean;
   phase: 'idle' | 'checking' | 'downloading' | 'applying';
   progress: { receivedBytes: number; totalBytes: number } | null;
 }
@@ -31,6 +34,9 @@ const DEFAULT_TRAIN_OVERRIDE: TrainOverride = {
   minShellBlocked: false,
   lastError: null,
   lastCheckedAt: null,
+  manifestSource: null,
+  manifestReleasedAt: null,
+  originUnreachable: false,
   phase: 'idle',
   progress: null,
 };
@@ -255,6 +261,44 @@ describe('AboutTab', () => {
     expect(screen.getByText('settings.about.updateLatestCheckedAt')).toBeTruthy();
     // Manual check remains available from the calm "up to date" state.
     expect(screen.getByText('settings.about.updateCheckBtn')).toBeTruthy();
+    // No manifest date line when the hook never reported one (pre-upgrade
+    // shell / never-fetched-from-real-source case).
+    expect(screen.queryByText('settings.about.updateManifestReleasedAt')).toBeNull();
+    expect(screen.queryByText('settings.about.updateManifestReleasedAtViaMirror')).toBeNull();
+  });
+
+  it('up-to-date: shows the neutral shelf-manifest-issued line when manifestReleasedAt is present, without the mirror suffix when origin was reachable', () => {
+    installHana();
+    useSettingsStore.setState({ settingsConfig: { auto_check_updates: true, update_channel: 'stable' } });
+    trainOverride = {
+      ...DEFAULT_TRAIN_OVERRIDE,
+      lastCheckedAt: '2026-07-11T08:00:00.000Z',
+      manifestSource: 'origin',
+      manifestReleasedAt: '2026-07-11T00:00:00.000Z',
+      originUnreachable: false,
+    };
+
+    render(<AboutTab />);
+
+    expect(screen.getByText('settings.about.updateManifestReleasedAt')).toBeTruthy();
+    expect(screen.queryByText('settings.about.updateManifestReleasedAtViaMirror')).toBeNull();
+  });
+
+  it('up-to-date: switches to the "via backup source" copy only when originUnreachable is true, never merely because the mirror answered', () => {
+    installHana();
+    useSettingsStore.setState({ settingsConfig: { auto_check_updates: true, update_channel: 'stable' } });
+    trainOverride = {
+      ...DEFAULT_TRAIN_OVERRIDE,
+      lastCheckedAt: '2026-07-11T08:00:00.000Z',
+      manifestSource: 'mirror',
+      manifestReleasedAt: '2026-07-11T00:00:00.000Z',
+      originUnreachable: true,
+    };
+
+    render(<AboutTab />);
+
+    expect(screen.getByText('settings.about.updateManifestReleasedAtViaMirror')).toBeTruthy();
+    expect(screen.queryByText('settings.about.updateManifestReleasedAt')).toBeNull();
   });
 
   it('never checked: renders no conclusion text, only the manual check button', () => {
