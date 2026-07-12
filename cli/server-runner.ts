@@ -3,6 +3,8 @@ import path from "path";
 import { spawn } from "child_process";
 import { createRequire } from "module";
 import { readLocalServerInfo, resolveCliHanaHome } from "./local-server.ts";
+import { describeForeignServerBlock, isForeignServerBlocking, probeServerInfo } from "../shared/server-info-probe.cjs";
+import { ansi } from "./terminal-theme.ts";
 
 const require = createRequire(import.meta.url);
 // Untyped CommonJS artifact-core modules (no declaration files) are
@@ -102,12 +104,53 @@ export async function resolveServerSpawnSpec({
   };
 }
 
+/**
+ * Pre-spawn check for the "同宅互斥" gate's CLI-side entry point. Reads
+ * whatever server-info.json is on disk for `hanaHome` (regardless of
+ * whether its recorded PID looks alive — `probeImpl` is the actual source
+ * of truth, not the PID) and probes it with the shared token-authenticated
+ * probe. Returns a structured decision instead of printing/exiting itself
+ * so this is directly unit-testable without spawning a real process; the
+ * one real caller (`spawnServerForeground`) does the printing/exit.
+ *
+ * This is a friendlier, earlier check than the one server/index.ts itself
+ * performs at startup — server/index.ts's own gate is still the real
+ * backstop (e.g. for `--url` bypassing the CLI's auto-start path
+ * entirely), this one just gives the CLI user a clean message before it
+ * even spawns a child process.
+ */
+export async function guardAgainstForeignServer({
+  hanaHome,
+  probeImpl = probeServerInfo,
+}: { hanaHome: string; probeImpl?: typeof probeServerInfo }): Promise<{ blocked: boolean; message: string | null }> {
+  const local = readLocalServerInfo({ hanaHome, checkProcess: false });
+  if (!local.ok) return { blocked: false, message: null };
+  const probe = await probeImpl({ info: local.info });
+  if (!isForeignServerBlocking(probe.status)) return { blocked: false, message: null };
+  return { blocked: true, message: describeForeignServerBlock({ status: probe.status, info: local.info }) };
+}
+
 export async function spawnServerForeground({
   projectRoot,
   extraArgs = [],
   env = process.env,
   channel = "stable",
-}: { projectRoot?: string; extraArgs?: string[]; env?: NodeJS.ProcessEnv; channel?: string } = {}) {
+  probeImpl = probeServerInfo,
+  exit = process.exit,
+}: {
+  projectRoot?: string;
+  extraArgs?: string[];
+  env?: NodeJS.ProcessEnv;
+  channel?: string;
+  probeImpl?: typeof probeServerInfo;
+  exit?: (code?: number) => any;
+} = {}) {
+  const guard = await guardAgainstForeignServer({ hanaHome: resolveCliHanaHome(env), probeImpl });
+  if (guard.blocked) {
+    console.error(`${ansi.red}${guard.message}${ansi.reset}`);
+    return exit(1);
+  }
+
   const spec = await resolveServerSpawnSpec({ projectRoot, env, extraArgs, channel });
   if (spec.rendererDist && spec.rendererDist.valid) {
     console.log(`serving web frontend ${spec.rendererDist.version}`);

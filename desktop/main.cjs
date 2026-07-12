@@ -893,6 +893,7 @@ const artifactRepair = require("./src/shared/artifact-repair.cjs");
 // HANA_SIGN_KEYSET 的构建期替换），运行时没有旁路。
 const { loadPinnedKeyset } = require("../shared/artifact-core/keyset.cjs");
 const { resolveStaleServerInfoDisposition } = require("./src/shared/stale-server-info.cjs");
+const { probeServerInfo, isForeignServerBlocking, describeForeignServerBlock } = require("../shared/server-info-probe.cjs");
 const { resolvePostUpdateAnnouncement, coerceDigestHistory, sliceDigestHistory, compareProductVersions } = require("./src/shared/post-update-announcement.cjs");
 // 列车更新"立即应用"（refresh-grade apply）的纯编排/守卫层：只提供步骤顺序 + fail-fast 语义，实际 IO（promote
 // / 停 server / 重新 spawn / 重载窗口）仍然全部走本文件已有的基础设施。
@@ -1166,8 +1167,21 @@ async function startServer() {
           err.code = "STALE_SERVER_UNCLEANED";
           throw err;
         }
-        // 端口不冲突：继续 spawn 新 server。_spawnServerOnce 会按 poll 契约删除
-        // 旧文件，新 server 就绪后重写；残留进程仍可通过任务管理器发现
+        // 端口不冲突不等于"可以安全共存"：残留进程可能是同一 HANA_HOME 上
+        // 监听在别的端口的另一个内核（典型触发路径：`hana serve` 先起、桌面
+        // 后启动）。用 token 认证探测确认它是否仍然是同一个家，是则拒绝
+        // spawn 第二个内核；探测不通（not-hana / dead）才继续走原有 spawn。
+        const foreignProbe = await probeServerInfo({ info: existingInfo });
+        if (isForeignServerBlocking(foreignProbe.status)) {
+          const err = new Error(
+            `FOREIGN_SERVER_RUNNING: ${describeForeignServerBlock({ status: foreignProbe.status, info: existingInfo })}`
+          );
+          err.code = "FOREIGN_SERVER_RUNNING";
+          throw err;
+        }
+        // 端口不冲突且探测确认不是仍存活的同宅内核：继续 spawn 新 server。
+        // _spawnServerOnce 会按 poll 契约删除旧文件，新 server 就绪后重写；
+        // 残留进程仍可通过任务管理器发现
       } else {
         try { fs.unlinkSync(serverInfoPath); } catch {}
       }
@@ -1930,7 +1944,8 @@ function buildLaunchFailureDialogDetail(err, crashInfo) {
     ? formatPortInUseStartupError(err.startupError)
     : null;
   const staleServerError = err?.code === "STALE_SERVER_UNCLEANED" ? err.message : null;
-  const rootServerError = structuredPortConflict || staleServerError || extractRootServerStartupError(_serverLogs);
+  const foreignServerError = err?.code === "FOREIGN_SERVER_RUNNING" ? err.message : null;
+  const rootServerError = structuredPortConflict || staleServerError || foreignServerError || extractRootServerStartupError(_serverLogs);
   const tail = crashInfo.length > 800 ? "...\n" + crashInfo.slice(-800) : crashInfo;
   if (!rootServerError) return tail;
   if (tail.trimStart().startsWith(rootServerError)) return tail;

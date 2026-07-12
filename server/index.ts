@@ -102,6 +102,7 @@ import { createSpeechRecognitionRoute } from "./routes/speech-recognition.ts";
 import { registerTaskRegistryBusHandlers } from "./task-bus-handlers.ts";
 import { registerDeferredResultBusHandlers } from "./deferred-result-bus-handlers.ts";
 import { configureProcessPiSdkEnv, ensureHanaPiSdkDirs, resolveHanakoHome } from "../shared/hana-runtime-paths.ts";
+import { describeForeignServerBlock, isForeignServerBlocking, probeServerInfo } from "../shared/server-info-probe.cjs";
 // internal-browser WS is handled directly via raw ws.WebSocketServer in the
 // upgrade handler below (WsTransport needs raw ws .on()/.off() methods)
 import { ConfirmStore } from "../lib/confirm-store.ts";
@@ -264,6 +265,37 @@ try {
   const pkg = JSON.parse(fs.readFileSync(fromRoot("package.json"), "utf-8"));
   appVersion = pkg.version || "?";
 } catch {}
+
+// ── 同宅互斥闸（同一 HANA_HOME 的内核互斥）──
+// 必须在任何端口监听、任何 store 打开之前跑：一台机器上的同一 HANA_HOME
+// 可能被两个内核并发打开（`hana serve` 先起、桌面后启动是最常见的触发
+// 路径），并发读写同一批 SQLite / session 文件会互相覆盖。这里用 token
+// 认证探测（shared/server-info-probe.cjs）确认 server-info.json 记录的
+// 内核是否仍然存活、且确实是同一个家；探测不通（not-hana / dead）视为
+// 残留锁并自清，用户永远不需要手删文件——不信任裸 PID，因为 PID 会被
+// 系统复用。
+// 已接受的残余竞态：两个内核同时冷启动、都还没写下 server-info.json 的
+// 秒级窗口不设防（与 Postgres postmaster.pid 的取舍一致），且默认端口
+// 相同时后到者的 listen() 会天然 EADDRINUSE。
+{
+  const serverInfoPath = path.join(hanakoHome, "server-info.json");
+  let existingServerInfo: any = null;
+  try {
+    existingServerInfo = JSON.parse(fs.readFileSync(serverInfoPath, "utf-8"));
+  } catch {
+    // 文件不存在或无法解析：没有残留锁需要处理
+  }
+
+  if (existingServerInfo) {
+    const probe = await probeServerInfo({ info: existingServerInfo });
+    if (isForeignServerBlocking(probe.status)) {
+      console.error(describeForeignServerBlock({ status: probe.status, info: existingServerInfo }));
+      process.exit(1);
+    }
+    // not-hana / dead：残留锁已确认失效（自清，不需要用户手删）
+    try { fs.unlinkSync(serverInfoPath); } catch {}
+  }
+}
 
 const SERVER_TOKEN = process.env.HANA_TOKEN || crypto.randomBytes(16).toString("hex");
 const envPort = Number.parseInt(process.env.HANA_PORT || "", 10);

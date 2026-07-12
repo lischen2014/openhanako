@@ -198,7 +198,11 @@ describe("server startup diagnostics contract", () => {
     expect(mainSource).toContain("extractRootServerStartupError");
     expect(mainSource).toContain("buildLaunchFailureDialogDetail");
     expect(mainSource).toContain('err?.code === "STALE_SERVER_UNCLEANED" ? err.message : null');
-    expect(mainSource).toContain("const rootServerError = structuredPortConflict || staleServerError || extractRootServerStartupError(_serverLogs)");
+    // FOREIGN_SERVER_RUNNING (同宅互斥闸的桌面预判) joins STALE_SERVER_UNCLEANED
+    // as a structured error surfaced ahead of raw log-scraping — see
+    // tests/desktop-foreign-server-guard.test.ts for its own dedicated coverage.
+    expect(mainSource).toContain('err?.code === "FOREIGN_SERVER_RUNNING" ? err.message : null');
+    expect(mainSource).toContain("const rootServerError = structuredPortConflict || staleServerError || foreignServerError || extractRootServerStartupError(_serverLogs)");
     expect(mainSource).toContain("tail.trimStart().startsWith(rootServerError)");
     expect(mainSource).not.toContain("tail.includes(rootServerError)");
     expect(mainSource).toContain("return `${rootServerError}\\n\\n${tail}`");

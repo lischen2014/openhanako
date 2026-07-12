@@ -1,9 +1,14 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import fs from "fs";
 import os from "os";
 import path from "path";
 import { createRequire } from "module";
-import { resolveRendererDistPointer, resolveServerSpawnSpec } from "../cli/server-runner.ts";
+import {
+  guardAgainstForeignServer,
+  resolveRendererDistPointer,
+  resolveServerSpawnSpec,
+  spawnServerForeground,
+} from "../cli/server-runner.ts";
 
 const require = createRequire(import.meta.url);
 const pointerStore = require("../shared/artifact-core/pointer-store.cjs");
@@ -106,6 +111,103 @@ describe("CLI server runner", () => {
 
     expect(spec.env.HANA_RENDERER_DIST).toBe(versionDir);
     expect(spec.rendererDist).toEqual({ distDir: versionDir, version: "9.9.9", valid: true });
+  });
+});
+
+function writeServerInfoFile(hanaHome, info) {
+  fs.mkdirSync(hanaHome, { recursive: true });
+  fs.writeFileSync(path.join(hanaHome, "server-info.json"), JSON.stringify(info), "utf-8");
+}
+
+describe("guardAgainstForeignServer (CLI pre-spawn 同宅互斥预判)", () => {
+  let hanaHome = null;
+
+  afterEach(() => {
+    if (hanaHome) fs.rmSync(hanaHome, { recursive: true, force: true });
+    hanaHome = null;
+  });
+
+  it("does not block when no server-info.json exists", async () => {
+    hanaHome = makeTmpDir();
+    const result = await guardAgainstForeignServer({ hanaHome });
+    expect(result).toEqual({ blocked: false, message: null });
+  });
+
+  it("blocks when the probe reports alive-same-home, with a message naming ownerKind/version/pid", async () => {
+    hanaHome = makeTmpDir();
+    writeServerInfoFile(hanaHome, { port: 12345, token: "tok", ownerKind: "desktop", version: "0.393.0", pid: 555 });
+    const probeImpl = async () => ({ status: "alive-same-home" as const });
+
+    const result = await guardAgainstForeignServer({ hanaHome, probeImpl });
+
+    expect(result.blocked).toBe(true);
+    expect(result.message).toContain("desktop");
+    expect(result.message).toContain("0.393.0");
+    expect(result.message).toContain("555");
+  });
+
+  it("blocks when the probe reports alive-unauthorized", async () => {
+    hanaHome = makeTmpDir();
+    writeServerInfoFile(hanaHome, { port: 12345, token: "tok", ownerKind: "standalone", pid: 1 });
+    const probeImpl = async () => ({ status: "alive-unauthorized" as const });
+
+    const result = await guardAgainstForeignServer({ hanaHome, probeImpl });
+    expect(result.blocked).toBe(true);
+  });
+
+  it("does not block when the probe reports not-hana or dead — self-cleaning cases", async () => {
+    hanaHome = makeTmpDir();
+    writeServerInfoFile(hanaHome, { port: 12345, token: "tok" });
+
+    const deadResult = await guardAgainstForeignServer({ hanaHome, probeImpl: async () => ({ status: "dead" as const }) });
+    expect(deadResult).toEqual({ blocked: false, message: null });
+
+    const notHanaResult = await guardAgainstForeignServer({
+      hanaHome,
+      probeImpl: async () => ({ status: "not-hana" as const, detail: "whatever" }),
+    });
+    expect(notHanaResult).toEqual({ blocked: false, message: null });
+  });
+
+  it("ignores whether the recorded pid looks alive — the probe result is the sole source of truth", async () => {
+    hanaHome = makeTmpDir();
+    // pid 999999999 is virtually guaranteed not to be alive on this machine,
+    // yet the probe (not the pid check) still decides the outcome here.
+    writeServerInfoFile(hanaHome, { port: 12345, token: "tok", ownerKind: "standalone", pid: 999999999 });
+    const probeImpl = async () => ({ status: "alive-same-home" as const });
+
+    const result = await guardAgainstForeignServer({ hanaHome, probeImpl });
+    expect(result.blocked).toBe(true);
+  });
+});
+
+describe("spawnServerForeground — blocked path never spawns", () => {
+  let hanaHome = null;
+
+  afterEach(() => {
+    if (hanaHome) fs.rmSync(hanaHome, { recursive: true, force: true });
+    hanaHome = null;
+  });
+
+  it("exits 1 and never resolves resolveServerSpawnSpec/spawn when a foreign server is detected", async () => {
+    hanaHome = makeTmpDir();
+    writeServerInfoFile(hanaHome, { port: 12345, token: "tok", ownerKind: "standalone", version: "0.393.0", pid: 1 });
+    const probeImpl = async () => ({ status: "alive-same-home" as const });
+    const exitCalls: any[] = [];
+    const exit = ((code?: number) => { exitCalls.push(code); return undefined as any; }) as any;
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const result = await spawnServerForeground({
+      projectRoot: "/nonexistent/project/root/that/must/never/be/touched",
+      env: { HANA_HOME: hanaHome },
+      probeImpl,
+      exit,
+    });
+
+    expect(exitCalls).toEqual([1]);
+    expect(result).toBeUndefined();
+    expect(errorSpy).toHaveBeenCalled();
+    errorSpy.mockRestore();
   });
 });
 
