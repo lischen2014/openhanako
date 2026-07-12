@@ -704,3 +704,165 @@ describe("artifact-boot: sentinel helpers", () => {
     expect(await activation.consecutiveFailures(homeDir, SEED_CHANNEL)).toBe(0);
   });
 });
+
+// ── pointer mutex wiring (crash-vs-OTA-activation interleaving fix) ────────
+//
+// The bug this closes: `prepareArtifactServerBoot`/`prepareArtifactRendererBoot`
+// call `pointerStore.promote` — a multi-step "read next -> write previous ->
+// write current -> clear next" sequence — with no lock. If a concurrent
+// in-process OTA activation (artifact-ota.cjs's `downloadAndApplyArtifacts`)
+// writes a fresh `next` pointer between promote's read and its trailing
+// clear, that fresh `next` gets silently wiped. `withPointerMutex` closes
+// the window by serializing every in-process pointer mutation for a given
+// homeDir. These tests exercise the wiring at two levels: (1) the two boot
+// functions actually acquire the mutex before touching pointers, and (2) the
+// interleaving itself, with and without the mutex.
+
+describe("artifact-boot: pointer mutex wiring", () => {
+  it("prepareArtifactServerBoot waits for an in-flight pointer-mutex holder before it starts", async () => {
+    const root = makeTempDir("hana-boot-mutex-server-");
+    const keys = makeKeys();
+    const { resourcesPath } = await makeSeedResources(root, keys);
+    const homeDir = path.join(root, "home");
+
+    let releaseHold: () => void = () => {};
+    const hold = new Promise<void>((resolve) => {
+      releaseHold = resolve;
+    });
+    const held = pointerStore.withPointerMutex(homeDir, () => hold);
+
+    let completed = false;
+    const bootPromise = prepareArtifactServerBoot({
+      homeDir,
+      resourcesPath,
+      platformArch: PLATFORM_ARCH,
+      keyset: keys.keyset,
+      log: () => {},
+    }).then((result: unknown) => {
+      completed = true;
+      return result;
+    });
+
+    // Long enough that, absent the mutex, boot would already have raced
+    // ahead and started reading/writing pointers.
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(completed).toBe(false);
+
+    releaseHold();
+    await held;
+    const result = await bootPromise;
+    expect(completed).toBe(true);
+    expect((result as { activatedSeed: boolean }).activatedSeed).toBe(true);
+  });
+
+  it("prepareArtifactRendererBoot waits for an in-flight pointer-mutex holder before it starts", async () => {
+    const root = makeTempDir("hana-boot-mutex-renderer-");
+    const keys = makeKeys();
+    const { resourcesPath } = await makeDualKindSeedResources(root, keys);
+    const homeDir = path.join(root, "home");
+
+    let releaseHold: () => void = () => {};
+    const hold = new Promise<void>((resolve) => {
+      releaseHold = resolve;
+    });
+    const held = pointerStore.withPointerMutex(homeDir, () => hold);
+
+    let completed = false;
+    const bootPromise = prepareArtifactRendererBoot({
+      homeDir,
+      resourcesPath,
+      keyset: keys.keyset,
+      log: () => {},
+    }).then((result: unknown) => {
+      completed = true;
+      return result;
+    });
+
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(completed).toBe(false);
+
+    releaseHold();
+    await held;
+    const result = await bootPromise;
+    expect(completed).toBe(true);
+    expect((result as { activatedSeed: boolean }).activatedSeed).toBe(true);
+  });
+});
+
+describe("artifact-boot: pointer mutex closes the promote-vs-concurrent-write race (mutation-check target)", () => {
+  /**
+   * Replays `pointerStore.promote`'s exact steps by hand (read next ->
+   * write previous -> write current -> clear next) with an explicit hook
+   * point right after "write current" — the same window a concurrent OTA
+   * `next` write could land in before `withPointerMutex` existed. Used to
+   * both document the pre-fix bug (called unwrapped) and prove the fix
+   * (called with both sides wrapped in `withPointerMutex`).
+   */
+  async function unprotectedPromoteSequence(
+    homeDir: string,
+    channel: string,
+    onAfterWriteCurrent?: () => void | Promise<void>,
+  ) {
+    const next = await pointerStore.readPointer(homeDir, channel, "next");
+    if (!next) return { promoted: false };
+    const current = await pointerStore.readPointer(homeDir, channel, "current");
+    if (current) await pointerStore.writePointer(homeDir, channel, "previous", current);
+    await pointerStore.writePointer(homeDir, channel, "current", next);
+    if (onAfterWriteCurrent) await onAfterWriteCurrent();
+    await pointerStore.clearPointer(homeDir, channel, "next");
+    return { promoted: true, current: next };
+  }
+
+  it("documents the pre-fix race: a next-pointer write landing between promote's write-current and its trailing clear is silently dropped", async () => {
+    const root = makeTempDir("hana-boot-mutex-loss-a-");
+    const homeDir = path.join(root, "home");
+    const channel = "stable-loss-repro-a";
+    await pointerStore.writePointer(homeDir, channel, "current", { version: "1.0.0", train: 0 });
+    await pointerStore.writePointer(homeDir, channel, "next", { version: "1.5.0", train: 5 });
+
+    const freshNext = { version: "2.0.0", train: 6 };
+    await unprotectedPromoteSequence(homeDir, channel, async () => {
+      // Simulates a concurrent OTA activation writing (and fully
+      // persisting — atomicWriteJson's rename included) its freshly-staged
+      // `next` pointer right after promote wrote `current` but before it
+      // cleared `next` — exactly the interleaving window `withPointerMutex`
+      // closes. Awaited here (unlike the mutex-protected test below) since
+      // this is a same-actor simulation with no lock to queue behind.
+      await pointerStore.writePointer(homeDir, channel, "next", freshNext);
+    });
+
+    const lostNext = await pointerStore.readPointer(homeDir, channel, "next");
+    expect(lostNext).toBeNull(); // the bug: freshNext is gone — the trailing clearPointer wiped it
+    const currentAfterRace = await pointerStore.readPointer(homeDir, channel, "current");
+    expect(currentAfterRace.train).toBe(5); // promote only ever consumed the OLD next it had already read
+  });
+
+  it("withPointerMutex closes the window: the same interleaving attempt never loses the concurrently-written next pointer", async () => {
+    const root = makeTempDir("hana-boot-mutex-loss-b-");
+    const homeDir = path.join(root, "home");
+    const channel = "stable-loss-repro-b";
+    await pointerStore.writePointer(homeDir, channel, "current", { version: "1.0.0", train: 0 });
+    await pointerStore.writePointer(homeDir, channel, "next", { version: "1.5.0", train: 5 });
+
+    const freshNext = { version: "2.0.0", train: 6 };
+    let otaWrite: Promise<void> | null = null;
+
+    // Mirrors artifact-boot.cjs's usage: the whole promote sequence runs
+    // inside one mutex turn.
+    const bootTurn = pointerStore.withPointerMutex(homeDir, () =>
+      unprotectedPromoteSequence(homeDir, channel, () => {
+        // Mirrors artifact-ota.cjs's usage: a concurrent OTA activation
+        // fires its own mutex-protected write WITHOUT waiting for it here
+        // — it must queue behind this still-active turn, not run inline.
+        otaWrite = pointerStore.withPointerMutex(homeDir, () =>
+          pointerStore.writePointer(homeDir, channel, "next", freshNext),
+        );
+      }));
+    await bootTurn;
+    expect(otaWrite).not.toBeNull();
+    await otaWrite!;
+
+    const survivedNext = await pointerStore.readPointer(homeDir, channel, "next");
+    expect(survivedNext).toEqual(freshNext); // queued behind boot's turn, applied after — never lost
+  });
+});

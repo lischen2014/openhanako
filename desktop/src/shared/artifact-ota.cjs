@@ -1350,32 +1350,41 @@ async function downloadAndApplyArtifacts(opts) {
       // Both boxes staged and sha256-verified. Activate server first, then
       // renderer; roll the server `next` pointer back if renderer's
       // activation fails (see "why a rollback" note in the file header).
-      onProgress({ phase: "activating", kind: "server", receivedBytes: serverEntry.size, totalBytes: serverEntry.size });
-      await activation.activateFromArchive(serverStagedPath, manifest, {
-        homeDir,
-        channel,
-        kind: "server",
-        platformArch,
-      });
-      onProgress({ phase: "activating", kind: "renderer", receivedBytes: rendererEntry.size, totalBytes: rendererEntry.size });
-      try {
-        await activation.activateFromArchive(rendererStagedPath, manifest, {
+      // This whole segment (activation through the state-file write) runs
+      // inside the in-process pointer mutex — kept deliberately narrow
+      // (excludes the download above, which can take minutes) so it never
+      // interleaves with a concurrent boot-time promote/demote decision in
+      // artifact-boot.cjs, which could otherwise clear a `next` pointer this
+      // segment just wrote. See pointer-store.cjs's `withPointerMutex` doc
+      // comment for the full rationale.
+      await pointerStore.withPointerMutex(homeDir, async () => {
+        onProgress({ phase: "activating", kind: "server", receivedBytes: serverEntry.size, totalBytes: serverEntry.size });
+        await activation.activateFromArchive(serverStagedPath, manifest, {
           homeDir,
-          channel: rendererChannel,
-          kind: "renderer",
+          channel,
+          kind: "server",
+          platformArch,
         });
-      } catch (err) {
-        await pointerStore.clearPointer(homeDir, channel, "next").catch(() => {});
-        throw new Error(`renderer activation failed, server next pointer rolled back: ${err.message}`);
-      }
+        onProgress({ phase: "activating", kind: "renderer", receivedBytes: rendererEntry.size, totalBytes: rendererEntry.size });
+        try {
+          await activation.activateFromArchive(rendererStagedPath, manifest, {
+            homeDir,
+            channel: rendererChannel,
+            kind: "renderer",
+          });
+        } catch (err) {
+          await pointerStore.clearPointer(homeDir, channel, "next").catch(() => {});
+          throw new Error(`renderer activation failed, server next pointer rolled back: ${err.message}`);
+        }
 
-      await writeOtaChannelState(homeDir, channel, {
-        ...manifestMeta,
-        lastCheckedAt: nowIso(),
-        lastError: null,
-        available: null,
-        minShellBlocked: false,
-        lastStagedTrain: manifest.train,
+        await writeOtaChannelState(homeDir, channel, {
+          ...manifestMeta,
+          lastCheckedAt: nowIso(),
+          lastError: null,
+          available: null,
+          minShellBlocked: false,
+          lastStagedTrain: manifest.train,
+        });
       });
       log(`[ota] train ${manifest.train} staged and activated (server ${serverEntry.version}, renderer ${rendererEntry.version})`);
       return { ok: true, train: manifest.train, version };

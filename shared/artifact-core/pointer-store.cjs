@@ -218,6 +218,50 @@ async function acquireLock(homeDir, opts = {}) {
   }
 }
 
+// ---- in-process pointer mutex ---------------------------------------------
+
+const _mutexQueues = new Map(); // resolvedHome -> Promise（队尾）
+
+/**
+ * In-process critical section for pointer mutations, keyed by homeDir.
+ * The cross-process story is handled elsewhere (Electron single-instance
+ * guard + the wx-file `acquireLock`); this serializes the two in-process
+ * writers — boot-time promote/demote and OTA activation — whose
+ * interleaving could otherwise drop a freshly written `next` pointer.
+ * @param {string} homeDir
+ * @param {() => Promise<T>} fn
+ * @returns {Promise<T>}
+ * @template T
+ */
+async function withPointerMutex(homeDir, fn) {
+  const key = path.resolve(homeDir);
+  const previousTail = _mutexQueues.get(key) || Promise.resolve();
+
+  // Wait for the previous turn to settle, ignoring its outcome — a
+  // throwing `fn` must never poison the queue for later waiters.
+  const previousSettled = previousTail.then(
+    () => {},
+    () => {},
+  );
+
+  // This waiter's own turn only starts once every earlier turn has
+  // finished, preserving strict FIFO order for this key.
+  const turn = previousSettled.then(fn);
+
+  // The new queue tail is `turn` itself (rejection included) — the next
+  // waiter's `previousSettled` swallows it via the two-arg `.then` above.
+  _mutexQueues.set(key, turn);
+
+  // Once this turn settles, drop the map entry if nobody queued behind
+  // us in the meantime (prevents unbounded growth for idle keys).
+  const forget = () => {
+    if (_mutexQueues.get(key) === turn) _mutexQueues.delete(key);
+  };
+  turn.then(forget, forget);
+
+  return turn;
+}
+
 module.exports = {
   artifactsRoot,
   pointersDir,
@@ -234,4 +278,5 @@ module.exports = {
   isQuarantined,
   appendQuarantine,
   acquireLock,
+  withPointerMutex,
 };

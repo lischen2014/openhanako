@@ -17,6 +17,7 @@ const {
   appendQuarantine,
   acquireLock,
   atomicWriteJson,
+  withPointerMutex,
 } = pointerStoreModule as {
   artifactsRoot: (homeDir: string) => string;
   pointerPath: (homeDir: string, channel: string, slot: string) => string;
@@ -29,6 +30,7 @@ const {
   appendQuarantine: (homeDir: string, entry: any) => Promise<any[]>;
   acquireLock: (homeDir: string, opts?: any) => Promise<{ release: () => Promise<void> } | null>;
   atomicWriteJson: (filePath: string, value: unknown) => Promise<void>;
+  withPointerMutex: <T>(homeDir: string, fn: () => Promise<T>) => Promise<T>;
 };
 
 const tempDirs: string[] = [];
@@ -207,5 +209,87 @@ describe("pointer-store: directory-level lock", () => {
     const second = await acquireLock(homeDir, { staleMs: 10 });
     expect(second).not.toBeNull();
     await second!.release();
+  });
+});
+
+describe("pointer-store: withPointerMutex", () => {
+  it("serializes same-key turns: a slower first-queued task never interleaves with a faster second one", async () => {
+    const homeDir = makeHomeDir();
+    const events: string[] = [];
+
+    function makeTask(label: string, delayMs: number) {
+      return withPointerMutex(homeDir, async () => {
+        events.push(`${label}:enter`);
+        await new Promise((resolve) => setTimeout(resolve, delayMs));
+        events.push(`${label}:exit`);
+        return label;
+      });
+    }
+
+    // "a" is queued first and is the slower turn; "b" is queued
+    // immediately after but would finish faster if it ran concurrently —
+    // strict FIFO means "b" must not even start until "a" fully exits.
+    const [a, b] = await Promise.all([makeTask("a", 30), makeTask("b", 5)]);
+
+    expect(a).toBe("a");
+    expect(b).toBe("b");
+    expect(events).toEqual(["a:enter", "a:exit", "b:enter", "b:exit"]);
+  });
+
+  it("propagates a thrown error to the caller without poisoning the queue for later waiters", async () => {
+    const homeDir = makeHomeDir();
+    const events: string[] = [];
+
+    const first = withPointerMutex(homeDir, async () => {
+      events.push("first");
+      throw new Error("boom");
+    });
+    const second = withPointerMutex(homeDir, async () => {
+      events.push("second");
+      return "ok";
+    });
+
+    await expect(first).rejects.toThrow(/boom/);
+    await expect(second).resolves.toBe("ok");
+    expect(events).toEqual(["first", "second"]);
+  });
+
+  it("does not block turns keyed by a different homeDir", async () => {
+    const homeDirA = makeHomeDir();
+    const homeDirB = makeHomeDir();
+    const events: string[] = [];
+
+    let releaseA: () => void = () => {};
+    const gate = new Promise<void>((resolve) => {
+      releaseA = resolve;
+    });
+
+    const taskA = withPointerMutex(homeDirA, async () => {
+      events.push("a:enter");
+      await gate;
+      events.push("a:exit");
+    });
+    const taskB = withPointerMutex(homeDirB, async () => {
+      events.push("b:enter");
+      events.push("b:exit");
+      return "b-done";
+    });
+
+    // taskB is keyed by a different homeDir and must resolve even though
+    // taskA is still blocked on its (never-released-yet) gate.
+    await expect(taskB).resolves.toBe("b-done");
+    expect(events).toContain("b:enter");
+    expect(events).toContain("b:exit");
+    expect(events).not.toContain("a:exit");
+
+    releaseA();
+    await taskA;
+    expect(events).toContain("a:exit");
+  });
+
+  it("passes through the wrapped function's resolved value", async () => {
+    const homeDir = makeHomeDir();
+    const result = await withPointerMutex(homeDir, async () => ({ ok: true, value: 42 }));
+    expect(result).toEqual({ ok: true, value: 42 });
   });
 });
