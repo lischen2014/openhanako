@@ -463,6 +463,69 @@ describe("artifact-ota: checkOnce (gates, never downloads)", () => {
     expect(fs.existsSync(stagingDirFor(homeDir))).toBe(false);
   });
 
+  it("reports up-to-date when the current pointers' version matches the manifest version even though sha256 differs (same version, different bytes across build runners)", async () => {
+    const root = makeTempDir("hana-ota-e2e-");
+    const keys = makeKeys();
+    const { manifestPath } = await makeOtaFixture(root, keys, { train: 3, version: "0.389.0" });
+    const homeDir = path.join(root, "home");
+    // `current` is several trains behind and carries different bytes than
+    // this manifest's entries (a different CI runner packed this box), but
+    // it's already at the exact same product version. A version directory
+    // is named after the version number, so a same-version-different-bytes
+    // train can never be applied anyway — it must not be surfaced as "a
+    // new version is available".
+    await pointerStore.writePointer(homeDir, SEED_CHANNEL, "current", {
+      train: 0,
+      kind: "server",
+      version: "0.389.0",
+      sha256: "a".repeat(64),
+    });
+    const rendererChannel = artifactBoot.rendererPointerChannel(SEED_CHANNEL);
+    await pointerStore.writePointer(homeDir, rendererChannel, "current", {
+      train: 0,
+      kind: "renderer",
+      version: "0.389.0",
+      sha256: "b".repeat(64),
+    });
+
+    const result = await runWithDevOverride(manifestPath, () =>
+      checkOnce({ homeDir, keyset: keys.keyset, currentShellVersion: SHELL_VERSION, platformArch: PLATFORM_ARCH, log: () => {} }),
+    );
+
+    expect(result.outcome).toBe("up-to-date");
+    const state = (await readOtaState(homeDir))[SEED_CHANNEL];
+    expect(state.available).toBeNull();
+    expect(state.lastError).toBeNull();
+    expect(fs.existsSync(stagingDirFor(homeDir))).toBe(false);
+  });
+
+  it("still reports 'available' when the version actually changed, even with a stale current pointer present (regression guard for the same-version reconciliation gate)", async () => {
+    const root = makeTempDir("hana-ota-e2e-");
+    const keys = makeKeys();
+    const { manifestPath } = await makeOtaFixture(root, keys, { train: 3, version: "0.390.0" });
+    const homeDir = path.join(root, "home");
+    await pointerStore.writePointer(homeDir, SEED_CHANNEL, "current", {
+      train: 0,
+      kind: "server",
+      version: "0.389.0",
+      sha256: "a".repeat(64),
+    });
+    const rendererChannel = artifactBoot.rendererPointerChannel(SEED_CHANNEL);
+    await pointerStore.writePointer(homeDir, rendererChannel, "current", {
+      train: 0,
+      kind: "renderer",
+      version: "0.389.0",
+      sha256: "b".repeat(64),
+    });
+
+    const result = await runWithDevOverride(manifestPath, () =>
+      checkOnce({ homeDir, keyset: keys.keyset, currentShellVersion: SHELL_VERSION, platformArch: PLATFORM_ARCH, log: () => {} }),
+    );
+
+    expect(result.outcome).toBe("available");
+    expect(result.version).toBe("0.390.0");
+  });
+
   it("skips (does not record available) when the shell is below minShell, but still records the available descriptor with minShellBlocked", async () => {
     const root = makeTempDir("hana-ota-e2e-");
     const keys = makeKeys();
@@ -737,6 +800,38 @@ describe("artifact-ota: downloadAndApplyArtifacts", () => {
     expect(result.ok).toBe(false);
     expect(result.error).toMatch(/not newer/i);
     expect(await pointerStore.readPointer(homeDir, SEED_CHANNEL, "next")).toBeNull();
+  });
+
+  it("fails without downloading any artifact archives when the current pointers' version matches the manifest version even though sha256 differs (same version, different bytes across build runners)", async () => {
+    const root = makeTempDir("hana-ota-e2e-");
+    const keys = makeKeys();
+    const { manifestPath } = await makeOtaFixture(root, keys, { train: 3, version: "0.389.0" });
+    const homeDir = path.join(root, "home");
+    await pointerStore.writePointer(homeDir, SEED_CHANNEL, "current", {
+      train: 0,
+      kind: "server",
+      version: "0.389.0",
+      sha256: "a".repeat(64),
+    });
+    const rendererChannel = artifactBoot.rendererPointerChannel(SEED_CHANNEL);
+    await pointerStore.writePointer(homeDir, rendererChannel, "current", {
+      train: 0,
+      kind: "renderer",
+      version: "0.389.0",
+      sha256: "b".repeat(64),
+    });
+
+    const result = await runWithDevOverride(manifestPath, () =>
+      downloadAndApplyArtifacts({ homeDir, keyset: keys.keyset, currentShellVersion: SHELL_VERSION, platformArch: PLATFORM_ARCH, log: () => {} }),
+    );
+
+    expect(result.ok).toBe(false);
+    expect(result.error).toMatch(/0\.389\.0/);
+    expect(await pointerStore.readPointer(homeDir, SEED_CHANNEL, "next")).toBeNull();
+    expect(await pointerStore.readPointer(homeDir, rendererChannel, "next")).toBeNull();
+    // Never even reaches staging: the archives are never downloaded when
+    // this gate rejects before `acquireLock`.
+    expect(fs.existsSync(stagingDirFor(homeDir))).toBe(false);
   });
 
   it("fails and activates nothing when a staged download's sha256 doesn't match the manifest", async () => {

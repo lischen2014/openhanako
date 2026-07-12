@@ -46,7 +46,12 @@
  *        the `current` pointer, there is no real update — report
  *        "up-to-date" rather than surfacing a phantom "new version"
  *        because a release got re-cut with the same bytes under a new
- *        train number.
+ *        train number. The same "up-to-date" outcome is also reported when
+ *        the version numbers already match even if the bytes don't — a
+ *        version directory is named after the version number, so content
+ *        stamped with a version that's already activated can never be
+ *        applied anyway, regardless of what its sha256 says (see
+ *        `isVersionAlreadyCurrent`'s doc comment).
  *     -> minShell (shell too old -> the update is real but blocked; the
  *        shell's own update is electron-updater's job, not this module's)
  *     -> rollout bucket (dedicated random UUID in HANA_HOME)
@@ -548,6 +553,37 @@ function isContentAlreadyCurrent({ currentServerPointer, currentRendererPointer,
   );
 }
 
+/**
+ * Version reconciliation rule: a version directory is named after the
+ * version number itself, so content stamped with the same version as what's
+ * already activated can never be applied even if its bytes differ (the
+ * activation layer's protected-directory + sha256 check refuses it). This
+ * happens in practice because CI packs the renderer archive on three
+ * separate platform runners and tar embeds each build's mtime, so the same
+ * source tree produces three different byte streams for the same version —
+ * if only one of those boxes ends up on the shelf, every other platform's
+ * freshly-installed sha256 seed can never match it. Treating "same version"
+ * as "already current" (regardless of sha256) avoids advertising an update
+ * that would always fail to apply.
+ * A pointer written before this field existed has no `version` — in that
+ * case this check simply doesn't fire and behavior falls back to the
+ * sha256-only comparison above, which is the correct read-time-compatible
+ * behavior for old data.
+ * @returns {boolean}
+ */
+function isVersionAlreadyCurrent({ currentServerPointer, currentRendererPointer, serverEntry, rendererEntry }) {
+  return Boolean(
+    currentServerPointer
+      && typeof currentServerPointer.version === "string"
+      && currentServerPointer.version.length > 0
+      && currentServerPointer.version === serverEntry.version
+      && currentRendererPointer
+      && typeof currentRendererPointer.version === "string"
+      && currentRendererPointer.version.length > 0
+      && currentRendererPointer.version === rendererEntry.version,
+  );
+}
+
 function buildAvailableDescriptor({ manifest, serverEntry, rendererEntry, version }) {
   return {
     train: manifest.train,
@@ -569,7 +605,8 @@ function buildAvailableDescriptor({ manifest, serverEntry, rendererEntry, versio
  * ota-state.json, and reflected in the returned `outcome`.
  *
  * Outcomes: "not-modified" (304 — state otherwise untouched), "up-to-date"
- * (train not newer, or content byte-identical to `current`), "available"
+ * (train not newer, content byte-identical to `current`, or version
+ * already identical to `current` even with different bytes), "available"
  * (a real update exists and passed every gate; nothing downloaded yet),
  * "minshell-blocked" (a real update exists but this shell is too old to
  * receive it), "rollout-excluded", "quarantined", "error".
@@ -636,9 +673,18 @@ async function checkOnce(opts) {
 
     const { serverEntry, rendererEntry, version } = deriveArtifactEntries(manifest, platformArch);
 
-    // Content reconciliation short-circuit — see
-    // `isContentAlreadyCurrent`'s doc comment.
-    if (isContentAlreadyCurrent({ currentServerPointer, currentRendererPointer, serverEntry, rendererEntry })) {
+    // Content reconciliation short-circuit — see `isContentAlreadyCurrent`'s
+    // and `isVersionAlreadyCurrent`'s doc comments.
+    const contentAlreadyCurrent = isContentAlreadyCurrent({ currentServerPointer, currentRendererPointer, serverEntry, rendererEntry });
+    const versionAlreadyCurrent = !contentAlreadyCurrent
+      && isVersionAlreadyCurrent({ currentServerPointer, currentRendererPointer, serverEntry, rendererEntry });
+    if (contentAlreadyCurrent || versionAlreadyCurrent) {
+      if (versionAlreadyCurrent) {
+        log(
+          `[ota] train ${manifest.train} (${version}) matches the currently activated version but has different bytes; `
+            + "treating as already up-to-date (this usually means the installer seed and the shelf box came from different builds)",
+        );
+      }
       await writeOtaChannelState(homeDir, channel, {
         etag,
         lastManifestUrl: sourceUrl,
@@ -833,6 +879,21 @@ async function downloadAndApplyArtifacts(opts) {
 
     const { serverEntry, rendererEntry, version } = deriveArtifactEntries(manifest, platformArch);
 
+    // Same version reconciliation gate checkOnce applies (see
+    // `isVersionAlreadyCurrent`'s doc comment) — a version directory is
+    // named after the version number, so content stamped with a version
+    // that's already activated can never be applied regardless of its
+    // sha256. Checked before acquiring the lock or staging anything so a
+    // same-version train never triggers a doomed multi-hundred-MB download.
+    const rendererChannel = artifactBoot.rendererPointerChannel(channel);
+    const currentRendererPointer = await pointerStore.readPointer(homeDir, rendererChannel, "current");
+    if (isVersionAlreadyCurrent({ currentServerPointer: currentPointer, currentRendererPointer, serverEntry, rendererEntry })) {
+      throw new Error(
+        `train ${manifest.train} (${version}) matches the currently activated version ${currentPointer.version}; `
+          + "content with the same version can never be applied, even though its bytes differ",
+      );
+    }
+
     const lock = await pointerStore.acquireLock(homeDir);
     if (!lock) {
       throw new Error("artifacts lock held by another instance; try again in a moment");
@@ -882,7 +943,7 @@ async function downloadAndApplyArtifacts(opts) {
       try {
         await activation.activateFromArchive(rendererStagedPath, manifest, {
           homeDir,
-          channel: artifactBoot.rendererPointerChannel(channel),
+          channel: rendererChannel,
           kind: "renderer",
         });
       } catch (err) {
