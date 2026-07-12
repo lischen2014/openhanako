@@ -130,11 +130,37 @@ export async function guardAgainstForeignServer({
   return { blocked: true, message: describeForeignServerBlock({ status: probe.status, info: local.info }) };
 }
 
+/**
+ * Builds the env object `hana serve` spawns its server child with, applying
+ * the `--allow-data-downgrade` override (threaded to the child as
+ * `HANA_ALLOW_DATA_DOWNGRADE=1`, which server/index.ts's data-epoch gate
+ * reads) and printing the accompanying warning. Pure aside from the `warn`
+ * side channel, which is injectable so this is testable without capturing
+ * real stdout.
+ */
+export function buildServeSpawnEnv({
+  env,
+  allowDataDowngrade,
+  warn = (msg: string) => console.warn(msg),
+}: { env: NodeJS.ProcessEnv; allowDataDowngrade: boolean; warn?: (msg: string) => void }): NodeJS.ProcessEnv {
+  const spawnEnv: NodeJS.ProcessEnv = { ...env };
+  if (allowDataDowngrade) {
+    spawnEnv.HANA_ALLOW_DATA_DOWNGRADE = "1";
+    warn(
+      `${ansi.yellow}--allow-data-downgrade: 已显式接受数据损坏风险，旧内核将放行打开被更高数据 epoch 触碰过的目录。\n`
+      + `--allow-data-downgrade: explicitly accepting the data-corruption risk — this older kernel will be `
+      + `allowed to open a data directory a higher data epoch has touched.${ansi.reset}`
+    );
+  }
+  return spawnEnv;
+}
+
 export async function spawnServerForeground({
   projectRoot,
   extraArgs = [],
   env = process.env,
   channel = "stable",
+  allowDataDowngrade = false,
   probeImpl = probeServerInfo,
   exit = process.exit,
 }: {
@@ -142,6 +168,7 @@ export async function spawnServerForeground({
   extraArgs?: string[];
   env?: NodeJS.ProcessEnv;
   channel?: string;
+  allowDataDowngrade?: boolean;
   probeImpl?: typeof probeServerInfo;
   exit?: (code?: number) => any;
 } = {}) {
@@ -151,7 +178,8 @@ export async function spawnServerForeground({
     return exit(1);
   }
 
-  const spec = await resolveServerSpawnSpec({ projectRoot, env, extraArgs, channel });
+  const spawnEnv = buildServeSpawnEnv({ env, allowDataDowngrade });
+  const spec = await resolveServerSpawnSpec({ projectRoot, env: spawnEnv, extraArgs, channel });
   if (spec.rendererDist && spec.rendererDist.valid) {
     console.log(`serving web frontend ${spec.rendererDist.version}`);
   }

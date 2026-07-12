@@ -18,6 +18,7 @@ export function parseCliArgs(argv = []) {
     token: null,
     session: null,
     target: null,
+    allowDataDowngrade: false,
     passthrough: [],
   };
 
@@ -25,6 +26,8 @@ export function parseCliArgs(argv = []) {
     const arg = args[i];
     if (arg === "--plain") {
       result.plain = true;
+    } else if (arg === "--allow-data-downgrade") {
+      result.allowDataDowngrade = true;
     } else if (arg === "--url") {
       result.url = requireValue(args, ++i, "--url");
     } else if (arg === "--token") {
@@ -85,6 +88,10 @@ Connection options:
   --url <baseUrl>                   Connect to a specific HanaAgent Server
   --token <token>                   Bearer token for that server
   --session <path>                  Chat in a specific session
+
+Serve options:
+  --allow-data-downgrade            Allow this kernel to open a data directory a newer
+                                     kernel already touched (risk of silent data corruption)
 
 Channel options:
   --channel <stable|beta>           Release channel for hana serve and hana bundle (default: stable)

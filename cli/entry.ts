@@ -30,7 +30,12 @@ export async function main(argv = process.argv.slice(2)) {
   }
 
   if (args.command === "serve") {
-    await spawnServerForeground({ projectRoot: PROJECT_ROOT, extraArgs: args.passthrough, channel: args.channel });
+    await spawnServerForeground({
+      projectRoot: PROJECT_ROOT,
+      extraArgs: args.passthrough,
+      channel: args.channel,
+      allowDataDowngrade: args.allowDataDowngrade,
+    });
     return 0;
   }
 

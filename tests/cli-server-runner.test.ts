@@ -4,6 +4,7 @@ import os from "os";
 import path from "path";
 import { createRequire } from "module";
 import {
+  buildServeSpawnEnv,
   guardAgainstForeignServer,
   resolveRendererDistPointer,
   resolveServerSpawnSpec,
@@ -208,6 +209,24 @@ describe("spawnServerForeground — blocked path never spawns", () => {
     expect(result).toBeUndefined();
     expect(errorSpy).toHaveBeenCalled();
     errorSpy.mockRestore();
+  });
+});
+
+describe("buildServeSpawnEnv", () => {
+  it("passes the env through unchanged and does not warn when allowDataDowngrade is false", () => {
+    const warn = vi.fn();
+    const result = buildServeSpawnEnv({ env: { FOO: "bar" }, allowDataDowngrade: false, warn });
+    expect(result).toEqual({ FOO: "bar" });
+    expect(result.HANA_ALLOW_DATA_DOWNGRADE).toBeUndefined();
+    expect(warn).not.toHaveBeenCalled();
+  });
+
+  it("sets HANA_ALLOW_DATA_DOWNGRADE=1 and warns when allowDataDowngrade is true", () => {
+    const warn = vi.fn();
+    const result = buildServeSpawnEnv({ env: { FOO: "bar" }, allowDataDowngrade: true, warn });
+    expect(result).toEqual({ FOO: "bar", HANA_ALLOW_DATA_DOWNGRADE: "1" });
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(warn.mock.calls[0][0]).toContain("--allow-data-downgrade");
   });
 });
 

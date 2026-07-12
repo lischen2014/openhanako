@@ -7,4 +7,4 @@ import contractVersions from "./contract-versions.cjs";
 // file only re-exports the same two constants under the same names, no
 // duplicated literals. Mirrors the existing shared/quick-chat-preferences.ts
 // / shared/hana-runtime-paths.ts wrapper pattern.
-export const { PRELOAD_API_VERSION, SERVER_PROTOCOL_VERSION } = contractVersions;
+export const { PRELOAD_API_VERSION, SERVER_PROTOCOL_VERSION, DATA_EPOCH } = contractVersions;

@@ -51,20 +51,25 @@ function listenFakeSameHomeServer(handler: http.RequestListener): Promise<{ serv
   });
 }
 
-describe("server/index.ts source-order contract: the mutex gate runs before any store is opened", () => {
+describe("server/index.ts source-order contract: home guards run before any store is opened", () => {
   const source = fs.readFileSync(path.join(root, "server", "index.ts"), "utf-8");
 
-  it("runs the mutex probe before bindServerTransportOwnership, ensureFirstRun, ensureLocalIdentityRegistries, and HanaEngine construction", () => {
+  it("runs the mutex probe and the data-epoch gate before bindServerTransportOwnership, ensureFirstRun, ensureLocalIdentityRegistries, and HanaEngine construction", () => {
     const probeIndex = source.indexOf("await probeServerInfo({ info: existingServerInfo })");
+    const epochIndex = source.indexOf("await assertAndStampDataEpoch(");
     const bindIndex = source.indexOf("await bindServerTransportOwnership");
     const firstRunIndex = source.indexOf("ensureFirstRun(");
     const identityIndex = source.indexOf("ensureLocalIdentityRegistries(");
     const engineIndex = source.indexOf("new HanaEngine(");
 
     expect(probeIndex).toBeGreaterThan(-1);
+    expect(epochIndex).toBeGreaterThan(-1);
     expect(bindIndex).toBeGreaterThan(-1);
 
-    expect(probeIndex).toBeLessThan(bindIndex);
+    // Mutex gate before epoch gate (task-specified order).
+    expect(probeIndex).toBeLessThan(epochIndex);
+    // Both gates before anything that opens a port or a store.
+    expect(epochIndex).toBeLessThan(bindIndex);
     expect(bindIndex).toBeLessThan(firstRunIndex);
     expect(identityIndex).toBeGreaterThan(firstRunIndex);
     expect(identityIndex).toBeLessThan(engineIndex);
@@ -73,6 +78,11 @@ describe("server/index.ts source-order contract: the mutex gate runs before any 
   it("blocks on alive-same-home / alive-unauthorized and self-cleans on not-hana / dead", () => {
     expect(source).toContain("isForeignServerBlocking(probe.status)");
     expect(source).toContain("fs.unlinkSync(serverInfoPath)");
+  });
+
+  it("reads the data-epoch override from HANA_ALLOW_DATA_DOWNGRADE and uses the shared DATA_EPOCH constant", () => {
+    expect(source).toContain('process.env.HANA_ALLOW_DATA_DOWNGRADE === "1"');
+    expect(source).toContain("ownEpoch: DATA_EPOCH");
   });
 });
 
@@ -114,7 +124,7 @@ describe("server home guards — real spawn behavior (fast failure paths, before
     }
   }, 20000);
 
-  it("self-cleans a dead server-info.json (nothing listening on the recorded port) and proceeds past the mutex gate to a full boot", async () => {
+  it("self-cleans a dead server-info.json (nothing listening on the recorded port) and proceeds past the mutex gate", async () => {
     const hanaHome = fs.mkdtempSync(path.join(os.tmpdir(), "hana-mutex-guard-dead-test-"));
     // Bind and release a port synchronously to get one that's very likely
     // free, then record it as "the last known server" with nothing home.
@@ -128,33 +138,111 @@ describe("server home guards — real spawn behavior (fast failure paths, before
         "utf-8",
       );
 
+      // Also seed an epoch stamp far above this build's DATA_EPOCH so the
+      // epoch gate fires next and we can observe a fast, deterministic exit
+      // — this test is only asserting "the mutex gate did not block and
+      // self-cleaned the file", not exercising a full successful boot.
+      fs.writeFileSync(path.join(hanaHome, "data-epoch.json"), JSON.stringify({ epoch: 999999, lastVersion: "9.9.9" }), "utf-8");
+
       const child = spawnServerBootstrap(hanaHome);
+      const result = await waitForExit(child);
+
+      // The mutex gate must have deleted the stale server-info.json (self-
+      // clean) and NOT printed the foreign-server rejection message; the
+      // process still exits 1, but for the epoch gate's reason instead.
+      expect(fs.existsSync(path.join(hanaHome, "server-info.json"))).toBe(false);
+      expect(result.stderr).not.toContain("要接管请先退出它");
+      expect(result.stderr).toContain("epoch=999999");
+      expect(result).toMatchObject({ code: 1, signal: null });
+    } finally {
+      fs.rmSync(hanaHome, { recursive: true, force: true });
+    }
+  }, 20000);
+
+  it("exits 1 with a bilingual message when the data-epoch stamp is higher than this build's DATA_EPOCH and no override is set", async () => {
+    const hanaHome = fs.mkdtempSync(path.join(os.tmpdir(), "hana-epoch-guard-test-"));
+    try {
+      fs.writeFileSync(
+        path.join(hanaHome, "data-epoch.json"),
+        JSON.stringify({ epoch: 999999, lastVersion: "9.9.9", updatedAt: new Date().toISOString() }),
+        "utf-8",
+      );
+
+      const child = spawnServerBootstrap(hanaHome);
+      const result = await waitForExit(child);
+
+      expect(result).toMatchObject({ code: 1, signal: null });
+      expect(result.stderr).toContain("epoch=999999");
+      expect(result.stderr).toContain("HANA_ALLOW_DATA_DOWNGRADE=1");
+      expect(result.stdout + result.stderr).not.toContain("ensureFirstRun");
+      expect(result.stdout + result.stderr).not.toContain("HanaEngine");
+    } finally {
+      fs.rmSync(hanaHome, { recursive: true, force: true });
+    }
+  }, 20000);
+
+  it("exits 1 with a fail-closed message when the data-epoch stamp file is corrupt", async () => {
+    const hanaHome = fs.mkdtempSync(path.join(os.tmpdir(), "hana-epoch-corrupt-test-"));
+    try {
+      fs.writeFileSync(path.join(hanaHome, "data-epoch.json"), "{ not valid json", "utf-8");
+
+      const child = spawnServerBootstrap(hanaHome);
+      const result = await waitForExit(child);
+
+      expect(result).toMatchObject({ code: 1, signal: null });
+      expect(result.stderr).toContain("data-epoch");
+      expect(result.stderr.toLowerCase()).toContain("corrupt");
+    } finally {
+      fs.rmSync(hanaHome, { recursive: true, force: true });
+    }
+  }, 20000);
+
+  it("proceeds past a higher epoch stamp when HANA_ALLOW_DATA_DOWNGRADE=1 is set (does not fail on the epoch gate)", async () => {
+    const hanaHome = fs.mkdtempSync(path.join(os.tmpdir(), "hana-epoch-override-test-"));
+    try {
+      fs.writeFileSync(
+        path.join(hanaHome, "data-epoch.json"),
+        JSON.stringify({ epoch: 999999, lastVersion: "9.9.9", updatedAt: new Date().toISOString() }),
+        "utf-8",
+      );
+
+      // A free-but-unused port would let the process run past the epoch
+      // gate and into a real (slow) boot; instead we assert on the fast
+      // negative — the epoch-block message must NOT appear — while letting
+      // the process continue in the background and killing it once we've
+      // observed enough stdout to know it moved past the gate, or timeout.
+      const child = spawnServerBootstrap(hanaHome, { HANA_ALLOW_DATA_DOWNGRADE: "1" });
       let stdout = "";
       let stderr = "";
       child.stdout?.on("data", (chunk) => { stdout += chunk; });
       child.stderr?.on("data", (chunk) => { stderr += chunk; });
 
-      // The mutex gate must self-clean (delete the stale file) and not
-      // block; there's nothing else gating startup yet in this commit, so
-      // wait for real progress into ensureFirstRun as proof it proceeded.
       await Promise.race([
         new Promise<void>((resolve) => {
           const check = setInterval(() => {
-            if (stdout.includes("ensureFirstRun")) {
+            if (stdout.includes("ensureFirstRun") || stderr.includes("epoch=999999")) {
               clearInterval(check);
               resolve();
             }
           }, 50);
         }),
-        new Promise<void>((resolve) => setTimeout(resolve, 10000)),
+        // Generous window: under full-suite parallel load (hundreds of
+        // vitest workers contending for CPU), a real child process reaching
+        // ensureFirstRun can take noticeably longer than in an isolated
+        // run. This only affects how long the test waits before asserting
+        // — it does not affect gate latency in production.
+        new Promise<void>((resolve) => setTimeout(resolve, 25000)),
       ]);
-      child.kill("SIGKILL");
 
-      expect(fs.existsSync(path.join(hanaHome, "server-info.json"))).toBe(false);
-      expect(stderr).not.toContain("要接管请先退出它");
+      child.kill("SIGKILL");
+      // The gate must not have blocked: no rejection instructions, and a
+      // loud (but non-blocking) warning is expected instead.
+      expect(stderr).not.toContain("HANA_ALLOW_DATA_DOWNGRADE=1"); // that's the *rejection* message's remedy text
+      expect(stderr).toContain("[data-epoch] WARNING");
+      expect(stderr).toContain("警告");
       expect(stdout).toContain("ensureFirstRun");
     } finally {
       fs.rmSync(hanaHome, { recursive: true, force: true });
     }
-  }, 20000);
+  }, 35000);
 });

@@ -37,4 +37,12 @@ describe("CLI args", () => {
   it("rejects missing option values", () => {
     expect(() => parseCliArgs(["chat", "--url"])).toThrow("--url requires a value");
   });
+
+  it("defaults allowDataDowngrade to false and flips it on --allow-data-downgrade", () => {
+    expect(parseCliArgs(["serve"])).toMatchObject({ command: "serve", allowDataDowngrade: false });
+    expect(parseCliArgs(["serve", "--allow-data-downgrade"])).toMatchObject({
+      command: "serve",
+      allowDataDowngrade: true,
+    });
+  });
 });
