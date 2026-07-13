@@ -1,0 +1,417 @@
+{
+  "version": 1,
+  "generatedBy": "scripts/scan-persistent-stores.mjs",
+  "canonicalPhases": [
+    "home_guard",
+    "epoch_preflight",
+    "transport_bind",
+    "first_run_seed",
+    "identity_seed",
+    "engine_construct",
+    "engine_init_legacy_migrations",
+    "runtime_ready"
+  ],
+  "futureCoordinatorPhase": "epoch_preflight",
+  "stores": [
+    {
+      "id": "agent-authored-records",
+      "firstPossibleOpenPhase": "engine_construct",
+      "firstPossibleWritePhase": "runtime_ready",
+      "opensBeforeFutureCoordinator": false,
+      "writesBeforeFutureCoordinator": false,
+      "breakingMigrationRequiresAccessMove": false
+    },
+    {
+      "id": "agent-facts-sqlite",
+      "firstPossibleOpenPhase": "engine_construct",
+      "firstPossibleWritePhase": "runtime_ready",
+      "opensBeforeFutureCoordinator": false,
+      "writesBeforeFutureCoordinator": false,
+      "breakingMigrationRequiresAccessMove": false
+    },
+    {
+      "id": "agent-memory",
+      "firstPossibleOpenPhase": "engine_construct",
+      "firstPossibleWritePhase": "runtime_ready",
+      "opensBeforeFutureCoordinator": false,
+      "writesBeforeFutureCoordinator": false,
+      "breakingMigrationRequiresAccessMove": false
+    },
+    {
+      "id": "agent-phone",
+      "firstPossibleOpenPhase": "engine_construct",
+      "firstPossibleWritePhase": "runtime_ready",
+      "opensBeforeFutureCoordinator": false,
+      "writesBeforeFutureCoordinator": false,
+      "breakingMigrationRequiresAccessMove": false
+    },
+    {
+      "id": "agent-profile",
+      "firstPossibleOpenPhase": "first_run_seed",
+      "firstPossibleWritePhase": "first_run_seed",
+      "opensBeforeFutureCoordinator": false,
+      "writesBeforeFutureCoordinator": false,
+      "breakingMigrationRequiresAccessMove": false
+    },
+    {
+      "id": "channels",
+      "firstPossibleOpenPhase": "engine_construct",
+      "firstPossibleWritePhase": "runtime_ready",
+      "opensBeforeFutureCoordinator": false,
+      "writesBeforeFutureCoordinator": false,
+      "breakingMigrationRequiresAccessMove": false
+    },
+    {
+      "id": "character-card-staging",
+      "firstPossibleOpenPhase": "runtime_ready",
+      "firstPossibleWritePhase": "runtime_ready",
+      "opensBeforeFutureCoordinator": false,
+      "writesBeforeFutureCoordinator": false,
+      "breakingMigrationRequiresAccessMove": false
+    },
+    {
+      "id": "cron-automation",
+      "firstPossibleOpenPhase": "engine_construct",
+      "firstPossibleWritePhase": "runtime_ready",
+      "opensBeforeFutureCoordinator": false,
+      "writesBeforeFutureCoordinator": false,
+      "breakingMigrationRequiresAccessMove": false
+    },
+    {
+      "id": "data-epoch-stamp",
+      "firstPossibleOpenPhase": "epoch_preflight",
+      "firstPossibleWritePhase": "epoch_preflight",
+      "opensBeforeFutureCoordinator": false,
+      "writesBeforeFutureCoordinator": false,
+      "breakingMigrationRequiresAccessMove": false
+    },
+    {
+      "id": "deferred-result-state",
+      "firstPossibleOpenPhase": "engine_construct",
+      "firstPossibleWritePhase": "engine_construct",
+      "opensBeforeFutureCoordinator": false,
+      "writesBeforeFutureCoordinator": false,
+      "breakingMigrationRequiresAccessMove": false
+    },
+    {
+      "id": "desk-activity",
+      "firstPossibleOpenPhase": "engine_construct",
+      "firstPossibleWritePhase": "runtime_ready",
+      "opensBeforeFutureCoordinator": false,
+      "writesBeforeFutureCoordinator": false,
+      "breakingMigrationRequiresAccessMove": false
+    },
+    {
+      "id": "desk-cover-upload-staging",
+      "firstPossibleOpenPhase": "runtime_ready",
+      "firstPossibleWritePhase": "runtime_ready",
+      "opensBeforeFutureCoordinator": false,
+      "writesBeforeFutureCoordinator": false,
+      "breakingMigrationRequiresAccessMove": false
+    },
+    {
+      "id": "device-access-registries",
+      "firstPossibleOpenPhase": "identity_seed",
+      "firstPossibleWritePhase": "identity_seed",
+      "opensBeforeFutureCoordinator": false,
+      "writesBeforeFutureCoordinator": false,
+      "breakingMigrationRequiresAccessMove": false
+    },
+    {
+      "id": "execution-leases",
+      "firstPossibleOpenPhase": "identity_seed",
+      "firstPossibleWritePhase": "identity_seed",
+      "opensBeforeFutureCoordinator": false,
+      "writesBeforeFutureCoordinator": false,
+      "breakingMigrationRequiresAccessMove": false
+    },
+    {
+      "id": "installed-plugins",
+      "firstPossibleOpenPhase": "engine_construct",
+      "firstPossibleWritePhase": "runtime_ready",
+      "opensBeforeFutureCoordinator": false,
+      "writesBeforeFutureCoordinator": false,
+      "breakingMigrationRequiresAccessMove": false
+    },
+    {
+      "id": "legacy-pi-search-cache",
+      "firstPossibleOpenPhase": "engine_construct",
+      "firstPossibleWritePhase": "runtime_ready",
+      "opensBeforeFutureCoordinator": false,
+      "writesBeforeFutureCoordinator": false,
+      "breakingMigrationRequiresAccessMove": false
+    },
+    {
+      "id": "legacy-upload-cache",
+      "firstPossibleOpenPhase": "runtime_ready",
+      "firstPossibleWritePhase": "runtime_ready",
+      "opensBeforeFutureCoordinator": false,
+      "writesBeforeFutureCoordinator": false,
+      "breakingMigrationRequiresAccessMove": false
+    },
+    {
+      "id": "local-user-auth",
+      "firstPossibleOpenPhase": "identity_seed",
+      "firstPossibleWritePhase": "identity_seed",
+      "opensBeforeFutureCoordinator": false,
+      "writesBeforeFutureCoordinator": false,
+      "breakingMigrationRequiresAccessMove": false
+    },
+    {
+      "id": "managed-runtime-caches",
+      "firstPossibleOpenPhase": "engine_construct",
+      "firstPossibleWritePhase": "runtime_ready",
+      "opensBeforeFutureCoordinator": false,
+      "writesBeforeFutureCoordinator": false,
+      "breakingMigrationRequiresAccessMove": false
+    },
+    {
+      "id": "office-render-jobs",
+      "firstPossibleOpenPhase": "runtime_ready",
+      "firstPossibleWritePhase": "runtime_ready",
+      "opensBeforeFutureCoordinator": false,
+      "writesBeforeFutureCoordinator": false,
+      "breakingMigrationRequiresAccessMove": false
+    },
+    {
+      "id": "operational-checkpoints",
+      "firstPossibleOpenPhase": "engine_construct",
+      "firstPossibleWritePhase": "runtime_ready",
+      "opensBeforeFutureCoordinator": false,
+      "writesBeforeFutureCoordinator": false,
+      "breakingMigrationRequiresAccessMove": false
+    },
+    {
+      "id": "plugin-development-state",
+      "firstPossibleOpenPhase": "engine_construct",
+      "firstPossibleWritePhase": "runtime_ready",
+      "opensBeforeFutureCoordinator": false,
+      "writesBeforeFutureCoordinator": false,
+      "breakingMigrationRequiresAccessMove": false
+    },
+    {
+      "id": "plugin-download-cache",
+      "firstPossibleOpenPhase": "runtime_ready",
+      "firstPossibleWritePhase": "runtime_ready",
+      "opensBeforeFutureCoordinator": false,
+      "writesBeforeFutureCoordinator": false,
+      "breakingMigrationRequiresAccessMove": false
+    },
+    {
+      "id": "plugin-runtime-data",
+      "firstPossibleOpenPhase": "engine_construct",
+      "firstPossibleWritePhase": "runtime_ready",
+      "opensBeforeFutureCoordinator": false,
+      "writesBeforeFutureCoordinator": false,
+      "breakingMigrationRequiresAccessMove": false
+    },
+    {
+      "id": "plugin-task-registry",
+      "firstPossibleOpenPhase": "engine_construct",
+      "firstPossibleWritePhase": "engine_construct",
+      "opensBeforeFutureCoordinator": false,
+      "writesBeforeFutureCoordinator": false,
+      "breakingMigrationRequiresAccessMove": false
+    },
+    {
+      "id": "provider-state",
+      "firstPossibleOpenPhase": "engine_construct",
+      "firstPossibleWritePhase": "engine_construct",
+      "opensBeforeFutureCoordinator": false,
+      "writesBeforeFutureCoordinator": false,
+      "breakingMigrationRequiresAccessMove": false
+    },
+    {
+      "id": "runtime-diagnostics",
+      "firstPossibleOpenPhase": "engine_construct",
+      "firstPossibleWritePhase": "runtime_ready",
+      "opensBeforeFutureCoordinator": false,
+      "writesBeforeFutureCoordinator": false,
+      "breakingMigrationRequiresAccessMove": false
+    },
+    {
+      "id": "security-audit-log",
+      "firstPossibleOpenPhase": "runtime_ready",
+      "firstPossibleWritePhase": "runtime_ready",
+      "opensBeforeFutureCoordinator": false,
+      "writesBeforeFutureCoordinator": false,
+      "breakingMigrationRequiresAccessMove": false
+    },
+    {
+      "id": "security-grants",
+      "firstPossibleOpenPhase": "identity_seed",
+      "firstPossibleWritePhase": "identity_seed",
+      "opensBeforeFutureCoordinator": false,
+      "writesBeforeFutureCoordinator": false,
+      "breakingMigrationRequiresAccessMove": false
+    },
+    {
+      "id": "security-key-material",
+      "firstPossibleOpenPhase": "engine_construct",
+      "firstPossibleWritePhase": "engine_construct",
+      "opensBeforeFutureCoordinator": false,
+      "writesBeforeFutureCoordinator": false,
+      "breakingMigrationRequiresAccessMove": false
+    },
+    {
+      "id": "server-network-config",
+      "firstPossibleOpenPhase": "identity_seed",
+      "firstPossibleWritePhase": "identity_seed",
+      "opensBeforeFutureCoordinator": false,
+      "writesBeforeFutureCoordinator": false,
+      "breakingMigrationRequiresAccessMove": false
+    },
+    {
+      "id": "server-node-identity",
+      "firstPossibleOpenPhase": "identity_seed",
+      "firstPossibleWritePhase": "identity_seed",
+      "opensBeforeFutureCoordinator": false,
+      "writesBeforeFutureCoordinator": false,
+      "breakingMigrationRequiresAccessMove": false
+    },
+    {
+      "id": "server-runtime-info",
+      "firstPossibleOpenPhase": "transport_bind",
+      "firstPossibleWritePhase": "transport_bind",
+      "opensBeforeFutureCoordinator": false,
+      "writesBeforeFutureCoordinator": false,
+      "breakingMigrationRequiresAccessMove": false
+    },
+    {
+      "id": "session-drafts-and-projects",
+      "firstPossibleOpenPhase": "engine_construct",
+      "firstPossibleWritePhase": "engine_construct",
+      "opensBeforeFutureCoordinator": false,
+      "writesBeforeFutureCoordinator": false,
+      "breakingMigrationRequiresAccessMove": false
+    },
+    {
+      "id": "session-files",
+      "firstPossibleOpenPhase": "engine_construct",
+      "firstPossibleWritePhase": "runtime_ready",
+      "opensBeforeFutureCoordinator": false,
+      "writesBeforeFutureCoordinator": false,
+      "breakingMigrationRequiresAccessMove": false
+    },
+    {
+      "id": "session-jsonl",
+      "firstPossibleOpenPhase": "engine_construct",
+      "firstPossibleWritePhase": "runtime_ready",
+      "opensBeforeFutureCoordinator": false,
+      "writesBeforeFutureCoordinator": false,
+      "breakingMigrationRequiresAccessMove": false
+    },
+    {
+      "id": "session-manifest-sqlite",
+      "firstPossibleOpenPhase": "engine_construct",
+      "firstPossibleWritePhase": "engine_construct",
+      "opensBeforeFutureCoordinator": false,
+      "writesBeforeFutureCoordinator": false,
+      "breakingMigrationRequiresAccessMove": false
+    },
+    {
+      "id": "session-sidecars",
+      "firstPossibleOpenPhase": "engine_construct",
+      "firstPossibleWritePhase": "runtime_ready",
+      "opensBeforeFutureCoordinator": false,
+      "writesBeforeFutureCoordinator": false,
+      "breakingMigrationRequiresAccessMove": false
+    },
+    {
+      "id": "signed-artifacts",
+      "firstPossibleOpenPhase": "engine_construct",
+      "firstPossibleWritePhase": "runtime_ready",
+      "opensBeforeFutureCoordinator": false,
+      "writesBeforeFutureCoordinator": false,
+      "breakingMigrationRequiresAccessMove": false
+    },
+    {
+      "id": "skill-state",
+      "firstPossibleOpenPhase": "first_run_seed",
+      "firstPossibleWritePhase": "first_run_seed",
+      "opensBeforeFutureCoordinator": false,
+      "writesBeforeFutureCoordinator": false,
+      "breakingMigrationRequiresAccessMove": false
+    },
+    {
+      "id": "skill-translation-cache",
+      "firstPossibleOpenPhase": "runtime_ready",
+      "firstPossibleWritePhase": "runtime_ready",
+      "opensBeforeFutureCoordinator": false,
+      "writesBeforeFutureCoordinator": false,
+      "breakingMigrationRequiresAccessMove": false
+    },
+    {
+      "id": "studio-mount-registry",
+      "firstPossibleOpenPhase": "identity_seed",
+      "firstPossibleWritePhase": "identity_seed",
+      "opensBeforeFutureCoordinator": false,
+      "writesBeforeFutureCoordinator": false,
+      "breakingMigrationRequiresAccessMove": false
+    },
+    {
+      "id": "subagent-state",
+      "firstPossibleOpenPhase": "engine_construct",
+      "firstPossibleWritePhase": "runtime_ready",
+      "opensBeforeFutureCoordinator": false,
+      "writesBeforeFutureCoordinator": false,
+      "breakingMigrationRequiresAccessMove": false
+    },
+    {
+      "id": "terminal-session-state",
+      "firstPossibleOpenPhase": "runtime_ready",
+      "firstPossibleWritePhase": "runtime_ready",
+      "opensBeforeFutureCoordinator": false,
+      "writesBeforeFutureCoordinator": false,
+      "breakingMigrationRequiresAccessMove": false
+    },
+    {
+      "id": "usage-ledger",
+      "firstPossibleOpenPhase": "engine_construct",
+      "firstPossibleWritePhase": "runtime_ready",
+      "opensBeforeFutureCoordinator": false,
+      "writesBeforeFutureCoordinator": false,
+      "breakingMigrationRequiresAccessMove": false
+    },
+    {
+      "id": "user-preferences",
+      "firstPossibleOpenPhase": "first_run_seed",
+      "firstPossibleWritePhase": "first_run_seed",
+      "opensBeforeFutureCoordinator": false,
+      "writesBeforeFutureCoordinator": false,
+      "breakingMigrationRequiresAccessMove": false
+    },
+    {
+      "id": "user-studio-registries",
+      "firstPossibleOpenPhase": "identity_seed",
+      "firstPossibleWritePhase": "identity_seed",
+      "opensBeforeFutureCoordinator": false,
+      "writesBeforeFutureCoordinator": false,
+      "breakingMigrationRequiresAccessMove": false
+    },
+    {
+      "id": "web-session-registry",
+      "firstPossibleOpenPhase": "identity_seed",
+      "firstPossibleWritePhase": "identity_seed",
+      "opensBeforeFutureCoordinator": false,
+      "writesBeforeFutureCoordinator": false,
+      "breakingMigrationRequiresAccessMove": false
+    },
+    {
+      "id": "windows-sandbox-migration-state",
+      "firstPossibleOpenPhase": "engine_construct",
+      "firstPossibleWritePhase": "runtime_ready",
+      "opensBeforeFutureCoordinator": false,
+      "writesBeforeFutureCoordinator": false,
+      "breakingMigrationRequiresAccessMove": false
+    },
+    {
+      "id": "workflow-state",
+      "firstPossibleOpenPhase": "engine_construct",
+      "firstPossibleWritePhase": "runtime_ready",
+      "opensBeforeFutureCoordinator": false,
+      "writesBeforeFutureCoordinator": false,
+      "breakingMigrationRequiresAccessMove": false
+    }
+  ]
+}
