@@ -259,7 +259,21 @@ describe('editor typography settings', () => {
     expect(previewCss).toMatch(/:global\(\.preview-markdown > \*\)\s*\{[\s\S]*max-width:\s*var\(--editor-markdown-content-width\)[\s\S]*margin-left:\s*auto[\s\S]*margin-right:\s*auto/);
     expect(previewCss).toMatch(/:global\(\.preview-markdown > \.markdown-table-scroll\)\s*\{[\s\S]*width:\s*100%[\s\S]*max-width:\s*var\(--editor-markdown-content-width\)[\s\S]*margin-left:\s*auto[\s\S]*margin-right:\s*auto/);
     expect(previewCss).toMatch(/:global\(\.preview-markdown\) table\s*\{[^}]*width:\s*fit-content[^}]*max-width:\s*100%[^}]*table-layout:\s*auto/);
-    expect(previewCss).toMatch(/:global\(\.cm-table-widget\)\s*\{[^}]*max-width:\s*100%/);
+    // Preview 表格文字必须能在容器内断行，否则不可断行的长 token（无空格的英文/数字/哈希）
+    // 会撑破 table-layout:auto 的 shrink-to-fit 算法，让 table 实际渲染宽度超出
+    // markdown-table-scroll 的 max-width（运行时用 getBoundingClientRect 复现过：
+    // 缺这条时 table 901px vs 容器 720px，补上后精确收敛到 720px）。
+    expect(previewCss).toMatch(/:global\(\.preview-markdown\) td\s*\{[^}]*overflow-wrap:\s*anywhere[^}]*word-break:\s*break-word/);
+
+    // Editor 内嵌表格 widget 是 CodeMirror 的 block:true 替换 widget，DOM 上是
+    // .cm-content 的直接子节点、不在 .cm-line 里，因此 .cm-line 的
+    // max-width:var(--editor-markdown-content-width) 约束不到它。历史上这里被写成
+    // max-width:100%（相对 .cm-content 计算，等于不限宽），必须精确断言用的是
+    // 变量而不是百分比字面量，否则测试抓不住"值写错成 100%"这种回归。
+    expect(previewCss).toMatch(/:global\(\.cm-table-widget\)\s*\{[^}]*max-width:\s*var\(--editor-markdown-content-width\)/);
+    expect(previewCss).not.toMatch(/:global\(\.cm-table-widget\)\s*\{[^}]*max-width:\s*100%/);
+    // 表格左右边界要和 .cm-line 的文字列同一套居中机制（margin auto），否则宽度对了但没居中对齐
+    expect(previewCss).toMatch(/:global\(\.cm-table-widget\)\s*\{[^}]*margin:\s*var\(--space-4\)\s+auto/);
     expect(previewCss).not.toMatch(/:global\(\.cm-table-widget\)\s*\{[^}]*overflow-x:\s*auto/);
     expect(previewCss).toMatch(/:global\(\.cm-table-widget table\)\s*\{[^}]*width:\s*100%[^}]*table-layout:\s*fixed/);
     expect(previewCss).not.toMatch(/:global\(\.cm-table-widget table\)\s*\{[^}]*min-width:\s*max-content/);

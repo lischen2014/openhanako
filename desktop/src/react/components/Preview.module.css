@@ -351,7 +351,12 @@
     overflow: hidden;
 }
 .previewPanelBody :global(.preview-markdown) th,
-.previewPanelBody :global(.preview-markdown) td { border: none; padding: 0.35em 0.8em; }
+.previewPanelBody :global(.preview-markdown) td {
+    border: none;
+    padding: 0.35em 0.8em;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+}
 .previewPanelBody :global(.preview-markdown) thead th {
     background: color-mix(in srgb, var(--text) 9%, transparent);
     font-weight: 600;
@@ -760,8 +765,8 @@
 }
 
 :global(.cm-table-widget) {
-    max-width: 100%;
-    margin: var(--space-4) 0;
+    max-width: var(--editor-markdown-content-width);
+    margin: var(--space-4) auto;
 }
 
 :global(.cm-table-widget table) {
