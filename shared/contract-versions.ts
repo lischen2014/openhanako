@@ -1,10 +1,12 @@
-import contractVersions from "./contract-versions.cjs";
+import contractVersions from "./contract-versions.json";
 
-// ESM wrapper so renderer TypeScript imports THIS file instead of the .cjs
-// directly — Vite dev never needs to serve raw CommonJS to the browser this
-// way. The .cjs remains the actual value source (required by Node-context
-// consumers: build scripts, the shell's OTA gate, the server route); this
-// file only re-exports the same two constants under the same names, no
-// duplicated literals. Mirrors the existing shared/quick-chat-preferences.ts
-// / shared/hana-runtime-paths.ts wrapper pattern.
+// ESM entry for the renderer/browser graph. The literal values live in
+// shared/contract-versions.json (the single source); the Node-side
+// shared/contract-versions.cjs re-exports the same JSON for require()
+// consumers. Importing the JSON directly (instead of the .cjs) keeps the
+// browser dependency graph free of CommonJS: Vite's dev server serves source
+// files individually and does NOT synthesize a `default` export for an
+// un-pre-bundled .cjs, so a `default` import of the .cjs breaks the whole
+// static import graph in dev; JSON is transformed to ESM natively by Vite in
+// both dev and build. No duplicated literals — same three constants, one source.
 export const { PRELOAD_API_VERSION, SERVER_PROTOCOL_VERSION, DATA_EPOCH } = contractVersions;

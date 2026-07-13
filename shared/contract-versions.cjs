@@ -1,8 +1,18 @@
 "use strict";
 
 /**
- * shared/contract-versions.cjs — the single source for the two hot-update
- * contract version numbers.
+ * shared/contract-versions.cjs — the Node-side entry for the three
+ * cross-runtime contract version numbers.
+ *
+ * The literal values live in the sibling shared/contract-versions.json (the
+ * single source of truth): this .cjs re-exports them for Node consumers
+ * (build scripts, the shell's OTA gate, the server route, tests), and
+ * shared/contract-versions.ts imports the same JSON for the renderer/browser
+ * graph. JSON is the one format both a synchronous CommonJS require() and
+ * Vite's browser ESM import handle natively — routing the numbers through it
+ * keeps the browser dependency graph free of any CJS→ESM interop, which Vite's
+ * dev server does not synthesize for un-pre-bundled source .cjs files. To bump
+ * a number, edit the JSON; the rules for WHEN to bump are documented below.
  *
  * Every train manifest (seed and published trains alike) carries a
  * `contract: { preload, serverProtocol }` field, validated for shape by
@@ -51,9 +61,7 @@
  * migration obligation that coordinates with a bump.
  */
 
-const PRELOAD_API_VERSION = 1;
-const SERVER_PROTOCOL_VERSION = 1;
-const DATA_EPOCH = 1;
+const { PRELOAD_API_VERSION, SERVER_PROTOCOL_VERSION, DATA_EPOCH } = require("./contract-versions.json");
 
 module.exports = {
   PRELOAD_API_VERSION,

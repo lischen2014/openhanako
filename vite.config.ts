@@ -120,6 +120,59 @@ function injectDevWebConfig(): Plugin {
   };
 }
 
+/**
+ * Vite dev only: synthesize an ESM `default` export for project-owned
+ * CommonJS `.cjs` files when they get pulled into the browser graph.
+ *
+ * Several shared/*.cjs modules are the single Node-side source of truth (the
+ * desktop shell raw-`require`s them from a plain CommonJS main.cjs, so they
+ * cannot become .ts/.mjs), and thin shared/*.ts wrappers re-export them for the
+ * renderer via `import x from './x.cjs'` (default import + destructure).
+ * Production bundles synthesize the CJS→ESM default export through Rollup, but
+ * Vite's dev server serves source .cjs individually WITHOUT synthesizing one,
+ * so in dev the default import resolves to nothing and the entire static import
+ * graph fails silently — no console error, and the module's top-level code
+ * (including main.tsx) never executes. This closes that dev-only gap.
+ *
+ * Only PURE .cjs (no `require`, no Node builtins) can actually run in a browser.
+ * If a .cjs that reaches the browser graph uses require(), we throw loudly
+ * instead of shipping a broken module: such a file must move its constants to
+ * JSON (see shared/contract-versions.json) or split its Node-only logic out —
+ * silently degrading would just reproduce the invisible-failure this fixes.
+ */
+function browserCjsDefaultInterop(): Plugin {
+  return {
+    name: 'hana-browser-cjs-default-interop',
+    apply: 'serve',
+    enforce: 'pre',
+    transform(code, id, options) {
+      // Real dev-server browser context only. Vitest runs a Node-based module
+      // runner (even under jsdom) that resolves CommonJS natively, so this
+      // interop is both unnecessary and unsafe there — its require()-guard's
+      // premise ("a browser cannot require()") does not hold for the vitest
+      // runner and would spuriously throw on a legitimately CJS-importing test.
+      if (process.env.VITEST) return null;
+      if (options?.ssr) return null;
+      const filePath = id.split('?')[0];
+      if (!filePath.endsWith('.cjs')) return null;
+      if (filePath.includes('/node_modules/')) return null;
+      if (/\brequire\s*\(/.test(code)) {
+        const rel = path.relative(__dirname, filePath);
+        throw new Error(
+          `[hana-browser-cjs-default-interop] ${rel} is imported into the browser graph but uses require(); ` +
+          `browser-graph .cjs must be pure — move constants to JSON or split Node-only logic out.`,
+        );
+      }
+      // Provide CJS `module`/`exports` bindings, run the original body, then
+      // expose the result as the ESM default the .ts wrappers import.
+      return {
+        code: `const module = { exports: {} };\nconst exports = module.exports;\n${code}\nexport default module.exports;`,
+        map: null,
+      };
+    },
+  };
+}
+
 function serveMobilePwaStaticFiles(): Plugin {
   const srcDir = path.resolve(__dirname, 'desktop/src');
   const filesByUrl = new Map<string, { file: string; contentType: string }>([
@@ -133,8 +186,18 @@ function serveMobilePwaStaticFiles(): Plugin {
     apply: 'serve',
     configureServer(server) {
       server.middlewares.use((req, res, next) => {
-        const pathname = req.url?.split('?')[0] || '';
-        const asset = filesByUrl.get(pathname);
+        const url = req.url || '';
+        // 带 query string 的请求（如 /icon.png?import）属于 Vite 的资源转换管线：
+        // AboutTab 的 `import appIconUrl from '../../../icon.png'` 需要 Vite 把 icon.png
+        // 转成返回 URL 字符串的 JS 模块（MIME text/javascript）。若在此按裸路径命中并回
+        // image/png，type="module" 脚本的严格 MIME 校验会失败，整个静态 import 图崩掉，
+        // main.tsx 一行都跑不起来。只有裸路径的直接请求（PWA 注册的 sw.js / manifest /
+        // 图标）才由本中间件回原始字节，其余一律放行给 Vite 自己处理。
+        if (url.includes('?')) {
+          next();
+          return;
+        }
+        const asset = filesByUrl.get(url);
         if (!asset) {
           next();
           return;
@@ -234,6 +297,7 @@ export default defineConfig({
   root: 'desktop/src',
   base: './',
   plugins: [
+    browserCjsDefaultInterop(),
     preserveLegacyCss(),
     react(),
     injectCsp(),
