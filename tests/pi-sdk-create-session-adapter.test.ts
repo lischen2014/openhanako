@@ -69,7 +69,7 @@ describe("Pi SDK createAgentSession adapter", () => {
   it("uses the resource loader agentDir as the SDK agentDir when omitted", async () => {
     const sdk = await import("@earendil-works/pi-coding-agent");
     const adapter = await import("../lib/pi-sdk/index.ts");
-    const resourceLoader = { agentDir: "/hana-home/.pi/agent" };
+    const resourceLoader = { agentDir: "/hana-home/runtime/pi-sdk/resource-loader/agent" };
 
     await adapter.createAgentSession({
       cwd: "/tmp/project",
@@ -79,7 +79,7 @@ describe("Pi SDK createAgentSession adapter", () => {
     expect(sdk.createAgentSession).toHaveBeenLastCalledWith({
       cwd: "/tmp/project",
       resourceLoader,
-      agentDir: "/hana-home/.pi/agent",
+      agentDir: "/hana-home/runtime/pi-sdk/resource-loader/agent",
       normalizedByAdapter: true,
     });
   });

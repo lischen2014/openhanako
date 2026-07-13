@@ -3,6 +3,7 @@ import { spawn, spawnSync } from "child_process";
 import { extractZip } from "../extract-zip.ts";
 import {
   chmodSync,
+  copyFileSync,
   createWriteStream,
   existsSync,
   mkdirSync,
@@ -21,7 +22,6 @@ import {
   createGrepToolDefinition,
   DEFAULT_MAX_BYTES,
   formatSize,
-  getAgentDir,
   truncateHead,
   truncateLine,
 } from "@earendil-works/pi-coding-agent";
@@ -117,8 +117,22 @@ function isOfflineModeEnabled() {
   return value === "1" || value?.toLowerCase() === "true" || value?.toLowerCase() === "yes";
 }
 
-function getBinDir() {
-  return path.join(getAgentDir(), "bin");
+function requireAbsoluteDirectory(value, optionName) {
+  if (typeof value !== "string" || value.length === 0 || !path.isAbsolute(value)) {
+    throw new TypeError(`${optionName} must be an absolute path`);
+  }
+  return path.resolve(value);
+}
+
+function resolveSearchToolPaths(options: Record<string, any> = {}) {
+  const managedBinDir = requireAbsoluteDirectory(options.managedBinDir, "managedBinDir");
+  const legacyManagedBinDir = options.legacyManagedBinDir == null
+    ? null
+    : requireAbsoluteDirectory(options.legacyManagedBinDir, "legacyManagedBinDir");
+  if (legacyManagedBinDir && legacyManagedBinDir === managedBinDir) {
+    throw new TypeError("legacyManagedBinDir must differ from managedBinDir");
+  }
+  return { managedBinDir, legacyManagedBinDir };
 }
 
 function commandExists(command) {
@@ -130,13 +144,68 @@ function commandExists(command) {
   }
 }
 
-function getToolPath(tool) {
+function managedBinaryPath(tool, managedBinDir) {
+  const config = TOOL_CONFIGS[tool];
+  if (!config) return null;
+  const binaryExt = platform() === "win32" ? ".exe" : "";
+  return path.join(managedBinDir, `${config.binaryName}${binaryExt}`);
+}
+
+function removeMigrationTemp(tempPath) {
+  try {
+    rmSync(tempPath, { force: true });
+  } catch {
+    // The migration error below is the actionable failure. Cleanup is best
+    // effort because an invalid destination parent can make rm fail too.
+  }
+}
+
+function migrateLegacyManagedBinary(tool, { managedBinDir, legacyManagedBinDir }) {
+  if (!legacyManagedBinDir) return null;
+  const legacyPath = managedBinaryPath(tool, legacyManagedBinDir);
+  const managedPath = managedBinaryPath(tool, managedBinDir);
+  if (!legacyPath || !managedPath || !existsSync(legacyPath)) return null;
+
+  const tempPath = path.join(
+    managedBinDir,
+    `.${path.basename(managedPath)}.migrating-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
+  );
+  try {
+    mkdirSync(managedBinDir, { recursive: true });
+    copyFileSync(legacyPath, tempPath);
+    if (platform() !== "win32") chmodSync(tempPath, 0o755);
+    if (existsSync(managedPath)) {
+      removeMigrationTemp(tempPath);
+      return managedPath;
+    }
+    try {
+      renameSync(tempPath, managedPath);
+    } catch (error) {
+      if (existsSync(managedPath)) {
+        removeMigrationTemp(tempPath);
+        return managedPath;
+      }
+      throw error;
+    }
+    return managedPath;
+  } catch (error) {
+    removeMigrationTemp(tempPath);
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(`Failed to migrate legacy ${tool} binary from ${legacyPath} to ${managedPath}: ${message}`, {
+      cause: error,
+    });
+  }
+}
+
+function getToolPath(tool, toolPaths) {
   const config = TOOL_CONFIGS[tool];
   if (!config) return null;
 
-  const binaryExt = platform() === "win32" ? ".exe" : "";
-  const managedPath = path.join(getBinDir(), `${config.binaryName}${binaryExt}`);
+  const managedPath = managedBinaryPath(tool, toolPaths.managedBinDir);
   if (existsSync(managedPath)) return managedPath;
+
+  const migratedPath = migrateLegacyManagedBinary(tool, toolPaths);
+  if (migratedPath) return migratedPath;
 
   if (commandExists(config.binaryName)) return config.binaryName;
   return null;
@@ -177,7 +246,7 @@ function findBinaryRecursively(rootDir, binaryFileName) {
   return null;
 }
 
-async function downloadTool(tool) {
+async function downloadTool(tool, toolPaths) {
   const config = TOOL_CONFIGS[tool];
   if (!config) throw new Error(`Unknown tool: ${tool}`);
 
@@ -187,14 +256,15 @@ async function downloadTool(tool) {
   const assetName = config.getAssetName(version, plat, architecture);
   if (!assetName) throw new Error(`Unsupported platform: ${plat}/${architecture}`);
 
-  mkdirSync(getBinDir(), { recursive: true });
+  const managedBinDir = toolPaths.managedBinDir;
+  mkdirSync(managedBinDir, { recursive: true });
   const archiveUrl = `https://github.com/${config.repo}/releases/download/${config.tagPrefix}${version}/${assetName}`;
-  const archivePath = path.join(getBinDir(), assetName);
+  const archivePath = path.join(managedBinDir, assetName);
   const binaryExt = plat === "win32" ? ".exe" : "";
   const binaryFileName = `${config.binaryName}${binaryExt}`;
-  const binaryPath = path.join(getBinDir(), binaryFileName);
+  const binaryPath = path.join(managedBinDir, binaryFileName);
   const extractDir = path.join(
-    getBinDir(),
+    managedBinDir,
     `extract_tmp_${config.binaryName}_${process.pid}_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`,
   );
 
@@ -234,12 +304,12 @@ async function downloadTool(tool) {
   }
 }
 
-async function ensureSearchTool(tool) {
-  const existingPath = getToolPath(tool);
+async function ensureSearchTool(tool, toolPaths) {
+  const existingPath = getToolPath(tool, toolPaths);
   if (existingPath) return existingPath;
   if (isOfflineModeEnabled() || platform() === "android") return undefined;
   try {
-    return await downloadTool(tool);
+    return await downloadTool(tool, toolPaths);
   } catch {
     return undefined;
   }
@@ -272,7 +342,7 @@ function defaultGrepOperations() {
   };
 }
 
-function createGrepExecute(cwd, options: Record<string, any> = {}) {
+function createGrepExecute(cwd, options: Record<string, any>, toolPaths) {
   const customOps = options?.operations;
 
   return async function executeGrep(
@@ -295,7 +365,7 @@ function createGrepExecute(cwd, options: Record<string, any> = {}) {
 
       (async () => {
         try {
-          const rgPath = await ensureSearchTool("rg");
+          const rgPath = await ensureSearchTool("rg", toolPaths);
           if (!rgPath) {
             settle(() => reject(new Error("ripgrep (rg) is not available and could not be downloaded")));
             return;
@@ -483,7 +553,7 @@ function createGrepExecute(cwd, options: Record<string, any> = {}) {
   };
 }
 
-function createFindExecute(cwd, options: Record<string, any> = {}) {
+function createFindExecute(cwd, options: Record<string, any>, toolPaths) {
   const customOps = options?.operations;
 
   return async function executeFind(_toolCallId, { pattern, path: searchDir, limit }, signal) {
@@ -530,7 +600,7 @@ function createFindExecute(cwd, options: Record<string, any> = {}) {
             return;
           }
 
-          const fdPath = await ensureSearchTool("fd");
+          const fdPath = await ensureSearchTool("fd", toolPaths);
           if (signal?.aborted) {
             settle(() => reject(new Error("Operation aborted")));
             return;
@@ -658,15 +728,17 @@ function formatFindResults(results, searchPath, effectiveLimit) {
 }
 
 export function createGrepTool(cwd, options) {
+  const toolPaths = resolveSearchToolPaths(options);
   return wrapToolDefinition({
     ...createGrepToolDefinition(cwd, options),
-    execute: createGrepExecute(cwd, options),
+    execute: createGrepExecute(cwd, options, toolPaths),
   });
 }
 
 export function createFindTool(cwd, options) {
+  const toolPaths = resolveSearchToolPaths(options);
   return wrapToolDefinition({
     ...createFindToolDefinition(cwd, options),
-    execute: createFindExecute(cwd, options),
+    execute: createFindExecute(cwd, options, toolPaths),
   });
 }

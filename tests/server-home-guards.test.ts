@@ -7,6 +7,11 @@ import { spawn } from "child_process";
 
 const root = process.cwd();
 
+function expectNoPiRuntimeTrees(hanaHome: string) {
+  expect(fs.existsSync(path.join(hanaHome, "runtime", "pi-sdk"))).toBe(false);
+  expect(fs.existsSync(path.join(hanaHome, ".pi"))).toBe(false);
+}
+
 function spawnServerBootstrap(hanaHome: string, extraEnv: Record<string, string> = {}) {
   return spawn(process.execPath, ["server/bootstrap.ts"], {
     cwd: root,
@@ -73,6 +78,8 @@ describe("server/index.ts source-order contract: home guards run before any stor
     expect(bindIndex).toBeLessThan(firstRunIndex);
     expect(identityIndex).toBeGreaterThan(firstRunIndex);
     expect(identityIndex).toBeLessThan(engineIndex);
+    expect(source).not.toContain("ensureHanaPiSdkDirs");
+    expect(source).not.toContain("configureProcessPiSdkEnv");
   });
 
   it("blocks on alive-same-home / alive-unauthorized and self-cleans on not-hana / dead", () => {
@@ -118,6 +125,7 @@ describe("server home guards — real spawn behavior (fast failure paths, before
       expect(result.stderr).toContain("要接管请先退出它");
       expect(result.stdout + result.stderr).not.toContain("ensureFirstRun");
       expect(result.stdout + result.stderr).not.toContain("HanaEngine");
+      expectNoPiRuntimeTrees(hanaHome);
     } finally {
       await new Promise<void>((resolve) => fakeServer.close(() => resolve()));
       fs.rmSync(hanaHome, { recursive: true, force: true });
@@ -176,6 +184,7 @@ describe("server home guards — real spawn behavior (fast failure paths, before
       expect(result.stderr).toContain("HANA_ALLOW_DATA_DOWNGRADE=1");
       expect(result.stdout + result.stderr).not.toContain("ensureFirstRun");
       expect(result.stdout + result.stderr).not.toContain("HanaEngine");
+      expectNoPiRuntimeTrees(hanaHome);
     } finally {
       fs.rmSync(hanaHome, { recursive: true, force: true });
     }
@@ -192,6 +201,7 @@ describe("server home guards — real spawn behavior (fast failure paths, before
       expect(result).toMatchObject({ code: 1, signal: null });
       expect(result.stderr).toContain("data-epoch");
       expect(result.stderr.toLowerCase()).toContain("corrupt");
+      expectNoPiRuntimeTrees(hanaHome);
     } finally {
       fs.rmSync(hanaHome, { recursive: true, force: true });
     }
@@ -220,7 +230,7 @@ describe("server home guards — real spawn behavior (fast failure paths, before
       await Promise.race([
         new Promise<void>((resolve) => {
           const check = setInterval(() => {
-            if (stdout.includes("ensureFirstRun") || stderr.includes("epoch=999999")) {
+            if (stdout.includes("ensureFirstRun")) {
               clearInterval(check);
               resolve();
             }

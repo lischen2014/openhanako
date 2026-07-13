@@ -31,7 +31,10 @@ import {
   resolveWorkspaceSkillPaths,
   workspaceSkillPolicyFromConfig,
 } from "../shared/workspace-skill-paths.ts";
-import { resolveHanaPiAgentDir, resolveHanaPiProjectDir } from "../shared/hana-runtime-paths.ts";
+import {
+  resolveHanaPiSdkResourceLoaderAgentDir,
+  resolveHanaPiSdkResourceLoaderCwd,
+} from "../shared/hana-runtime-paths.ts";
 import { PluginManager } from "./plugin-manager.ts";
 import { EnvChangeLedger } from "./env-change-ledger.ts";
 import { PluginDevService } from "./plugin-dev-service.ts";
@@ -1277,8 +1280,8 @@ export class HanaEngine {
     return this._configCoord.getExplicitHomeFolder(agentId || this.currentAgentId) || null;
   }
   _createResourceLoaderOptions(skillsDir) {
-    const cwd = resolveHanaPiProjectDir(this.hanakoHome);
-    const agentDir = resolveHanaPiAgentDir(this.hanakoHome);
+    const cwd = resolveHanaPiSdkResourceLoaderCwd(this.hanakoHome);
+    const agentDir = resolveHanaPiSdkResourceLoaderAgentDir(this.hanakoHome);
     if (!cwd || typeof cwd !== "string") {
       throw new Error("ResourceLoader init: cwd is required");
     }

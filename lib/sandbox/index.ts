@@ -34,6 +34,10 @@ import { wrapResourceIoFileTools } from "../resource-io/agent-tools.ts";
 import { createResourceIoToolOperations } from "../resource-io/pi-tool-operations.ts";
 import { createSandboxResourceIO } from "../resource-io/sandbox-resource-io.ts";
 import { createExecCommandTools } from "../exec-command/tool.ts";
+import {
+  resolveHanaPiSdkManagedBinDir,
+  resolveLegacyPiSdkManagedBinDir,
+} from "../../shared/hana-runtime-paths.ts";
 
 /**
  * 为一个 session 创建沙盒包装后的工具集
@@ -155,6 +159,10 @@ export function createSandboxedTools(cwd, customTools, {
     },
     detectImageMimeType: async (p) => IMAGE_MIMES[extname(p).toLowerCase()] || undefined,
   });
+  const searchToolPaths = {
+    managedBinDir: resolveHanaPiSdkManagedBinDir(hanakoHome),
+    legacyManagedBinDir: resolveLegacyPiSdkManagedBinDir(hanakoHome),
+  };
   const enhancedReadFile = createEnhancedReadFile();
   const readOps = {
     ...resourceOps.read,
@@ -237,8 +245,8 @@ export function createSandboxedTools(cwd, customTools, {
         writeToolWithResourceIO,
         editTool,
         ...createExecToolsForBash(wrappedBashTool, wrappedWin32Exec),
-        createGrepTool(cwd, { operations: resourceOps.grep }),
-        createFindTool(cwd, { operations: resourceOps.find }),
+        createGrepTool(cwd, { ...searchToolPaths, operations: resourceOps.grep }),
+        createFindTool(cwd, { ...searchToolPaths, operations: resourceOps.find }),
         createLsTool(cwd, { operations: resourceOps.ls }),
       ]),
       customTools,
@@ -274,8 +282,8 @@ export function createSandboxedTools(cwd, customTools, {
       writeToolWithResourceIO,
       editTool,
       ...createExecToolsForBash(wrappedBashTool),
-      createGrepTool(cwd, { operations: resourceOps.grep }),
-      createFindTool(cwd, { operations: resourceOps.find }),
+      createGrepTool(cwd, { ...searchToolPaths, operations: resourceOps.grep }),
+      createFindTool(cwd, { ...searchToolPaths, operations: resourceOps.find }),
       createLsTool(cwd, { operations: resourceOps.ls }),
     ]),
     customTools,

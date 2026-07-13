@@ -46,10 +46,7 @@ const {
   focusExistingWindow,
 } = require("./src/shared/single-instance-lock.cjs");
 const {
-  configureProcessPiSdkEnv,
-  ensureHanaPiSdkDirs,
   resolveHanakoHome,
-  withHanaPiSdkEnv,
 } = require("../shared/hana-runtime-paths.cjs");
 const {
   buildBrowserSearchExtractionScript,
@@ -158,8 +155,6 @@ function safeReadJSON(filePath, fallback = null) {
 
 const hanakoHome = resolveHanakoHome(process.env.HANA_HOME);
 process.env.HANA_HOME = hanakoHome;
-ensureHanaPiSdkDirs(hanakoHome);
-configureProcessPiSdkEnv(hanakoHome);
 
 const keepAwakeManager = createKeepAwakeManager({ powerSaveBlocker });
 
@@ -1638,7 +1633,7 @@ async function _spawnServerOnce(serverInfoPath, artifactBootContext) {
   reusedServerOwned = false;
 
   let serverEnv = {
-    ...withHanaPiSdkEnv(process.env, hanakoHome),
+    ...process.env,
     HANA_HOME: hanakoHome,
     HANA_SERVER_OWNER: "desktop",
     HANA_SERVER_OWNER_PID: String(process.pid),
@@ -1646,6 +1641,10 @@ async function _spawnServerOnce(serverInfoPath, artifactBootContext) {
     HANA_DESKTOP_APP_PATH: app.getAppPath(),
     HANA_DESKTOP_IS_PACKAGED: app.isPackaged ? "1" : "0",
   };
+  // The server receives every ordinary desktop environment variable, but it
+  // must not inherit Pi's global agent directory. Hana supplies all SDK paths
+  // explicitly so a host-level Pi installation cannot redirect Hana's data.
+  delete serverEnv.PI_CODING_AGENT_DIR;
   // packaged 模式下 `_distRenderer` 已经被 `resolvePackagedArtifactBoot`
   // （本函数调用前必然跑过一次，见调用点 :1186 附近）重指向 renderer 的
   // 已激活版本目录；把它转交给 server，让 /mobile、/desktop 的远程网页

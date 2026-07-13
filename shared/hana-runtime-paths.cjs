@@ -1,8 +1,5 @@
 const os = require("os");
 const path = require("path");
-const fs = require("fs");
-
-const PI_SDK_AGENT_DIR_ENV = "PI_CODING_AGENT_DIR";
 
 function expandHome(input, homeDir = os.homedir()) {
   if (!input) return input;
@@ -18,46 +15,39 @@ function resolveHanakoHome(input, homeDir = os.homedir()) {
   return path.resolve(expandHome(raw, homeDir));
 }
 
-function resolveHanaPiRoot(hanakoHome) {
+function assertHanakoHome(hanakoHome, caller) {
   if (!hanakoHome || typeof hanakoHome !== "string") {
-    throw new Error("resolveHanaPiRoot: hanakoHome is required");
+    throw new Error(`${caller}: hanakoHome is required`);
   }
-  return path.join(hanakoHome, ".pi");
 }
 
-function resolveHanaPiAgentDir(hanakoHome) {
-  return path.join(resolveHanaPiRoot(hanakoHome), "agent");
+function resolveHanaPiSdkRuntimeRoot(hanakoHome) {
+  assertHanakoHome(hanakoHome, "resolveHanaPiSdkRuntimeRoot");
+  return path.join(hanakoHome, "runtime", "pi-sdk");
 }
 
-function resolveHanaPiProjectDir(hanakoHome) {
-  return path.join(resolveHanaPiRoot(hanakoHome), "project");
+function resolveHanaPiSdkManagedBinDir(hanakoHome) {
+  return path.join(resolveHanaPiSdkRuntimeRoot(hanakoHome), "bin");
 }
 
-function withHanaPiSdkEnv(env, hanakoHome) {
-  return {
-    ...env,
-    [PI_SDK_AGENT_DIR_ENV]: resolveHanaPiAgentDir(hanakoHome),
-  };
+function resolveHanaPiSdkResourceLoaderCwd(hanakoHome) {
+  return path.join(resolveHanaPiSdkRuntimeRoot(hanakoHome), "resource-loader", "project");
 }
 
-function ensureHanaPiSdkDirs(hanakoHome) {
-  fs.mkdirSync(resolveHanaPiAgentDir(hanakoHome), { recursive: true });
-  fs.mkdirSync(resolveHanaPiProjectDir(hanakoHome), { recursive: true });
+function resolveHanaPiSdkResourceLoaderAgentDir(hanakoHome) {
+  return path.join(resolveHanaPiSdkRuntimeRoot(hanakoHome), "resource-loader", "agent");
 }
 
-function configureProcessPiSdkEnv(hanakoHome, env = process.env) {
-  const agentDir = resolveHanaPiAgentDir(hanakoHome);
-  env[PI_SDK_AGENT_DIR_ENV] = agentDir;
-  return agentDir;
+function resolveLegacyPiSdkManagedBinDir(hanakoHome) {
+  assertHanakoHome(hanakoHome, "resolveLegacyPiSdkManagedBinDir");
+  return path.join(hanakoHome, ".pi", "agent", "bin");
 }
 
 module.exports = {
-  PI_SDK_AGENT_DIR_ENV,
-  configureProcessPiSdkEnv,
-  ensureHanaPiSdkDirs,
   resolveHanakoHome,
-  resolveHanaPiAgentDir,
-  resolveHanaPiProjectDir,
-  resolveHanaPiRoot,
-  withHanaPiSdkEnv,
+  resolveHanaPiSdkManagedBinDir,
+  resolveHanaPiSdkResourceLoaderAgentDir,
+  resolveHanaPiSdkResourceLoaderCwd,
+  resolveHanaPiSdkRuntimeRoot,
+  resolveLegacyPiSdkManagedBinDir,
 };

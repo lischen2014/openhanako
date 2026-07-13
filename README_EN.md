@@ -102,7 +102,7 @@ User-visible files inside a session are registered through `SessionFile` sidecar
 Local staged files are uploaded directly by platform adapters when possible: Telegram / Feishu / WeChat use their native upload flows, and QQ uses the official bot chunked-upload flow before sending `msg_type: 7` rich media. `preferences.bridge.mediaPublicBaseUrl` / `HANA_BRIDGE_PUBLIC_BASE_URL` are only for consumers or fallback paths that still require an internet-reachable URL.
 
 The server runs as a standalone Node.js process (spawned by Electron or independently), bundled via Vite with @vercel/nft for dependency tracing. It communicates with the Electron renderer through WebSocket.
-User data is rooted at `HANA_HOME` (`~/.hanako` in production, `~/.hanako-dev` in development). The Pi SDK's own data is isolated under `${HANA_HOME}/.pi/`.
+User data is rooted at `HANA_HOME` (`~/.hanako` in production, `~/.hanako-dev` in development). Hana-managed Pi SDK runtime resources live under `${HANA_HOME}/runtime/pi-sdk/`; Hana does not rely on Pi's global agent directory or `PI_CODING_AGENT_DIR`. Legacy `fd` / `rg` binaries under `${HANA_HOME}/.pi/agent/bin/` are copied into the new directory on first use of the corresponding search tool, while the legacy files remain untouched.
 
 ## Tech Stack
 

@@ -101,7 +101,7 @@ import { createMediaRoute } from "./routes/media.ts";
 import { createSpeechRecognitionRoute } from "./routes/speech-recognition.ts";
 import { registerTaskRegistryBusHandlers } from "./task-bus-handlers.ts";
 import { registerDeferredResultBusHandlers } from "./deferred-result-bus-handlers.ts";
-import { configureProcessPiSdkEnv, ensureHanaPiSdkDirs, resolveHanakoHome } from "../shared/hana-runtime-paths.ts";
+import { resolveHanakoHome } from "../shared/hana-runtime-paths.ts";
 import { DATA_EPOCH } from "../shared/contract-versions.cjs";
 import { describeForeignServerBlock, isForeignServerBlocking, probeServerInfo } from "../shared/server-info-probe.cjs";
 import { assertAndStampDataEpoch, describeDataEpochBlock } from "../shared/data-epoch.cjs";
@@ -258,8 +258,6 @@ function createListenPermissionStartupError(cause: any, { host, port, listenHost
 // 开发时可通过 HANA_HOME 环境变量隔离数据目录，如：HANA_HOME=~/.hanako-dev node server/index.js
 const hanakoHome = resolveHanakoHome(process.env.HANA_HOME);
 process.env.HANA_HOME = hanakoHome;
-ensureHanaPiSdkDirs(hanakoHome);
-configureProcessPiSdkEnv(hanakoHome);
 
 // 读取版本号
 let appVersion = "?";
