@@ -19,6 +19,8 @@ import { isImageOrSvgExt, extOfName, kindOfFileName } from '../../utils/file-kin
 import { getUserAttachmentImageSrc } from '../../utils/user-attachment-media';
 import { AgentAvatar, resolveAgentDisplayInfo } from '../../utils/agent-display';
 import { replayLatestUserMessage } from '../../stores/message-turn-actions';
+import { AgentReviewCard } from './AgentReviewCard';
+import { AgentReviewRequestCard } from './AgentReviewRequestCard';
 import styles from './Chat.module.css';
 import badgeStyles from '../input/SkillBadgeView.module.css';
 
@@ -131,7 +133,11 @@ export const UserMessage = memo(function UserMessage({
     }
   }, [busy, editValue, isStreaming, message, sessionPath]);
 
-  const canShowLatestActions = !readOnly && isLatestUserMessage;
+  // Review turns carry a completed external-context snapshot. Generic edit/replay would
+  // silently detach that snapshot from its reviewer Session, so these turns require a
+  // dedicated review-aware replay flow before exposing the standard actions.
+  const canShowLatestActions = !readOnly && isLatestUserMessage
+    && !message.agentReview && !message.agentReviewRequest;
   const timeText = formatMessageTime(message.timestamp);
   const editingActions: MessageFooterAction[] = useMemo(() => [
     {
@@ -243,6 +249,8 @@ export const UserMessage = memo(function UserMessage({
           )}
         </div>
       )}
+      {message.agentReview && <AgentReviewCard review={message.agentReview} />}
+      {message.agentReviewRequest && <AgentReviewRequestCard request={message.agentReviewRequest} />}
       {(timeText || messageActions.length > 0 || footerActions.length > 0) && (
         <MessageFooterActions
           align="right"

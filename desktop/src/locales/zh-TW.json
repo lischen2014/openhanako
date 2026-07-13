@@ -196,6 +196,10 @@
     "pinFailed": "置頂 session 失敗",
     "unpinFailed": "取消置頂失敗",
     "archive": "封存",
+    "copyId": "複製 Session ID",
+    "copyIdDone": "Session ID 已複製",
+    "copyIdFailed": "複製 Session ID 失敗",
+    "copyIdUnavailable": "這個 Session 暫時沒有可複製的 ID",
     "deletedAgent": {
       "title": "Agent 已刪除",
       "description": "這段對話會保留為唯讀歷史。繼續聊天會用主 Agent 新建一個 session，並嘗試壓縮舊上下文。",
@@ -430,7 +434,24 @@
     "confirmMoreOptions": "更多确认选项",
     "attachmentDirectory": "[目录] {label}",
     "attachmentFile": "[附件] {label}",
-    "referenceDocument": "[参考文档] {path}"
+    "referenceDocument": "[参考文档] {path}",
+    "mention": {
+      "title": "引用內容",
+      "tab": { "files": "檔案", "sessions": "Session", "agents": "Agent" },
+      "empty": "沒有符合項目",
+      "singleAgent": "每個回合暫時只能邀請一位 Agent 審閱"
+    }
+  },
+  "agentReview": {
+    "running": "正在審閱目前 Session",
+    "completed": "另一位 Agent 的審閱結果",
+    "failed": "審閱失敗，主 Agent 尚未回答",
+    "cancelled": "審閱已取消",
+    "openSession": "開啟審閱 Session",
+    "sessionUnavailable": "找不到這個審閱 Session",
+    "requestReceived": "已收到來自另一個 Session 的審閱請求",
+    "openReviewedSession": "開啟被審閱 Session",
+    "interjectionUnavailable": "Agent 審閱不能作為插話傳送，請等待目前回覆結束"
   },
   "slash": {
     "diary": "寫今日日記",

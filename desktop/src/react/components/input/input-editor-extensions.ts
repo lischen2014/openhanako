@@ -4,6 +4,8 @@ import { Bold } from '@tiptap/extension-bold';
 import Placeholder, { type PlaceholderOptions } from '@tiptap/extension-placeholder';
 import { SkillBadge } from './extensions/skill-badge';
 import { FileBadge } from './extensions/file-badge';
+import { SessionBadge } from './extensions/session-badge';
+import { AgentBadge } from './extensions/agent-badge';
 
 export type InputEditorPlaceholder = PlaceholderOptions['placeholder'];
 
@@ -28,5 +30,7 @@ export function createInputEditorExtensions(placeholder: InputEditorPlaceholder)
     Placeholder.configure({ placeholder }),
     SkillBadge,
     FileBadge,
+    SessionBadge,
+    AgentBadge,
   ];
 }

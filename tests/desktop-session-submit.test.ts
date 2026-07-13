@@ -1,7 +1,9 @@
 import { describe, it, expect, vi } from "vitest";
 
 import {
+  AGENT_REVIEW_RECORD_TYPE,
   MESSAGE_ORIGIN_RECORD_TYPE,
+  MESSAGE_PRESENTATION_RECORD_TYPE,
   submitDesktopSessionInterjection,
   submitDesktopSessionMessage,
 } from "../core/desktop-session-submit.ts";
@@ -410,6 +412,46 @@ describe("submitDesktopSessionMessage", () => {
     });
 
     expect((session as any).sessionManager.appendCustomEntry).not.toHaveBeenCalled();
+  });
+
+  it("persists review presentation and result as message-level custom entries", async () => {
+    const session = makeFakeSession();
+    const appendCustomEntry = vi.fn();
+    (session as any).sessionManager = { appendCustomEntry };
+    const engine = {
+      ensureSessionLoaded: vi.fn(async () => session),
+      promptSession: vi.fn(async (_sessionPath, text, opts) => session.prompt(text, opts)),
+      emitEvent: vi.fn(),
+      setUiContext: vi.fn(),
+    };
+
+    await submitDesktopSessionMessage(engine, {
+      sessionPath: "/tmp/desk.jsonl",
+      text: "user request\n\n[另一位 Agent 的审阅结果]\nfindings",
+      displayMessage: {
+        text: "user request @Critic",
+        agentMentions: [{ agentId: "critic", label: "Critic" }],
+        agentReview: {
+          requestId: "review-1",
+          status: "completed",
+          reviewedSessionId: "sess_parent",
+          reviewerSessionId: "sess_review",
+          reviewerAgentId: "critic",
+          reviewerAgentName: "Critic",
+          text: "findings",
+        },
+      },
+    });
+
+    expect(appendCustomEntry).toHaveBeenNthCalledWith(1, MESSAGE_PRESENTATION_RECORD_TYPE, expect.objectContaining({
+      displayText: "user request @Critic",
+      agentMentions: [{ agentId: "critic", label: "Critic" }],
+    }));
+    expect(appendCustomEntry).toHaveBeenNthCalledWith(2, AGENT_REVIEW_RECORD_TYPE, expect.objectContaining({
+      reviewedSessionId: "sess_parent",
+      reviewerSessionId: "sess_review",
+      text: "findings",
+    }));
   });
 
   it("still submits the message when the origin entry write fails", async () => {

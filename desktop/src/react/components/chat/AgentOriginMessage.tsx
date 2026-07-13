@@ -3,6 +3,7 @@ import type { ChatMessage } from '../../stores/chat-types';
 import { AgentAvatar, resolveAgentDisplayInfo } from '../../utils/agent-display';
 import { useStore } from '../../stores';
 import styles from './Chat.module.css';
+import { ConversationEventCard } from './ConversationEventCard';
 
 const COLLAPSE_LINES = 12;
 const COLLAPSE_CHARS = 900;
@@ -29,8 +30,7 @@ export const AgentOriginMessage = memo(function AgentOriginMessage({ message }: 
   );
 
   return (
-    <div className={styles.agentOriginRow}>
-      <div className={styles.agentOriginCard}>
+    <ConversationEventCard rowClassName={styles.agentOriginRow} cardClassName={styles.agentOriginCard}>
         <div className={styles.agentOriginHeader}>
           <AgentAvatar info={info} className={styles.agentOriginAvatar} />
           <span className={styles.agentOriginName}>
@@ -49,7 +49,6 @@ export const AgentOriginMessage = memo(function AgentOriginMessage({ message }: 
             {expanded ? window.t('sessionCollab.collapse') : window.t('sessionCollab.expand')}
           </button>
         )}
-      </div>
-    </div>
+    </ConversationEventCard>
   );
 });

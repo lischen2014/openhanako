@@ -196,6 +196,10 @@
     "pinFailed": "置顶 session 失败",
     "unpinFailed": "取消置顶失败",
     "archive": "归档",
+    "copyId": "复制 Session ID",
+    "copyIdDone": "Session ID 已复制",
+    "copyIdFailed": "复制 Session ID 失败",
+    "copyIdUnavailable": "这个 Session 暂时没有可复制的 ID",
     "deletedAgent": {
       "title": "Agent 已删除",
       "description": "这段对话会保留为只读历史。继续聊天会用主 Agent 新建一个 session，并尝试压缩旧上下文。",
@@ -430,7 +434,24 @@
     "confirmMoreOptions": "更多确认选项",
     "attachmentDirectory": "[目录] {label}",
     "attachmentFile": "[附件] {label}",
-    "referenceDocument": "[参考文档] {path}"
+    "referenceDocument": "[参考文档] {path}",
+    "mention": {
+      "title": "引用内容",
+      "tab": { "files": "文件", "sessions": "Session", "agents": "Agent" },
+      "empty": "没有匹配项",
+      "singleAgent": "每个回合暂时只能邀请一位 Agent 审阅"
+    }
+  },
+  "agentReview": {
+    "running": "正在审阅当前 Session",
+    "completed": "另一位 Agent 的审阅结果",
+    "failed": "审阅失败，主 Agent 尚未回答",
+    "cancelled": "审阅已取消",
+    "openSession": "打开审阅 Session",
+    "sessionUnavailable": "找不到这个审阅 Session",
+    "requestReceived": "已收到来自另一个 Session 的审阅请求",
+    "openReviewedSession": "打开被审阅 Session",
+    "interjectionUnavailable": "Agent 审阅不能作为插话发送，请等待当前回复结束"
   },
   "slash": {
     "diary": "写今日日记",

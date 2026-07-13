@@ -47,6 +47,7 @@ function seedSessions() {
     sessions: [
       {
         path: '/tmp/agents/hana/sessions/with-summary.jsonl',
+        sessionId: 'sess_with_summary',
         title: 'Has summary',
         firstMessage: 'hello',
         modified: '2026-04-29T08:00:00.000Z',
@@ -143,6 +144,10 @@ describe('SessionList context menu', () => {
     renameSessionMock.mockReset();
     pinSessionMock.mockReset();
     createNewSessionMock.mockReset();
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText: vi.fn(async () => undefined) },
+    });
     seedSessions();
   });
 
@@ -211,6 +216,17 @@ describe('SessionList context menu', () => {
     fireEvent.contextMenu(sessionButton('Has summary'), { clientX: 24, clientY: 32 });
     fireEvent.click(await screen.findByText('session.archive'));
     expect(archiveSessionMock).toHaveBeenCalledWith('/tmp/agents/hana/sessions/with-summary.jsonl');
+  });
+
+  it('copies only the stable Session ID and disables the action when it is unavailable', async () => {
+    render(<SessionList />);
+
+    fireEvent.contextMenu(sessionButton('Has summary'), { clientX: 24, clientY: 32 });
+    fireEvent.click(screen.getByText('session.copyId'));
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith('sess_with_summary');
+
+    fireEvent.contextMenu(sessionButton('No summary'), { clientX: 24, clientY: 32 });
+    expect(screen.getByText('session.copyId').closest('.context-menu-item')).toHaveClass('disabled');
   });
 
   it('allows deleted-agent sessions to unpin and archive without exposing rename or pin', async () => {

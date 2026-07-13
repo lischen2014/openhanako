@@ -9,7 +9,11 @@ import { isToolCallBlock, getToolArgs } from "./llm-utils.ts";
 import { SessionManager } from "../lib/pi-sdk/index.ts";
 import { isSessionJsonlFilename } from "../lib/session-jsonl.ts";
 import { DEFERRED_RESULT_RECORD_TYPE } from "../lib/deferred-result-notification.ts";
-import { MESSAGE_ORIGIN_RECORD_TYPE } from "./desktop-session-submit.ts";
+import {
+  AGENT_REVIEW_RECORD_TYPE,
+  MESSAGE_ORIGIN_RECORD_TYPE,
+  MESSAGE_PRESENTATION_RECORD_TYPE,
+} from "./desktop-session-submit.ts";
 import { SESSION_COLLAB_DECISION_RECORD_TYPE } from "../lib/session-collab/decision-record.ts";
 import {
   TURN_INPUT_CONSUMPTION_EVENT_TYPE,
@@ -166,6 +170,8 @@ function historyMessageFromEntry(entry) {
       || entry.customType === TURN_INPUT_PRESENTATION_EVENT_TYPE
       || entry.customType === TURN_INPUT_CONSUMPTION_EVENT_TYPE
       || entry.customType === MESSAGE_ORIGIN_RECORD_TYPE
+      || entry.customType === AGENT_REVIEW_RECORD_TYPE
+      || entry.customType === MESSAGE_PRESENTATION_RECORD_TYPE
       || entry.customType === SESSION_COLLAB_DECISION_RECORD_TYPE
     )
   ) {
@@ -189,6 +195,12 @@ export function annotateOriginMessages(messages) {
   for (const m of messages || []) {
     if (m?.role === "custom" && m.customType === MESSAGE_ORIGIN_RECORD_TYPE) {
       pendingOrigin = m.data || null;
+      continue;
+    }
+    if (m?.role === "custom" && (
+      m.customType === AGENT_REVIEW_RECORD_TYPE
+      || m.customType === MESSAGE_PRESENTATION_RECORD_TYPE
+    )) {
       continue;
     }
     if (m?.role === "user" && pendingOrigin?.origin) {

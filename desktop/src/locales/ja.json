@@ -196,6 +196,10 @@
     "pinFailed": "セッションのピン留めに失敗しました",
     "unpinFailed": "ピン留め解除に失敗しました",
     "archive": "アーカイブ",
+    "copyId": "Session ID をコピー",
+    "copyIdDone": "Session ID をコピーしました",
+    "copyIdFailed": "Session ID をコピーできませんでした",
+    "copyIdUnavailable": "この Session にはコピー可能な ID がありません",
     "deletedAgent": {
       "title": "Agent は削除済みです",
       "description": "このチャットは読み取り専用の履歴として保持されます。続行すると、主 Agent で新しいセッションを作成し、古いコンテキストの圧縮を試みます。",
@@ -430,7 +434,24 @@
     "confirmMoreOptions": "その他の確認オプション",
     "attachmentDirectory": "[ディレクトリ] {label}",
     "attachmentFile": "[添付] {label}",
-    "referenceDocument": "[参考ドキュメント] {path}"
+    "referenceDocument": "[参考ドキュメント] {path}",
+    "mention": {
+      "title": "メンション",
+      "tab": { "files": "ファイル", "sessions": "Session", "agents": "Agent" },
+      "empty": "一致する項目はありません",
+      "singleAgent": "1 回のターンで招待できる Agent レビュアーは 1 人です"
+    }
+  },
+  "agentReview": {
+    "running": "この Session をレビュー中",
+    "completed": "別の Agent によるレビュー",
+    "failed": "レビューに失敗しました。メイン Agent はまだ回答していません",
+    "cancelled": "レビューをキャンセルしました",
+    "openSession": "レビュー Session を開く",
+    "sessionUnavailable": "レビュー Session が見つかりません",
+    "requestReceived": "別の Session からレビュー依頼を受け取りました",
+    "openReviewedSession": "レビュー対象 Session を開く",
+    "interjectionUnavailable": "Agent レビューは割り込みとして送信できません。現在の返信が終わるまでお待ちください"
   },
   "slash": {
     "diary": "今日の日記を書く",

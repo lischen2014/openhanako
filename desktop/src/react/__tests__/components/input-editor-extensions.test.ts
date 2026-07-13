@@ -111,6 +111,15 @@ describe('input editor extensions', () => {
     editor.destroy();
   });
 
+  it('registers Session and Agent mention badges as inline atoms', () => {
+    const editor = new Editor({ extensions: createInputEditorExtensions('') });
+
+    expect(editor.schema.nodes.sessionBadge?.spec.atom).toBe(true);
+    expect(editor.schema.nodes.agentBadge?.spec.atom).toBe(true);
+
+    editor.destroy();
+  });
+
   it('keeps text after markdown bold outside the bold mark even if stored marks are cleared', () => {
     const editor = new Editor({
       extensions: createInputEditorExtensions(''),

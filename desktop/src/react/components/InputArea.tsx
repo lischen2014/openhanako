@@ -31,7 +31,7 @@ import { formatQuotedSelectionForPrompt } from '../utils/quoted-selection';
 import { renderMarkdown } from '../utils/markdown';
 import { getModelThinkingLevels, type ThinkingLevel } from '../stores/model-slice';
 import { SlashCommandMenu } from './input/SlashCommandMenu';
-import { FileMentionMenu } from './input/FileMentionMenu';
+import { MentionMenu, type MentionMenuItem } from './input/MentionMenu';
 import { InputStatusBars } from './input/InputStatusBars';
 import { InputContextRow } from './input/InputContextRow';
 import { InputControlBar } from './input/InputControlBar';
@@ -44,6 +44,11 @@ import {
   mergeEditorFileRefs,
   type FileMentionItem,
 } from '../utils/file-mention-items';
+import {
+  buildAgentMentionItems,
+  buildSessionMentionItems,
+  type MentionTab,
+} from '../utils/mention-items';
 import { useServerSlashCommandItems, useSkillSlashItems } from '../hooks/use-slash-items';
 import { notifyPasteUploadFailure } from '../utils/paste-upload-feedback';
 import { extractPlainUrlPaste } from '../utils/plain-url-paste';
@@ -303,10 +308,12 @@ function composerPayloadIsEmpty(payload: {
   hasText: boolean;
   hasFiles: boolean;
   hasSkills: boolean;
+  hasMentions: boolean;
   hasDocContext: boolean;
   hasQuotes: boolean;
 }): boolean {
-  return !payload.hasText && !payload.hasFiles && !payload.hasSkills && !payload.hasDocContext && !payload.hasQuotes;
+  return !payload.hasText && !payload.hasFiles && !payload.hasSkills && !payload.hasMentions
+    && !payload.hasDocContext && !payload.hasQuotes;
 }
 
 function plainTextToEditorDocument(text: string): JSONContent {
@@ -375,6 +382,8 @@ function InputAreaInner({ surface }: Required<InputAreaProps>) {
   const currentSessionPath = useStore(s => s.currentSessionPath);
   const pendingDraftId = useStore(s => s.pendingDraftId);
   const currentAgentId = useStore(s => s.currentAgentId);
+  const agents = useStore(s => s.agents);
+  const sessions = useStore(s => s.sessions);
   const selectedAgentId = useStore(s => s.selectedAgentId);
   const currentSessionProjection = useStore(s => s.currentSessionPath
     ? s.sessions.find(session => session.path === s.currentSessionPath)
@@ -464,6 +473,7 @@ function InputAreaInner({ surface }: Required<InputAreaProps>) {
   const audioRecordingSeqRef = useRef(0);
   const [inputText, setInputText] = useState('');
   const [fileMenuOpen, setFileMenuOpen] = useState(false);
+  const [mentionTab, setMentionTab] = useState<MentionTab>('files');
   const [fileSelected, setFileSelected] = useState(0);
   const [fileMentionRange, setFileMentionRange] = useState<FileMentionRange | null>(null);
   const [fileMentionQuery, setFileMentionQuery] = useState('');
@@ -793,6 +803,7 @@ function InputAreaInner({ surface }: Required<InputAreaProps>) {
     deskBasePath,
     deskCurrentPath: '',
     searchResults: [],
+    limit: 20,
   }), [
     attachedFiles,
     deskBasePath,
@@ -800,6 +811,25 @@ function InputAreaInner({ surface }: Required<InputAreaProps>) {
     fileMentionQuery,
     sessionFiles,
   ]);
+
+  const sessionMentionItems = useMemo(() => buildSessionMentionItems({
+    sessions,
+    query: fileMentionQuery,
+  }), [fileMentionQuery, sessions]);
+
+  const agentMentionItems = useMemo(() => buildAgentMentionItems({
+    agents,
+    query: fileMentionQuery,
+    currentAgentId: pendingNewSession
+      ? (selectedAgentId || currentAgentId)
+      : (currentSessionProjection?.agentId || currentAgentId),
+  }), [agents, currentAgentId, currentSessionProjection?.agentId, fileMentionQuery, pendingNewSession, selectedAgentId]);
+
+  const mentionItems = useMemo<MentionMenuItem[]>(() => {
+    if (mentionTab === 'sessions') return sessionMentionItems;
+    if (mentionTab === 'agents') return agentMentionItems;
+    return fileMentionItems;
+  }, [agentMentionItems, fileMentionItems, mentionTab, sessionMentionItems]);
 
   const dismissSlashMenu = useCallback(() => {
     const text = editor?.getText().trim() ?? inputText.trim();
@@ -813,9 +843,9 @@ function InputAreaInner({ surface }: Required<InputAreaProps>) {
   }, []);
 
   useEffect(() => {
-    if (fileSelected < fileMentionItems.length) return;
-    setFileSelected(Math.max(0, fileMentionItems.length - 1));
-  }, [fileMentionItems.length, fileSelected]);
+    if (fileSelected < mentionItems.length) return;
+    setFileSelected(Math.max(0, mentionItems.length - 1));
+  }, [mentionItems.length, fileSelected]);
 
   const handleSlashToggle = useCallback(() => {
     if (slashMenuOpen) dismissSlashMenu();
@@ -1317,6 +1347,7 @@ function InputAreaInner({ surface }: Required<InputAreaProps>) {
     hasText: inputText.trim().length > 0,
     hasFiles: attachedFiles.length > 0 || editorHasInlineNode(editor, 'fileBadge'),
     hasSkills: editorHasInlineNode(editor, 'skillBadge'),
+    hasMentions: editorHasInlineNode(editor, 'sessionBadge') || editorHasInlineNode(editor, 'agentBadge'),
     hasDocContext: docContextAttached,
     hasQuotes: quotedSelections.length > 0,
   });
@@ -1505,12 +1536,46 @@ function InputAreaInner({ surface }: Required<InputAreaProps>) {
     setFileMentionQuery('');
   }, [editor, fileMentionRange, inputLocked]);
 
+  const handleMentionSelect = useCallback((item: MentionMenuItem) => {
+    if ('kind' in item && item.kind === 'session') {
+      if (inputLocked || !editor || !fileMentionRange) return;
+      editor.chain()
+        .focus()
+        .deleteRange({ from: fileMentionRange.from, to: fileMentionRange.to })
+        .insertContent({ type: 'sessionBadge', attrs: { sessionId: item.sessionId, label: item.name } })
+        .insertContent(' ')
+        .run();
+      setFileMenuOpen(false);
+      setFileMentionRange(null);
+      setFileMentionQuery('');
+      return;
+    }
+    if ('kind' in item && item.kind === 'agent') {
+      if (inputLocked || !editor || !fileMentionRange) return;
+      if (editorHasInlineNode(editor, 'agentBadge')) {
+        addToast(t('input.mention.singleAgent'), 'warning', 5000);
+        return;
+      }
+      editor.chain()
+        .focus()
+        .deleteRange({ from: fileMentionRange.from, to: fileMentionRange.to })
+        .insertContent({ type: 'agentBadge', attrs: { agentId: item.agentId, label: item.name } })
+        .insertContent(' ')
+        .run();
+      setFileMenuOpen(false);
+      setFileMentionRange(null);
+      setFileMentionQuery('');
+      return;
+    }
+    handleFileMentionSelect(item as FileMentionItem);
+  }, [addToast, editor, fileMentionRange, handleFileMentionSelect, inputLocked, t]);
+
   // ── Send / interject message ──
   const submitEditorMessage = useCallback(async (type: 'prompt' | 'interject') => {
     if (inputLocked) return;
     if (!editor) return;
     const editorJson = editor.getJSON();
-    const { text: rawText, skills, fileRefs } = serializeEditor(editorJson);
+    const { text: rawText, skills, fileRefs, sessionRefs, agentMentions } = serializeEditor(editorJson);
     const text = rawText.trim();
     const clickState = useStore.getState();
     const clickedPendingDraftId = clickState.pendingNewSession ? clickState.pendingDraftId : null;
@@ -1528,6 +1593,15 @@ function InputAreaInner({ surface }: Required<InputAreaProps>) {
     const clickedDocContextAttached = docContextAttached;
     const clickedDoc = currentDoc ? { ...currentDoc } : null;
     const clickedUiContext = collectUiContext(clickState);
+
+    if (agentMentions.length > 1) {
+      addToast(t('input.mention.singleAgent'), 'warning', 5000);
+      return;
+    }
+    if (type === 'interject' && agentMentions.length > 0) {
+      addToast(t('agentReview.interjectionUnavailable'), 'warning', 5000);
+      return;
+    }
 
     if (type === 'prompt') {
       const slashSelection = resolveSlashSubmitSelection({
@@ -1550,6 +1624,7 @@ function InputAreaInner({ surface }: Required<InputAreaProps>) {
       hasText: !!text,
       hasFiles,
       hasSkills: skills.length > 0,
+      hasMentions: sessionRefs.length > 0 || agentMentions.length > 0,
       hasDocContext: clickedDocContextAttached,
       hasQuotes: clickedQuotes.length > 0,
     }) || !connected) return;
@@ -1785,6 +1860,8 @@ function InputAreaInner({ surface }: Required<InputAreaProps>) {
         text,
         skills: skills.length > 0 ? skills : undefined,
         quotedText: quotes.length > 0 ? quotes.map(q => q.text).join('\n\n') : undefined,
+        sessionRefs: sessionRefs.length > 0 ? sessionRefs : undefined,
+        agentMentions: agentMentions.length > 0 ? agentMentions : undefined,
         attachments: allFiles.length > 0 ? allFiles.map(f => {
           const cached = imageBase64Map.get(f.path);
           const cachedVideo = videoBase64Map.get(f.path);
@@ -1812,6 +1889,11 @@ function InputAreaInner({ surface }: Required<InputAreaProps>) {
         quotedText: displayMessage.quotedText,
         skills: displayMessage.skills,
         sendStatus: 'pending',
+        agentReview: agentMentions.length === 1 ? {
+          status: 'running',
+          reviewerAgentId: agentMentions[0].agentId,
+          reviewerAgentName: agentMentions[0].label,
+        } : undefined,
       });
 
       const ws = getWebSocket();
@@ -1829,6 +1911,8 @@ function InputAreaInner({ surface }: Required<InputAreaProps>) {
       if (videos.length > 0) wsMsg.videos = videos;
       if (audios.length > 0) wsMsg.audios = audios;
       if (skills.length > 0) wsMsg.skills = skills;
+      if (sessionRefs.length > 0) wsMsg.sessionRefs = sessionRefs;
+      if (agentMentions.length > 0) wsMsg.agentReviewRequests = agentMentions;
       if (!ws) {
         useStore.getState().markOptimisticUserMessageFailed(
           sessionPathForSend,
@@ -1848,7 +1932,7 @@ function InputAreaInner({ surface }: Required<InputAreaProps>) {
     } finally {
       setSending(false);
     }
-  }, [editor, inputLocked, attachedFiles, docContextAttached, connected, isStreaming, sending, currentDoc, clearAttachedFiles, clearAttachedFilesForSession, clearDraft, setDocContextAttached, slashCommands, slashSelected, handleSlashSelect, supportsVision, currentModelInfo, loadVisionAuxiliaryConfig, modelSwitching, t]);
+  }, [addToast, editor, inputLocked, attachedFiles, docContextAttached, connected, isStreaming, sending, currentDoc, clearAttachedFiles, clearAttachedFilesForSession, clearDraft, setDocContextAttached, slashCommands, slashSelected, handleSlashSelect, supportsVision, currentModelInfo, loadVisionAuxiliaryConfig, modelSwitching, t]);
 
   const handleSend = useCallback(async () => {
     await submitEditorMessage('prompt');
@@ -1879,21 +1963,29 @@ function InputAreaInner({ surface }: Required<InputAreaProps>) {
       return true;
     }
     if (e.defaultPrevented) return false;
-    if (fileMenuOpen && (fileMentionItems.length > 0 || fileMentionBusy)) {
-      if (e.key === 'ArrowDown' && fileMentionItems.length > 0) {
+    if (fileMenuOpen) {
+      if ((e.key === 'ArrowRight' || e.key === 'ArrowLeft')) {
         e.preventDefault();
-        setFileSelected(i => (i + 1) % fileMentionItems.length);
+        const tabs: MentionTab[] = ['files', 'sessions', 'agents'];
+        const direction = e.key === 'ArrowRight' ? 1 : -1;
+        setMentionTab(tabs[(tabs.indexOf(mentionTab) + direction + tabs.length) % tabs.length]);
+        setFileSelected(0);
         return true;
       }
-      if (e.key === 'ArrowUp' && fileMentionItems.length > 0) {
+      if (e.key === 'ArrowDown' && mentionItems.length > 0) {
         e.preventDefault();
-        setFileSelected(i => (i - 1 + fileMentionItems.length) % fileMentionItems.length);
+        setFileSelected(i => (i + 1) % mentionItems.length);
         return true;
       }
-      if ((e.key === 'Tab' || e.key === 'Enter') && fileMentionItems.length > 0) {
+      if (e.key === 'ArrowUp' && mentionItems.length > 0) {
         e.preventDefault();
-        const item = fileMentionItems[fileSelected];
-        if (item) handleFileMentionSelect(item);
+        setFileSelected(i => (i - 1 + mentionItems.length) % mentionItems.length);
+        return true;
+      }
+      if ((e.key === 'Tab' || e.key === 'Enter') && mentionItems.length > 0) {
+        e.preventDefault();
+        const item = mentionItems[fileSelected];
+        if (item) handleMentionSelect(item);
         return true;
       }
       if (e.key === 'Escape') {
@@ -1928,11 +2020,12 @@ function InputAreaInner({ surface }: Required<InputAreaProps>) {
     dismissSlashMenu,
     editor,
     fileMentionBusy,
-    fileMentionItems,
+    mentionItems,
+    mentionTab,
     fileMenuOpen,
     fileSelected,
     filteredCommands,
-    handleFileMentionSelect,
+    handleMentionSelect,
     handleSend,
     handleSteer,
     handleSlashSelect,
@@ -2018,12 +2111,15 @@ function InputAreaInner({ surface }: Required<InputAreaProps>) {
         )}
       </div>
       <div className={styles['slash-menu-anchor']} ref={fileMenuRef}>
-        {fileMenuOpen && (fileMentionItems.length > 0 || fileMentionBusy) && (
-          <FileMentionMenu
-            items={fileMentionItems}
+        {fileMenuOpen && (
+          <MentionMenu
+            tab={mentionTab}
+            items={mentionItems}
             selected={fileSelected}
             busy={fileMentionBusy}
-            onSelect={handleFileMentionSelect}
+            agents={agents}
+            onTabChange={(tab) => { setMentionTab(tab); setFileSelected(0); }}
+            onSelect={handleMentionSelect}
             onHover={(i) => setFileSelected(i)}
           />
         )}

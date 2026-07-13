@@ -8,12 +8,30 @@ export interface EditorFileRef {
   mimeType?: string;
 }
 
+export interface EditorSessionRef {
+  sessionId: string;
+  label: string;
+}
+
+export interface EditorAgentMention {
+  agentId: string;
+  label: string;
+}
+
 /**
  * Walk TipTap JSON document, extract input badges and plain text.
  */
-export function serializeEditor(json: JSONContent): { text: string; skills: string[]; fileRefs: EditorFileRef[] } {
+export function serializeEditor(json: JSONContent): {
+  text: string;
+  skills: string[];
+  fileRefs: EditorFileRef[];
+  sessionRefs: EditorSessionRef[];
+  agentMentions: EditorAgentMention[];
+} {
   const skills: string[] = [];
   const fileRefs: EditorFileRef[] = [];
+  const sessionRefs: EditorSessionRef[] = [];
+  const agentMentions: EditorAgentMention[] = [];
 
   function fileBadgeLabel(attrs: Record<string, unknown>): string {
     const name = typeof attrs.name === 'string' ? attrs.name : '';
@@ -44,6 +62,28 @@ export function serializeEditor(json: JSONContent): { text: string; skills: stri
         if (options.emitFileBadgeText) {
           return `@${label}`;
         }
+      }
+      return '';
+    }
+    if (node.type === 'sessionBadge' && node.attrs) {
+      const sessionId = typeof node.attrs.sessionId === 'string' ? node.attrs.sessionId.trim() : '';
+      const label = typeof node.attrs.label === 'string' && node.attrs.label.trim()
+        ? node.attrs.label.trim()
+        : sessionId;
+      if (sessionId) {
+        sessionRefs.push({ sessionId, label });
+        return `@${label}`;
+      }
+      return '';
+    }
+    if (node.type === 'agentBadge' && node.attrs) {
+      const agentId = typeof node.attrs.agentId === 'string' ? node.attrs.agentId.trim() : '';
+      const label = typeof node.attrs.label === 'string' && node.attrs.label.trim()
+        ? node.attrs.label.trim()
+        : agentId;
+      if (agentId) {
+        agentMentions.push({ agentId, label });
+        return `@${label}`;
       }
       return '';
     }
@@ -141,5 +181,5 @@ export function serializeEditor(json: JSONContent): { text: string; skills: stri
 
   const text = lines.join('\n').replace(/\n+$/, '').trim();
 
-  return { text, skills, fileRefs };
+  return { text, skills, fileRefs, sessionRefs, agentMentions };
 }

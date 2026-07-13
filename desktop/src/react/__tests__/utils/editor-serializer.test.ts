@@ -68,4 +68,23 @@ describe('serializeEditor', () => {
 
     expect(result.text).toBe('3. third\n4. fourth\n- plain bullet');
   });
+
+  it('serializes Session and Agent badges as structured references', () => {
+    const result = serializeEditor({
+      type: 'doc',
+      content: [{
+        type: 'paragraph',
+        content: [
+          { type: 'text', text: 'Compare ' },
+          { type: 'sessionBadge', attrs: { sessionId: 'sess_source', label: 'Earlier plan' } },
+          { type: 'text', text: ' with ' },
+          { type: 'agentBadge', attrs: { agentId: 'reviewer', label: 'Reviewer' } },
+        ],
+      }],
+    });
+
+    expect(result.text).toBe('Compare @Earlier plan with @Reviewer');
+    expect(result.sessionRefs).toEqual([{ sessionId: 'sess_source', label: 'Earlier plan' }]);
+    expect(result.agentMentions).toEqual([{ agentId: 'reviewer', label: 'Reviewer' }]);
+  });
 });

@@ -196,6 +196,10 @@
     "pinFailed": "Failed to pin session",
     "unpinFailed": "Failed to unpin session",
     "archive": "Archive",
+    "copyId": "Copy Session ID",
+    "copyIdDone": "Session ID copied",
+    "copyIdFailed": "Failed to copy Session ID",
+    "copyIdUnavailable": "This Session does not have a copyable ID",
     "deletedAgent": {
       "title": "Agent deleted",
       "description": "This chat is kept as read-only history. Continuing will create a new session on your primary Agent and try to compact the old context.",
@@ -430,7 +434,24 @@
     "contextActions": "Context actions",
     "refreshAndCompact": "Update and compact",
     "refreshAndCompactTooltip": "Update to the latest memory and tool set",
-    "compact": "Compact"
+    "compact": "Compact",
+    "mention": {
+      "title": "Mention",
+      "tab": { "files": "Files", "sessions": "Sessions", "agents": "Agents" },
+      "empty": "No matches",
+      "singleAgent": "Only one Agent reviewer can be invited per turn"
+    }
+  },
+  "agentReview": {
+    "running": "Reviewing this Session",
+    "completed": "Review from another Agent",
+    "failed": "Review failed; the main Agent has not replied",
+    "cancelled": "Review cancelled",
+    "openSession": "Open review Session",
+    "sessionUnavailable": "Review Session not found",
+    "requestReceived": "Review request received from another Session",
+    "openReviewedSession": "Open reviewed Session",
+    "interjectionUnavailable": "Agent review cannot be sent as an interjection; wait for the current reply to finish"
   },
   "slash": {
     "diary": "Write today's diary",

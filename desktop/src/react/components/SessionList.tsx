@@ -130,6 +130,7 @@ function normalizeSessionSearchResults(data: unknown): SessionSearchResult[] {
     if (typeof item.path !== 'string' || !item.path) return [];
     return [{
       path: item.path,
+      sessionId: typeof item.sessionId === 'string' ? item.sessionId : null,
       title: typeof item.title === 'string' ? item.title : null,
       firstMessage: typeof item.firstMessage === 'string' ? item.firstMessage : '',
       modified: typeof item.modified === 'string' ? item.modified : '',
@@ -1766,6 +1767,23 @@ const SessionContextMenu = memo(function SessionContextMenu({
       label: t('session.summary.open'),
       disabled: session.hasSummary !== true,
       action: () => onShowSummary(position),
+    }, {
+      label: t('session.copyId'),
+      disabled: typeof session.sessionId !== 'string' || !session.sessionId.trim(),
+      action: () => {
+        const sessionId = session.sessionId?.trim();
+        if (!sessionId) {
+          useStore.getState().addToast(t('session.copyIdUnavailable'), 'error', 5000);
+          return;
+        }
+        if (!navigator.clipboard?.writeText) {
+          useStore.getState().addToast(t('session.copyIdFailed'), 'error', 5000);
+          return;
+        }
+        void navigator.clipboard.writeText(sessionId)
+          .then(() => useStore.getState().addToast(t('session.copyIdDone'), 'info', 2500))
+          .catch(() => useStore.getState().addToast(t('session.copyIdFailed'), 'error', 5000));
+      },
     }];
     if (session.agentDeleted === true) {
       if (isPinned) {
@@ -1795,7 +1813,7 @@ const SessionContextMenu = memo(function SessionContextMenu({
       action: () => archiveSession(session.path),
     });
     return menuItems;
-  }, [isPinned, onRename, onShowSummary, position, session.agentDeleted, session.hasSummary, session.path, t]);
+  }, [isPinned, onRename, onShowSummary, position, session.agentDeleted, session.hasSummary, session.path, session.sessionId, t]);
 
   return (
     <ContextMenu

@@ -196,6 +196,10 @@
     "pinFailed": "세션 고정 실패",
     "unpinFailed": "세션 고정 해제 실패",
     "archive": "보관",
+    "copyId": "Session ID 복사",
+    "copyIdDone": "Session ID를 복사했습니다",
+    "copyIdFailed": "Session ID를 복사하지 못했습니다",
+    "copyIdUnavailable": "이 Session에는 복사할 수 있는 ID가 없습니다",
     "deletedAgent": {
       "title": "Agent가 삭제됨",
       "description": "이 대화는 읽기 전용 기록으로 유지됩니다. 계속하면 기본 Agent에서 새 세션을 만들고 이전 컨텍스트 압축을 시도합니다.",
@@ -430,7 +434,24 @@
     "confirmMoreOptions": "추가 확인 옵션",
     "attachmentDirectory": "[디렉터리] {label}",
     "attachmentFile": "[첨부] {label}",
-    "referenceDocument": "[참고 문서] {path}"
+    "referenceDocument": "[참고 문서] {path}",
+    "mention": {
+      "title": "멘션",
+      "tab": { "files": "파일", "sessions": "Session", "agents": "Agent" },
+      "empty": "일치하는 항목이 없습니다",
+      "singleAgent": "한 턴에는 한 명의 Agent 리뷰어만 초대할 수 있습니다"
+    }
+  },
+  "agentReview": {
+    "running": "이 Session을 검토하는 중",
+    "completed": "다른 Agent의 검토 결과",
+    "failed": "검토에 실패했습니다. 메인 Agent는 아직 답변하지 않았습니다",
+    "cancelled": "검토를 취소했습니다",
+    "openSession": "검토 Session 열기",
+    "sessionUnavailable": "검토 Session을 찾을 수 없습니다",
+    "requestReceived": "다른 Session에서 검토 요청을 받았습니다",
+    "openReviewedSession": "검토 대상 Session 열기",
+    "interjectionUnavailable": "Agent 검토는 끼어들기로 보낼 수 없습니다. 현재 답변이 끝날 때까지 기다려 주세요"
   },
   "slash": {
     "diary": "오늘의 일기 쓰기",

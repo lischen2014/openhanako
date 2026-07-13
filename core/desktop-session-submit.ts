@@ -45,6 +45,8 @@ import { serializeSessionFile } from "../lib/session-files/session-file-response
  * 禁止盲目前向关联到下一条消息。
  */
 export const MESSAGE_ORIGIN_RECORD_TYPE = "hana-message-origin";
+export const MESSAGE_PRESENTATION_RECORD_TYPE = "hana-message-presentation";
+export const AGENT_REVIEW_RECORD_TYPE = "hana-agent-review-result";
 
 const pendingDesktopSessionSubmissions = new Set();
 
@@ -90,6 +92,61 @@ export function recordMessageOriginEntry(session: any, sessionPath: string, disp
     });
   } catch (err) {
     console.warn(`[desktop-session-submit] message origin write failed for ${sessionPath}: ${err?.message || err}`);
+  }
+}
+
+/**
+ * 审阅结果是消息级上下文，不属于 Session 属性。它只注释其后第一条 user
+ * message，历史读取时再还原成卡片；两个 Session 不建立任何持久关系。
+ */
+export function recordAgentReviewEntry(session: any, sessionPath: string, displayMessage: any): void {
+  const review = displayMessage?.agentReview;
+  if (!review || review.status !== "completed") return;
+  try {
+    if (typeof session?.sessionManager?.appendCustomEntry !== "function") {
+      throw new Error("appendCustomEntry unavailable");
+    }
+    session.sessionManager.appendCustomEntry(AGENT_REVIEW_RECORD_TYPE, {
+      requestId: review.requestId || null,
+      status: "completed",
+      reviewedSessionId: review.reviewedSessionId || null,
+      reviewerSessionId: review.reviewerSessionId || null,
+      reviewerAgentId: review.reviewerAgentId || null,
+      reviewerAgentName: review.reviewerAgentName || null,
+      text: review.text || "",
+      displayText: typeof displayMessage?.text === "string" ? displayMessage.text : null,
+      completedAt: review.completedAt || new Date().toISOString(),
+    });
+  } catch (err) {
+    console.warn(`[desktop-session-submit] agent review record write failed for ${sessionPath}: ${err?.message || err}`);
+  }
+}
+
+export function recordMessagePresentationEntry(
+  session: any,
+  sessionPath: string,
+  promptText: string,
+  displayMessage: any,
+): void {
+  if (!displayMessage || typeof displayMessage !== "object") return;
+  const displayText = typeof displayMessage.text === "string" ? displayMessage.text : null;
+  const hasStructuredPresentation = Array.isArray(displayMessage.sessionRefs)
+    || Array.isArray(displayMessage.agentMentions)
+    || !!displayMessage.agentReview
+    || !!displayMessage.agentReviewRequest;
+  if (!hasStructuredPresentation && (displayText === null || displayText === promptText)) return;
+  try {
+    if (typeof session?.sessionManager?.appendCustomEntry !== "function") {
+      throw new Error("appendCustomEntry unavailable");
+    }
+    session.sessionManager.appendCustomEntry(MESSAGE_PRESENTATION_RECORD_TYPE, {
+      displayText,
+      sessionRefs: Array.isArray(displayMessage.sessionRefs) ? displayMessage.sessionRefs : null,
+      agentMentions: Array.isArray(displayMessage.agentMentions) ? displayMessage.agentMentions : null,
+      agentReviewRequest: displayMessage.agentReviewRequest || null,
+    });
+  } catch (err) {
+    console.warn(`[desktop-session-submit] message presentation write failed for ${sessionPath}: ${err?.message || err}`);
   }
 }
 
@@ -212,7 +269,9 @@ export async function submitDesktopSessionMessage(engine: any, opts: {
 
     engine.emitEvent?.({ type: "session_status", isStreaming: true }, sessionPath);
     // 来源元信息先于 prompt 持久化，让 origin 条目紧邻它注释的 user message。
+    recordMessagePresentationEntry(session, sessionPath, promptText, displayMessage);
     recordMessageOriginEntry(session, sessionPath, displayMessage);
+    recordAgentReviewEntry(session, sessionPath, displayMessage);
     engine.emitEvent?.({
       type: "session_user_message",
       clientMessageId: clientMessageId || null,
@@ -226,6 +285,10 @@ export async function submitDesktopSessionMessage(engine: any, opts: {
         source: displayMessage?.source || "desktop",
         bridgeSessionKey: displayMessage?.bridgeSessionKey || null,
         origin: displayMessage?.origin || null,
+        sessionRefs: displayMessage?.sessionRefs || null,
+        agentMentions: displayMessage?.agentMentions || null,
+        agentReview: displayMessage?.agentReview || null,
+        agentReviewRequest: displayMessage?.agentReviewRequest || null,
       },
     }, sessionPath);
     queueVoiceInputTranscriptions({

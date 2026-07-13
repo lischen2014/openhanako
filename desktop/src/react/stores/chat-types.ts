@@ -58,6 +58,25 @@ export interface VoiceTranscription {
   updatedAt?: number;
 }
 
+export interface AgentReviewContext {
+  requestId?: string | null;
+  status: 'running' | 'completed' | 'failed' | 'cancelled';
+  reviewedSessionId?: string | null;
+  reviewerSessionId?: string | null;
+  reviewerAgentId: string;
+  reviewerAgentName: string;
+  text?: string | null;
+  error?: string | null;
+  completedAt?: string | null;
+}
+
+export interface AgentReviewRequestContext {
+  requestId?: string | null;
+  reviewedSessionId: string;
+  reviewerAgentId: string;
+  reviewerAgentName: string;
+}
+
 export interface DeskContext {
   dir: string;
   fileCount: number;
@@ -281,6 +300,10 @@ export interface ChatMessage {
   attachments?: UserAttachment[];
   deskContext?: DeskContext | null;
   skills?: string[];
+  sessionRefs?: Array<{ sessionId: string; label: string }>;
+  agentMentions?: Array<{ agentId: string; label: string }>;
+  agentReview?: AgentReviewContext;
+  agentReviewRequest?: AgentReviewRequestContext;
   sendStatus?: 'pending' | 'failed';
   sendError?: string;
   /** 非用户本人发出的消息来源（如别的 Agent 经跨 session 协作投递）。老数据无此字段，按普通用户消息渲染。 */

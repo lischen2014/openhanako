@@ -21,7 +21,12 @@ import { debugLog, createModuleLogger } from "../../lib/debug-log.ts";
 import { t } from "../../lib/i18n.ts";
 import { getLastAssistantUsage } from "../../lib/pi-sdk/index.ts";
 import { compactSessionWithCachePreservationRecoveringRuntime } from "../../core/session-compactor.ts";
-import { submitDesktopSessionInterjection } from "../../core/desktop-session-submit.ts";
+import { submitDesktopSessionInterjection, submitDesktopSessionMessage } from "../../core/desktop-session-submit.ts";
+import {
+  AgentReviewTurnCoordinator,
+  buildSessionReferenceBlock,
+  normalizeSessionReferences,
+} from "../../lib/agent-review/turn-coordinator.ts";
 import { logLlmUsage } from "../../lib/llm/usage-observer.ts";
 import { BrowserManager } from "../../lib/browser/browser-manager.ts";
 import {
@@ -501,6 +506,17 @@ export function createChatRoute(engine: any, hub: any, { upgradeWebSocket }: any
       }
     }
   }
+
+  const agentReviewTurns = new AgentReviewTurnCoordinator({
+    engine,
+    submitSessionMessage: submitDesktopSessionMessage,
+    emitStatus: (status, sessionPath) => broadcast({
+      type: "agent_review_status",
+      sessionId: status.reviewedSessionId,
+      sessionPath,
+      ...status,
+    }),
+  });
 
   // 浏览器缩略图 30s 定时刷新（browser 活跃时）
   let _browserThumbTimer = null;
@@ -1612,7 +1628,10 @@ export function createChatRoute(engine: any, hub: any, { upgradeWebSocket }: any
                 : "user_abort";
               if (abortSs) abortSs.isAborted = true;
               let abortAccepted = false;
-              try { abortAccepted = !!(await hub.abort(abortPath, { reason: abortReason })); } catch {}
+              try {
+                abortAccepted = !!(await agentReviewTurns.cancelByParent(abortTarget.sessionId, abortReason));
+                if (!abortAccepted) abortAccepted = !!(await hub.abort(abortPath, { reason: abortReason }));
+              } catch {}
               if (!abortAccepted) {
                 const abortStreamId = abortSs?.streamId || null;
                 finishStreamingState(abortSs, abortPath);
@@ -1877,13 +1896,30 @@ export function createChatRoute(engine: any, hub: any, { upgradeWebSocket }: any
                 rejectDeletedAgentSession(ws, promptSessionPath);
                 return;
               }
-              if (!interject && engine.isSessionStreaming(promptSessionPath)) {
+              if (!interject && (
+                engine.isSessionStreaming(promptSessionPath)
+                || agentReviewTurns.hasPendingParent(promptTarget.sessionId)
+              )) {
                 wsSend(ws, { type: "error", message: t("error.stillStreaming", { name: engine.agentName }), sessionPath: promptSessionPath });
                 return;
               }
               // Reject prompt while model switch is in progress
               if (engine.isSessionSwitching(promptSessionPath)) {
                 wsSend(ws, { type: "error", message: t("chat.modelSwitching"), sessionPath: promptSessionPath });
+                return;
+              }
+              const reviewRequests = Array.isArray(msg.agentReviewRequests)
+                ? msg.agentReviewRequests.filter(request => (
+                  request && typeof request.agentId === "string" && request.agentId.trim()
+                ))
+                : [];
+              if (interject && reviewRequests.length > 0) {
+                wsSend(ws, {
+                  type: "error",
+                  code: "agent_review_interjection_not_supported",
+                  message: "@Agent review cannot be sent as an interjection.",
+                  sessionPath: promptSessionPath,
+                });
                 return;
               }
               if (interject && engine.isSessionStreaming(promptSessionPath)) {
@@ -1909,6 +1945,61 @@ export function createChatRoute(engine: any, hub: any, { upgradeWebSocket }: any
                 }
                 return;
               }
+              const sessionRefs = normalizeSessionReferences(msg.sessionRefs);
+              if (reviewRequests.length > 1) {
+                wsSend(ws, {
+                  type: "error",
+                  code: "multiple_agent_reviews_not_supported",
+                  message: "Only one @Agent review is supported per turn.",
+                  sessionPath: promptSessionPath,
+                });
+                return;
+              }
+              if (reviewRequests.length === 1) {
+                if (!promptTarget.sessionId) {
+                  wsSend(ws, {
+                    type: "error",
+                    code: "session_id_required_for_agent_review",
+                    message: "A stable Session ID is required for @Agent review.",
+                    sessionPath: promptSessionPath,
+                  });
+                  return;
+                }
+                const reviewerAgentId = reviewRequests[0].agentId.trim();
+                const ownerAgentId = engine.getSessionManifest?.(promptTarget.sessionId)?.ownerAgentId || null;
+                if (!engine.getAgent?.(reviewerAgentId) || reviewerAgentId === ownerAgentId) {
+                  wsSend(ws, {
+                    type: "error",
+                    code: "invalid_review_agent",
+                    message: reviewerAgentId === ownerAgentId
+                      ? "The reviewing Agent must be different from the current Session Agent."
+                      : `Agent not found: ${reviewerAgentId}`,
+                    sessionPath: promptSessionPath,
+                  });
+                  return;
+                }
+                await agentReviewTurns.start({
+                  requestId: msg.clientMessageId,
+                  reviewedSessionId: promptTarget.sessionId,
+                  reviewedSessionPath: promptSessionPath,
+                  reviewer: {
+                    agentId: reviewerAgentId,
+                    label: typeof reviewRequests[0].label === "string" ? reviewRequests[0].label : reviewerAgentId,
+                  },
+                  text: promptText,
+                  displayMessage: msg.displayMessage,
+                  sessionRefs,
+                  clientMessageId: msg.clientMessageId,
+                  images: msg.images,
+                  videos: msg.videos,
+                  audios: msg.audios,
+                  uiContext: msg.uiContext ?? null,
+                  sessionFileRefs: msg.sessionFileRefs,
+                });
+                return;
+              }
+              const sessionRefBlock = buildSessionReferenceBlock(sessionRefs);
+              if (sessionRefBlock) promptText = `${promptText}\n\n${sessionRefBlock}`;
               try {
                 await hub.send(promptText, {
                   sessionId: promptTarget.sessionId,

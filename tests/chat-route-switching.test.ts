@@ -724,6 +724,50 @@ describe("chat route model switch guard", () => {
     handlers.onClose({}, phoneWs);
   });
 
+  it("passes @Session references to the Agent as resolvable IDs without linking Session metadata", async () => {
+    let createHandlers;
+    const upgradeWebSocket = vi.fn((factory) => {
+      createHandlers = factory;
+      return () => new Response(null);
+    });
+    const hub = {
+      subscribe: vi.fn(),
+      send: vi.fn<(text: string, opts: Record<string, unknown>) => Promise<void>>(async () => {}),
+    };
+    const engine = {
+      agentName: "Hana",
+      abortAllStreaming: vi.fn(async () => {}),
+      getSessionIdForPath: vi.fn(() => "sess_parent"),
+      getSessionManifest: vi.fn(() => ({ currentLocator: { path: "/tmp/parent.jsonl" } })),
+      getSessionByPath: vi.fn(() => ({ entries: [] })),
+      isSessionStreaming: vi.fn(() => false),
+      isSessionSwitching: vi.fn(() => false),
+      steerSession: vi.fn(() => false),
+      slashDispatcher: null,
+    };
+
+    createChatRoute(engine, hub, { upgradeWebSocket });
+    const handlers = createHandlers({});
+    const ws = { readyState: 1, send: vi.fn() };
+    handlers.onMessage({
+      data: JSON.stringify({
+        type: "prompt",
+        text: "Compare @Earlier plan",
+        sessionId: "sess_parent",
+        sessionPath: "/tmp/parent.jsonl",
+        sessionRefs: [{ sessionId: "sess_context", label: "Earlier plan" }],
+      }),
+    }, ws);
+    await new Promise(resolve => setTimeout(resolve, 0));
+
+    expect(hub.send).toHaveBeenCalledTimes(1);
+    const [prompt, opts] = hub.send.mock.calls[0];
+    expect(prompt).toContain("sess_context");
+    expect(prompt).toContain("是否读取由你根据任务自行判断");
+    expect(opts).toMatchObject({ sessionId: "sess_parent", sessionPath: "/tmp/parent.jsonl" });
+    expect(prompt).not.toMatch(/parentSessionId|childSessionId|relationId/);
+  });
+
   it("emits file content blocks for deferred result session files", () => {
     let createHandlers;
     let subscriber;

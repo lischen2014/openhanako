@@ -620,4 +620,33 @@ describe('buildItemsFromHistory user image restoration', () => {
     if (items[0]?.type !== 'interlude') throw new Error('expected interlude item');
     expect(items[0].data.text).toBe('后台回复已抵达');
   });
+
+  it('restores a clean user message plus the independent Agent review card', () => {
+    const items = buildItemsFromHistory({
+      messages: [{
+        id: 'u-review',
+        role: 'user',
+        content: 'internal expanded prompt with review',
+        displayText: 'Please inspect this @Critic',
+        agentReview: {
+          requestId: 'review-1',
+          status: 'completed',
+          reviewedSessionId: 'sess_parent',
+          reviewerSessionId: 'sess_review',
+          reviewerAgentId: 'critic',
+          reviewerAgentName: 'Critic',
+          text: 'Independent findings',
+        },
+      }],
+    });
+
+    expect(items).toHaveLength(1);
+    expect(items[0]?.type).toBe('message');
+    if (items[0]?.type !== 'message') throw new Error('expected message');
+    expect(items[0].data.text).toBe('Please inspect this @Critic');
+    expect(items[0].data.agentReview).toMatchObject({
+      reviewerSessionId: 'sess_review',
+      text: 'Independent findings',
+    });
+  });
 });
