@@ -339,4 +339,11 @@ describe('editor typography settings', () => {
     expect(css).toMatch(/:global\(\.cm-codeblock-line-first\)\s*\{[^}]*border-radius:\s*2px 2px 0 0/);
     expect(css).toMatch(/:global\(\.cm-codeblock-line-last\)\s*\{[^}]*border-radius:\s*0 0 2px 2px/);
   });
+
+  it('sizes the block drop indicator from the markdown document column', () => {
+    const css = readPreviewStyles();
+
+    expect(css).toMatch(/:global\(\.preview-editor\.mode-markdown \.cm-markdown-block-drop-indicator\)\s*\{[^}]*position:\s*relative[^}]*width:\s*100%[^}]*max-width:\s*var\(--editor-markdown-content-width\)[^}]*height:\s*0[^}]*margin:\s*0 auto/);
+    expect(css).toMatch(/:global\(\.preview-editor\.mode-markdown \.cm-markdown-block-drop-indicator\)::after\s*\{[^}]*left:\s*var\(--space-8\)[^}]*right:\s*var\(--space-8\)[^}]*height:\s*2px/);
+  });
 });

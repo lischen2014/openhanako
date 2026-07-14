@@ -200,48 +200,43 @@ describe('markdown block handle rail', () => {
     view.destroy();
   });
 
-  it('positions the drop indicator from line-block geometry rather than cursor rectangles', () => {
+  it('renders the drop indicator inside CodeMirror content at a block boundary', () => {
     coordsSpy.mockImplementation(function coords(this: EditorView, pos: number) {
       const line = this.state.doc.lineAt(Math.min(pos, this.state.doc.length));
       const top = (line.number * 32) + 13;
       return { left: 200, right: 400, top, bottom: top + 24 };
     });
     const { view } = createView();
-    const firstHandle = view.dom.querySelectorAll<HTMLButtonElement>('.cm-markdown-block-handle')[0];
+    const secondHandle = view.dom.querySelectorAll<HTMLButtonElement>('.cm-markdown-block-handle')[1];
 
-    fireEvent(firstHandle, pointerEvent('pointerdown', 13, 32));
-    fireEvent(firstHandle, pointerEvent('pointermove', 13, 100));
+    fireEvent(secondHandle, pointerEvent('pointerdown', 13, 96));
+    fireEvent(secondHandle, pointerEvent('pointermove', 13, 40));
 
     const indicator = view.dom.querySelector<HTMLElement>('.cm-markdown-block-drop-indicator');
-    expect(indicator?.style.top).toBe('96px');
-    fireEvent(firstHandle, pointerEvent('pointercancel', 13, 100));
+    expect(indicator).toBeInstanceOf(HTMLElement);
+    expect(indicator?.closest('.cm-content')).toBe(view.contentDOM);
+    expect(indicator?.style.top).toBe('');
+    expect(indicator?.style.left).toBe('');
+    fireEvent(secondHandle, pointerEvent('pointercancel', 13, 40));
     view.destroy();
   });
 
-  it('keeps the drop indicator symmetrically inset inside the rendered text width', () => {
-    rectSpy.mockImplementation(function rect(this: HTMLElement) {
-      if (this.classList.contains('cm-line')) {
-        return {
-          ...elementRect(),
-          x: 160,
-          left: 160,
-          right: 800,
-          width: 640,
-        } as DOMRect;
-      }
-      return elementRect();
-    });
+  it('leaves drop indicator width to the shared document-column CSS', () => {
     const { view } = createView();
-    const firstHandle = view.dom.querySelectorAll<HTMLButtonElement>('.cm-markdown-block-handle')[0];
+    const secondHandle = view.dom.querySelectorAll<HTMLButtonElement>('.cm-markdown-block-handle')[1];
 
-    fireEvent(firstHandle, pointerEvent('pointerdown', 14, 32));
-    fireEvent(firstHandle, pointerEvent('pointermove', 14, 100));
+    fireEvent(secondHandle, pointerEvent('pointerdown', 14, 96));
+    fireEvent(secondHandle, pointerEvent('pointermove', 14, 40));
 
     const indicator = view.dom.querySelector<HTMLElement>('.cm-markdown-block-drop-indicator');
-    expect(indicator?.style.left).toBe('168px');
-    expect(indicator?.style.width).toBe('624px');
-    fireEvent(firstHandle, pointerEvent('pointercancel', 14, 100));
+    expect(indicator?.closest('.cm-content')).toBe(view.contentDOM);
+    expect(indicator?.style.left).toBe('');
+    expect(indicator?.style.right).toBe('');
+    expect(indicator?.style.width).toBe('');
+    fireEvent(secondHandle, pointerEvent('pointercancel', 14, 40));
     expect(indicator?.classList.contains('is-visible')).toBe(false);
+    vi.advanceTimersByTime(100);
+    expect(view.dom.querySelector('.cm-markdown-block-drop-indicator')).toBeNull();
     view.destroy();
   });
 
@@ -305,6 +300,38 @@ describe('markdown block handle rail', () => {
 
     expect(view.state.doc.toString()).toBe('Beta\n\nAlpha\n\nGamma');
     view.destroy();
+  });
+
+  it('remeasures visible blocks while scrolling during an active drag', () => {
+    const viewportSpy = vi.spyOn(EditorView.prototype, 'viewport', 'get').mockImplementation(function viewport(
+      this: EditorView,
+    ) {
+      return { from: 0, to: this.state.doc.length };
+    });
+    let scrollOffset = 0;
+    coordsSpy.mockImplementation(function coords(this: EditorView, pos: number) {
+      const line = this.state.doc.lineAt(Math.min(pos, this.state.doc.length));
+      const top = (line.number * 32) - scrollOffset;
+      return { left: 200, right: 400, top, bottom: top + 24 };
+    });
+    lineBlockSpy.mockImplementation(function lineBlock(this: EditorView, pos: number) {
+      const line = this.state.doc.lineAt(Math.min(pos, this.state.doc.length));
+      return { top: (line.number * 32) - scrollOffset, height: 24 } as ReturnType<EditorView['lineBlockAt']>;
+    });
+    const { view } = createView();
+    const firstHandle = view.dom.querySelectorAll<HTMLButtonElement>('.cm-markdown-block-handle')[0];
+
+    fireEvent(firstHandle, pointerEvent('pointerdown', 15, 32));
+    fireEvent(firstHandle, pointerEvent('pointermove', 15, 100));
+
+    scrollOffset = 100;
+    fireEvent.scroll(view.scrollDOM);
+    vi.runOnlyPendingTimers();
+    fireEvent(firstHandle, pointerEvent('pointerup', 15, 100));
+
+    expect(view.state.doc.toString()).toBe('Beta\n\nGamma\n\nAlpha');
+    view.destroy();
+    viewportSpy.mockRestore();
   });
 
   it('does not render editing handles in read-only configuration', () => {

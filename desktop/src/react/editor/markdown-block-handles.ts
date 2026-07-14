@@ -1,7 +1,16 @@
-import { EditorSelection, Transaction } from '@codemirror/state';
 import {
+  EditorSelection,
+  StateEffect,
+  StateField,
+  Transaction,
+  type Extension,
+} from '@codemirror/state';
+import {
+  Decoration,
   EditorView,
   ViewPlugin,
+  WidgetType,
+  type DecorationSet,
   type ViewUpdate,
 } from '@codemirror/view';
 import {
@@ -28,7 +37,7 @@ const HANDLE_WIDTH = 20;
 const HANDLE_HEIGHT = 24;
 const HANDLE_GAP = 8;
 const HANDLE_RAIL_WIDTH = HANDLE_WIDTH + HANDLE_GAP;
-const DROP_INDICATOR_INSET = 8;
+const DROP_INDICATOR_FADE_MS = 100;
 const DRAG_THRESHOLD = 4;
 const FENCE_LINE_RE = /^ {0,3}(?:`{3,}|~{3,})/;
 
@@ -38,7 +47,12 @@ interface MeasuredMarkdownBlock {
   readonly start: EditorCoordinates;
   readonly end: EditorCoordinates;
   readonly left: number;
-  readonly textBounds: { left: number; right: number } | null;
+}
+
+interface MarkdownBlockDropIndicator {
+  readonly position: number;
+  readonly side: -1 | 1;
+  readonly visible: boolean;
 }
 
 interface MarkdownBlockRailItemLayout {
@@ -53,6 +67,69 @@ interface MarkdownBlockRailItemLayout {
 interface MarkdownBlockRailLayout {
   readonly items: MarkdownBlockRailItemLayout[];
 }
+
+const setMarkdownBlockDropIndicator = StateEffect.define<MarkdownBlockDropIndicator | null>({
+  map: (value, changes) => value ? {
+    ...value,
+    position: changes.mapPos(value.position, value.side),
+  } : null,
+});
+
+class MarkdownBlockDropIndicatorWidget extends WidgetType {
+  constructor(readonly visible: boolean) {
+    super();
+  }
+
+  eq(other: MarkdownBlockDropIndicatorWidget): boolean {
+    return this.visible === other.visible;
+  }
+
+  toDOM(view: EditorView): HTMLElement {
+    const element = view.dom.ownerDocument.createElement('div');
+    element.className = 'cm-markdown-block-drop-indicator';
+    element.classList.toggle('is-visible', this.visible);
+    element.setAttribute('aria-hidden', 'true');
+    return element;
+  }
+
+  updateDOM(element: HTMLElement): boolean {
+    element.classList.toggle('is-visible', this.visible);
+    return true;
+  }
+
+  get estimatedHeight(): number {
+    return 0;
+  }
+
+  ignoreEvent(): boolean {
+    return true;
+  }
+}
+
+function buildDropIndicatorDecoration(indicator: MarkdownBlockDropIndicator | null): DecorationSet {
+  if (!indicator) return Decoration.none;
+  return Decoration.set([
+    Decoration.widget({
+      widget: new MarkdownBlockDropIndicatorWidget(indicator.visible),
+      block: true,
+      side: indicator.side,
+    }).range(indicator.position),
+  ]);
+}
+
+const markdownBlockDropIndicatorField = StateField.define<DecorationSet>({
+  create: () => Decoration.none,
+  update: (decorations, transaction) => {
+    let next = decorations.map(transaction.changes);
+    for (const effect of transaction.effects) {
+      if (effect.is(setMarkdownBlockDropIndicator)) {
+        next = buildDropIndicatorDecoration(effect.value);
+      }
+    }
+    return next;
+  },
+  provide: field => EditorView.decorations.from(field),
+});
 
 function lineCoordinates(
   view: EditorView,
@@ -121,8 +198,6 @@ function measureMarkdownBlock(view: EditorView, block: MarkdownBlock): MeasuredM
   let start: EditorCoordinates | null = null;
   let end: EditorCoordinates | null = null;
   let left = Number.POSITIVE_INFINITY;
-  let textLeft = Number.POSITIVE_INFINITY;
-  let textRight = Number.NEGATIVE_INFINITY;
 
   const lineNumbers = measurableLineNumbers(view, block);
   for (const lineNumber of lineNumbers) {
@@ -130,12 +205,6 @@ function measureMarkdownBlock(view: EditorView, block: MarkdownBlock): MeasuredM
     if (!coordinates) continue;
     start ??= coordinates;
     left = Math.min(left, coordinates.left);
-    const lineElement = renderedLineElement(view, lineNumber);
-    if (lineElement) {
-      const lineRect = lineElement.getBoundingClientRect();
-      textLeft = Math.min(textLeft, lineRect.left);
-      textRight = Math.max(textRight, lineRect.right);
-    }
   }
   for (let index = lineNumbers.length - 1; index >= 0; index -= 1) {
     end = renderedLineCoordinates(view, lineNumbers[index], 'end');
@@ -143,10 +212,7 @@ function measureMarkdownBlock(view: EditorView, block: MarkdownBlock): MeasuredM
   }
 
   if (!start || !end || !Number.isFinite(left)) return null;
-  const textBounds = Number.isFinite(textLeft) && Number.isFinite(textRight) && textRight > textLeft
-    ? { left: textLeft, right: textRight }
-    : null;
-  return { start, end, left, textBounds };
+  return { start, end, left };
 }
 
 function blockMatches(left: MarkdownBlock, right: MarkdownBlock): boolean {
@@ -189,7 +255,6 @@ function createGripIcon(doc: Document): SVGSVGElement {
 
 class MarkdownBlockHandleView {
   private readonly rail: HTMLDivElement;
-  private readonly dropIndicator: HTMLDivElement;
   private readonly ownerWindow: Window;
   private measuredBlocks: Array<{
     block: MarkdownBlock;
@@ -205,6 +270,9 @@ class MarkdownBlockHandleView {
     startY: number;
   } | null = null;
   private dragPreview: HTMLElement | null = null;
+  private displayedDropIndicator: Omit<MarkdownBlockDropIndicator, 'visible'> | null = null;
+  private dropIndicatorRemovalTimer: number | null = null;
+  private lastPointerY: number | null = null;
   private suppressClick = false;
   private frameId: number | null = null;
   private requestId = 0;
@@ -219,11 +287,7 @@ class MarkdownBlockHandleView {
     this.rail.className = 'cm-markdown-block-rail';
     this.rail.setAttribute('aria-hidden', options.readOnly ? 'true' : 'false');
 
-    this.dropIndicator = doc.createElement('div');
-    this.dropIndicator.className = 'cm-markdown-block-drop-indicator';
-    this.dropIndicator.setAttribute('aria-hidden', 'true');
-
-    view.dom.append(this.rail, this.dropIndicator);
+    view.dom.append(this.rail);
     view.scrollDOM.addEventListener('scroll', this.scheduleRender, { passive: true });
     this.ownerWindow.addEventListener('resize', this.scheduleRender);
     this.scheduleRender();
@@ -237,11 +301,13 @@ class MarkdownBlockHandleView {
 
   destroy(): void {
     if (this.frameId !== null) this.ownerWindow.cancelAnimationFrame(this.frameId);
+    if (this.dropIndicatorRemovalTimer !== null) {
+      this.ownerWindow.clearTimeout(this.dropIndicatorRemovalTimer);
+    }
     this.removeDragPreview();
     this.view.scrollDOM.removeEventListener('scroll', this.scheduleRender);
     this.ownerWindow.removeEventListener('resize', this.scheduleRender);
     this.rail.remove();
-    this.dropIndicator.remove();
   }
 
   private readonly scheduleRender = (): void => {
@@ -249,12 +315,18 @@ class MarkdownBlockHandleView {
     this.frameId = this.ownerWindow.requestAnimationFrame(() => {
       this.frameId = null;
       const layout = this.readLayout();
-      if (layout) this.render(layout);
+      if (this.pendingDrag) {
+        this.measuredBlocks = layout.items.map(({ block, measurement }) => ({ block, measurement }));
+        if (this.draggedBlock && this.lastPointerY !== null) {
+          this.updateDropTarget(this.lastPointerY);
+        }
+      } else {
+        this.render(layout);
+      }
     });
   };
 
-  private readLayout(): MarkdownBlockRailLayout | null {
-    if (this.pendingDrag) return null;
+  private readLayout(): MarkdownBlockRailLayout {
     const blocks = collectMarkdownBlocks(this.view.state);
     if (this.options.readOnly || blocks.length === 0) return { items: [] };
     const editorRect = this.view.dom.getBoundingClientRect();
@@ -333,11 +405,13 @@ class MarkdownBlockHandleView {
           startX: event.clientX,
           startY: event.clientY,
         };
+        this.lastPointerY = event.clientY;
         button.setPointerCapture?.(event.pointerId);
       });
       button.addEventListener('pointermove', event => {
         const pending = this.pendingDrag;
         if (!pending || pending.pointerId !== event.pointerId) return;
+        this.lastPointerY = event.clientY;
         const deltaX = event.clientX - pending.startX;
         const deltaY = event.clientY - pending.startY;
         if (!this.draggedBlock && Math.hypot(deltaX, deltaY) < DRAG_THRESHOLD) return;
@@ -455,7 +529,11 @@ class MarkdownBlockHandleView {
     if (!this.draggedBlock) return;
     const draggedBlock = this.draggedBlock;
     const candidates = this.measuredBlocks.filter(({ block }) => !blockMatches(block, draggedBlock));
-    if (candidates.length === 0) return;
+    if (candidates.length === 0) {
+      this.dropTarget = null;
+      this.hideDropIndicator();
+      return;
+    }
 
     let nextTarget: { block: MarkdownBlock; placement: MarkdownBlockPlacement } = {
       block: candidates[candidates.length - 1].block,
@@ -497,32 +575,50 @@ class MarkdownBlockHandleView {
   }
 
   private showDropIndicator(target: MarkdownBlock, placement: MarkdownBlockPlacement): void {
-    const editorRect = this.view.dom.getBoundingClientRect();
-    const measurement = this.measuredBlocks.find(({ block }) => blockMatches(block, target))?.measurement;
-    if (!measurement) return;
-    const { start, end, textBounds } = measurement;
-    if (!textBounds) {
-      this.dropIndicator.classList.remove('is-visible');
-      return;
+    const nextIndicator: Omit<MarkdownBlockDropIndicator, 'visible'> = placement === 'before'
+      ? { position: target.from, side: -1 }
+      : { position: target.to, side: 1 };
+    const wasFading = this.dropIndicatorRemovalTimer !== null;
+    if (this.dropIndicatorRemovalTimer !== null) {
+      this.ownerWindow.clearTimeout(this.dropIndicatorRemovalTimer);
+      this.dropIndicatorRemovalTimer = null;
     }
-    const top = (placement === 'before' ? start.top : end.bottom) - editorRect.top;
-    const inset = Math.min(DROP_INDICATOR_INSET, (textBounds.right - textBounds.left) / 2);
-    const indicatorLeft = textBounds.left + inset;
-    const indicatorRight = textBounds.right - inset;
-    this.dropIndicator.style.left = `${indicatorLeft - editorRect.left}px`;
-    this.dropIndicator.style.top = `${top}px`;
-    this.dropIndicator.style.width = `${Math.max(0, indicatorRight - indicatorLeft)}px`;
-    this.dropIndicator.classList.add('is-visible');
+    if (!wasFading
+      && this.displayedDropIndicator?.position === nextIndicator.position
+      && this.displayedDropIndicator.side === nextIndicator.side) return;
+
+    this.displayedDropIndicator = nextIndicator;
+    this.view.dispatch({
+      effects: setMarkdownBlockDropIndicator.of({ ...nextIndicator, visible: true }),
+    });
+  }
+
+  private hideDropIndicator(): void {
+    const indicator = this.displayedDropIndicator;
+    if (!indicator || this.dropIndicatorRemovalTimer !== null) return;
+    this.view.dispatch({
+      effects: setMarkdownBlockDropIndicator.of({ ...indicator, visible: false }),
+    });
+    this.dropIndicatorRemovalTimer = this.ownerWindow.setTimeout(() => {
+      this.dropIndicatorRemovalTimer = null;
+      if (this.displayedDropIndicator !== indicator) return;
+      this.displayedDropIndicator = null;
+      this.view.dispatch({ effects: setMarkdownBlockDropIndicator.of(null) });
+    }, DROP_INDICATOR_FADE_MS);
   }
 
   private clearDragState(): void {
     this.draggedBlock = null;
     this.dropTarget = null;
-    this.dropIndicator.classList.remove('is-visible');
+    this.lastPointerY = null;
+    this.hideDropIndicator();
     this.removeDragPreview();
   }
 }
 
-export function markdownBlockHandlePlugin(options: MarkdownBlockHandleOptions) {
-  return ViewPlugin.define(view => new MarkdownBlockHandleView(view, options));
+export function markdownBlockHandlePlugin(options: MarkdownBlockHandleOptions): Extension {
+  return [
+    markdownBlockDropIndicatorField,
+    ViewPlugin.define(view => new MarkdownBlockHandleView(view, options)),
+  ];
 }

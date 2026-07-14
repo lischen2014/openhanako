@@ -614,18 +614,31 @@
 }
 
 :global(.preview-editor.mode-markdown .cm-markdown-block-drop-indicator) {
-    position: absolute;
+    position: relative;
+    display: block;
     z-index: 11;
-    height: 2px;
-    border-radius: 999px;
-    background: var(--accent);
+    width: 100%;
+    max-width: var(--editor-markdown-content-width);
+    height: 0;
+    margin: 0 auto;
+    box-sizing: border-box;
     pointer-events: none;
     opacity: 0;
     visibility: hidden;
-    transform: translateY(-1px);
     transition:
         opacity var(--duration-instant) var(--ease-out),
         visibility 0s linear var(--duration-instant);
+}
+
+:global(.preview-editor.mode-markdown .cm-markdown-block-drop-indicator)::after {
+    content: '';
+    position: absolute;
+    left: var(--space-8);
+    right: var(--space-8);
+    top: -1px;
+    height: 2px;
+    border-radius: 999px;
+    background: var(--accent);
 }
 
 :global(.preview-editor.mode-markdown .cm-markdown-block-drop-indicator.is-visible) {
