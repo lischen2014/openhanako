@@ -352,4 +352,10 @@ describe('editor typography settings', () => {
     expect(css).toMatch(/:global\(\.preview-editor\.mode-markdown \.cm-markdown-block-drop-indicator\)\s*\{[^}]*position:\s*relative[^}]*width:\s*100%[^}]*max-width:\s*var\(--editor-markdown-content-width\)[^}]*height:\s*0[^}]*margin:\s*0 auto/);
     expect(css).toMatch(/:global\(\.preview-editor\.mode-markdown \.cm-markdown-block-drop-indicator\)::after\s*\{[^}]*left:\s*var\(--space-8\)[^}]*right:\s*var\(--space-8\)[^}]*height:\s*2px/);
   });
+
+  it('keeps the Markdown block Grabber two pixels clear of the content', () => {
+    const css = readPreviewStyles();
+
+    expect(css).toMatch(/:global\(\.preview-editor\.mode-markdown \.cm-markdown-block-handle\)\s*\{[^}]*left:\s*-2px/);
+  });
 });
