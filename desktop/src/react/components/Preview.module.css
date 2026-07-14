@@ -593,6 +593,58 @@
     box-shadow: none;
 }
 
+:global(.preview-editor.mode-markdown .cm-markdown-block-drag-count) {
+    position: absolute;
+    right: 0;
+    top: 0;
+    min-width: 20px;
+    height: 20px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+    padding: 0 var(--space-4);
+    border: 1px solid var(--overlay-medium);
+    border-radius: var(--radius-sm);
+    background: var(--bg-card);
+    color: var(--text-muted);
+    font-family: var(--font-ui);
+    font-size: var(--fs-hint);
+    line-height: 1;
+    transform: translate(50%, -50%);
+}
+
+:global(.preview-editor.mode-markdown .cm-markdown-block-selection-layer) {
+    position: absolute;
+    inset: 0;
+    z-index: 5;
+    overflow: hidden;
+    pointer-events: none;
+}
+
+:global(.preview-editor.mode-markdown .cm-markdown-block-selection-surface) {
+    position: absolute;
+    box-sizing: border-box;
+    border-radius: 2px;
+    background: color-mix(in srgb, var(--text) 7%, transparent);
+    pointer-events: none;
+}
+
+:global(.preview-editor.mode-markdown .cm-markdown-block-selection-surface.is-clipped-top) {
+    border-top-left-radius: 0;
+    border-top-right-radius: 0;
+}
+
+:global(.preview-editor.mode-markdown .cm-markdown-block-selection-surface.is-clipped-bottom) {
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
+}
+
+:global(.preview-editor.mode-markdown .cm-editor.cm-markdown-block-marquee-zone .cm-content),
+:global(.preview-editor.mode-markdown .cm-editor.cm-markdown-block-marquee-zone .cm-content *) {
+    cursor: default !important;
+}
+
 :global(.preview-editor.mode-markdown .cm-markdown-block-handle:hover),
 :global(.preview-editor.mode-markdown .cm-markdown-block-handle:focus-visible) {
     background: var(--overlay-subtle);

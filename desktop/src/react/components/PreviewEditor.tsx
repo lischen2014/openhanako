@@ -34,6 +34,7 @@ import {
   markdownBlockHandlePlugin,
   type MarkdownBlockMenuRequest,
 } from '../editor/markdown-block-handles';
+import { markdownBlockSelectionPlugin } from '../editor/markdown-block-selection';
 import { mermaidDecoField } from '../editor/mermaid-field';
 import { linkClickHandler } from '../editor/link-handler';
 import { tableDecoField } from '../editor/table-field';
@@ -830,9 +831,12 @@ export const PreviewEditor = forwardRef<PreviewEditorHandle, PreviewEditorProps>
           markdownBlockDecoField,
           mermaidDecoField,
         ] : []),
-        ...(isMd && !readOnly ? [markdownBlockHandlePlugin({
-          onOpenMenu: setBlockMenuRequest,
-        })] : []),
+        ...(isMd && !readOnly ? [
+          markdownBlockSelectionPlugin(),
+          markdownBlockHandlePlugin({
+            onOpenMenu: setBlockMenuRequest,
+          }),
+        ] : []),
         ...(isMd ? [tableDecoField] : []),
         ...(isCsv ? [csvTableField] : []),
         c.theme.of(isMd || isCsv ? markdownTheme : codeTheme),

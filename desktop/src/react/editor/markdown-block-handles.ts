@@ -14,11 +14,15 @@ import {
   type ViewUpdate,
 } from '@codemirror/view';
 import {
-  buildMarkdownBlockMove,
+  buildMarkdownBlockRangeMove,
   collectMarkdownBlocks,
   type MarkdownBlock,
   type MarkdownBlockPlacement,
 } from './markdown-blocks';
+import {
+  selectedMarkdownBlocks,
+  setMarkdownBlockSelection,
+} from './markdown-block-selection';
 
 export type MarkdownBlockMenuTarget = MarkdownBlock;
 
@@ -260,10 +264,11 @@ class MarkdownBlockHandleView {
     block: MarkdownBlock;
     measurement: MeasuredMarkdownBlock;
   }> = [];
-  private draggedBlock: MarkdownBlock | null = null;
+  private draggedBlocks: MarkdownBlock[] = [];
   private dropTarget: { block: MarkdownBlock; placement: MarkdownBlockPlacement } | null = null;
   private pendingDrag: {
     block: MarkdownBlock;
+    blocks: MarkdownBlock[];
     button: HTMLButtonElement;
     pointerId: number;
     startX: number;
@@ -317,7 +322,7 @@ class MarkdownBlockHandleView {
       const layout = this.readLayout();
       if (this.pendingDrag) {
         this.measuredBlocks = layout.items.map(({ block, measurement }) => ({ block, measurement }));
-        if (this.draggedBlock && this.lastPointerY !== null) {
+        if (this.draggedBlocks.length > 0 && this.lastPointerY !== null) {
           this.updateDropTarget(this.lastPointerY);
         }
       } else {
@@ -394,12 +399,17 @@ class MarkdownBlockHandleView {
         if (event.button !== 0) return;
         const current = blockAtCurrentPosition(this.view, block);
         if (!current) return;
+        const selected = selectedMarkdownBlocks(this.view.state);
+        const blocks = selected.some(candidate => blockMatches(candidate, current))
+          ? selected
+          : [current];
         if (this.frameId !== null) {
           this.ownerWindow.cancelAnimationFrame(this.frameId);
           this.frameId = null;
         }
         this.pendingDrag = {
           block: current,
+          blocks,
           button,
           pointerId: event.pointerId,
           startX: event.clientX,
@@ -414,12 +424,15 @@ class MarkdownBlockHandleView {
         this.lastPointerY = event.clientY;
         const deltaX = event.clientX - pending.startX;
         const deltaY = event.clientY - pending.startY;
-        if (!this.draggedBlock && Math.hypot(deltaX, deltaY) < DRAG_THRESHOLD) return;
-        if (!this.draggedBlock) {
-          this.draggedBlock = pending.block;
+        if (this.draggedBlocks.length === 0 && Math.hypot(deltaX, deltaY) < DRAG_THRESHOLD) return;
+        if (this.draggedBlocks.length === 0) {
+          this.draggedBlocks = pending.blocks;
+          if (pending.blocks.length === 1) {
+            this.view.dispatch({ effects: setMarkdownBlockSelection.of(null) });
+          }
           pending.button.classList.add('is-dragging');
           this.suppressClick = true;
-          this.createDragPreview(pending.block);
+          this.createDragPreview(pending.block, pending.blocks.length);
         }
         event.preventDefault();
         event.stopPropagation();
@@ -429,7 +442,7 @@ class MarkdownBlockHandleView {
       button.addEventListener('pointerup', event => {
         const pending = this.pendingDrag;
         if (!pending || pending.pointerId !== event.pointerId) return;
-        if (this.draggedBlock) {
+        if (this.draggedBlocks.length > 0) {
           event.preventDefault();
           event.stopPropagation();
           this.commitDrop();
@@ -454,24 +467,53 @@ class MarkdownBlockHandleView {
     }
   }
 
-  private renderedLineElements(block: MarkdownBlock): HTMLElement[] {
+  private renderedBlockElements(block: MarkdownBlock): HTMLElement[] {
     const elements = new Set<HTMLElement>();
     for (const lineNumber of measurableLineNumbers(this.view, block)) {
       const element = renderedLineElement(this.view, lineNumber);
       if (element) elements.add(element);
     }
-    return [...elements];
+    if (elements.size > 0) return [...elements];
+
+    const widgetSelector = [
+      '.cm-table-widget',
+      '.cm-mermaid-widget',
+      '.cm-image-widget',
+      '.cm-math-block-widget',
+      '.cm-hr-widget',
+    ].join(', ');
+    for (const position of [block.from, block.to]) {
+      const { node, offset } = this.view.domAtPos(position, position === block.from ? 1 : -1);
+      const candidates: Node[] = [node];
+      if (node.nodeType === 1) {
+        const parent = node as Element;
+        const atOffset = parent.childNodes[offset];
+        const beforeOffset = offset > 0 ? parent.childNodes[offset - 1] : null;
+        if (atOffset) candidates.push(atOffset);
+        if (beforeOffset) candidates.push(beforeOffset);
+      }
+      for (const candidate of candidates) {
+        if (candidate.nodeType !== 1) continue;
+        const element = candidate as HTMLElement;
+        const widget = element.matches(widgetSelector)
+          ? element
+          : element.querySelector<HTMLElement>(widgetSelector)
+            ?? element.closest<HTMLElement>(widgetSelector);
+        if (widget && this.view.contentDOM.contains(widget)) return [widget];
+      }
+    }
+    return [];
   }
 
-  private createDragPreview(block: MarkdownBlock): void {
+  private createDragPreview(block: MarkdownBlock, blockCount: number): void {
     this.removeDragPreview();
-    const lines = this.renderedLineElements(block);
-    if (lines.length === 0) return;
+    const elements = this.renderedBlockElements(block);
+    if (elements.length === 0) return;
 
     const editorRect = this.view.dom.getBoundingClientRect();
     const scaleX = this.view.scaleX || 1;
     const scaleY = this.view.scaleY || 1;
-    const measurements = lines.map(element => ({ element, rect: element.getBoundingClientRect() }));
+    const measurements = elements.map(element => ({ element, rect: element.getBoundingClientRect() }));
     const left = Math.min(...measurements.map(({ rect }) => rect.left));
     const top = Math.min(...measurements.map(({ rect }) => rect.top));
     const right = Math.max(...measurements.map(({ rect }) => rect.right));
@@ -509,6 +551,13 @@ class MarkdownBlockHandleView {
       preview.appendChild(clone);
     }
 
+    if (blockCount > 1) {
+      const count = this.view.dom.ownerDocument.createElement('span');
+      count.className = 'cm-markdown-block-drag-count';
+      count.textContent = String(blockCount);
+      preview.appendChild(count);
+    }
+
     this.view.dom.appendChild(preview);
     this.dragPreview = preview;
   }
@@ -526,9 +575,10 @@ class MarkdownBlockHandleView {
   }
 
   private updateDropTarget(clientY: number): void {
-    if (!this.draggedBlock) return;
-    const draggedBlock = this.draggedBlock;
-    const candidates = this.measuredBlocks.filter(({ block }) => !blockMatches(block, draggedBlock));
+    if (this.draggedBlocks.length === 0) return;
+    const candidates = this.measuredBlocks.filter(({ block }) => (
+      !this.draggedBlocks.some(dragged => blockMatches(block, dragged))
+    ));
     if (candidates.length === 0) {
       this.dropTarget = null;
       this.hideDropIndicator();
@@ -552,22 +602,28 @@ class MarkdownBlockHandleView {
   }
 
   private commitDrop(): void {
-    const source = this.draggedBlock ? blockAtCurrentPosition(this.view, this.draggedBlock) : null;
+    const sources = this.draggedBlocks
+      .map(block => blockAtCurrentPosition(this.view, block))
+      .filter((block): block is MarkdownBlock => block !== null);
     const target = this.dropTarget
       ? blockAtCurrentPosition(this.view, this.dropTarget.block)
       : null;
     const placement = this.dropTarget?.placement ?? 'before';
-    if (!source || !target) {
+    if (sources.length !== this.draggedBlocks.length || !target) {
       this.clearDragState();
       return;
     }
-    const move = buildMarkdownBlockMove(this.view.state, source, target, placement);
+    const move = buildMarkdownBlockRangeMove(this.view.state, sources, target, placement);
     this.clearDragState();
     if (!move) return;
 
     this.view.dispatch({
       changes: move.changes,
       selection: { anchor: move.selectionAnchor },
+      effects: setMarkdownBlockSelection.of({
+        anchor: move.movedRange.from,
+        head: move.movedRange.to,
+      }),
       scrollIntoView: true,
       annotations: Transaction.userEvent.of('move.drop'),
     });
@@ -608,7 +664,7 @@ class MarkdownBlockHandleView {
   }
 
   private clearDragState(): void {
-    this.draggedBlock = null;
+    this.draggedBlocks = [];
     this.dropTarget = null;
     this.lastPointerY = null;
     this.hideDropIndicator();

@@ -3,6 +3,7 @@ import { EditorState } from '@codemirror/state';
 import { describe, expect, it } from 'vitest';
 import {
   buildMarkdownBlockMove,
+  buildMarkdownBlockRangeMove,
   collectMarkdownBlocks,
   type MarkdownBlock,
   type MarkdownBlockPlacement,
@@ -165,5 +166,59 @@ describe('buildMarkdownBlockMove', () => {
 
     expect(buildMarkdownBlockMove(changed, staleAlpha, currentBeta, 'after')).toBeNull();
     expect(buildMarkdownBlockMove(original, nonexistent, beta, 'before')).toBeNull();
+  });
+});
+
+describe('buildMarkdownBlockRangeMove', () => {
+  it('moves a contiguous block range in one source-preserving replacement', () => {
+    const state = createState('Alpha\n\nBeta\n\nGamma\n\nDelta');
+    const [alpha, beta, gamma, delta] = collectMarkdownBlocks(state);
+    const move = buildMarkdownBlockRangeMove(state, [beta, gamma], alpha, 'before');
+
+    expect(move).not.toBeNull();
+    const next = state.update({ changes: move!.changes }).state;
+    expect(next.doc.toString()).toBe('Beta\n\nGamma\n\nAlpha\n\nDelta');
+    expect(next.doc.sliceString(move!.movedRange.from, move!.movedRange.to)).toBe('Beta\n\nGamma');
+  });
+
+  it('moves an earlier contiguous range after a later block', () => {
+    const state = createState('Alpha\n\nBeta\n\nGamma\n\nDelta');
+    const [alpha, beta, , delta] = collectMarkdownBlocks(state);
+    const move = buildMarkdownBlockRangeMove(state, [alpha, beta], delta, 'after');
+
+    expect(move).not.toBeNull();
+    const next = state.update({ changes: move!.changes }).state;
+    expect(next.doc.toString()).toBe('Gamma\n\nDelta\n\nAlpha\n\nBeta');
+    expect(next.doc.sliceString(move!.movedRange.from, move!.movedRange.to)).toBe('Alpha\n\nBeta');
+  });
+
+  it('moves the first two blocks after the final block', () => {
+    const state = createState('Alpha\n\nBeta\n\nGamma');
+    const [alpha, beta, gamma] = collectMarkdownBlocks(state);
+    const move = buildMarkdownBlockRangeMove(state, [alpha, beta], gamma, 'after');
+
+    expect(move).not.toBeNull();
+    expect(state.update({ changes: move!.changes }).state.doc.toString()).toBe('Gamma\n\nAlpha\n\nBeta');
+  });
+
+  it('rejects noncontiguous, stale, or self-targeting ranges', () => {
+    const state = createState('Alpha\n\nBeta\n\nGamma\n\nDelta');
+    const [alpha, beta, gamma, delta] = collectMarkdownBlocks(state);
+
+    expect(buildMarkdownBlockRangeMove(state, [alpha, gamma], delta, 'after')).toBeNull();
+    expect(buildMarkdownBlockRangeMove(state, [beta, gamma], beta, 'before')).toBeNull();
+    expect(buildMarkdownBlockRangeMove(state, [beta, gamma], gamma, 'after')).toBeNull();
+  });
+
+  it('keeps distinct gap source in its original slots while moving a range', () => {
+    const state = createState('Alpha\n\nBeta\n\n\nGamma\n\n\n\nDelta');
+    const [alpha, beta, gamma, delta] = collectMarkdownBlocks(state);
+    const move = buildMarkdownBlockRangeMove(state, [alpha, beta], delta, 'after');
+
+    expect(move).not.toBeNull();
+    expect(state.update({ changes: move!.changes }).state.doc.toString()).toBe(
+      'Gamma\n\nDelta\n\n\nAlpha\n\n\n\nBeta',
+    );
+    expect(gamma.source).toBe('Gamma');
   });
 });

@@ -11,6 +11,13 @@ import {
   markdownBlockHandlePlugin,
   type MarkdownBlockMenuRequest,
 } from '../../editor/markdown-block-handles';
+import {
+  markdownBlockSelectionPlugin,
+  selectedMarkdownBlocks,
+  setMarkdownBlockSelection,
+} from '../../editor/markdown-block-selection';
+import { collectMarkdownBlocks } from '../../editor/markdown-blocks';
+import { tableDecoField } from '../../editor/table-field';
 
 function elementRect(): DOMRect {
   return {
@@ -42,6 +49,7 @@ describe('markdown block handle rail', () => {
   let coordsSpy: ReturnType<typeof vi.spyOn>;
   let lineBlockSpy: ReturnType<typeof vi.spyOn>;
   let lineBoundarySpy: ReturnType<typeof vi.spyOn>;
+  let posAtCoordsSpy: ReturnType<typeof vi.spyOn>;
   let documentTopSpy: ReturnType<typeof vi.spyOn>;
   let scaleYSpy: ReturnType<typeof vi.spyOn>;
   let rafSpy: ReturnType<typeof vi.spyOn>;
@@ -66,13 +74,23 @@ describe('markdown block handle rail', () => {
     ) {
       const line = this.state.doc.lineAt(Math.min(pos, this.state.doc.length));
       const top = line.number * 32;
-      return { top, height: 24 } as ReturnType<EditorView['lineBlockAt']>;
+      return { top, bottom: top + 24, height: 24 } as ReturnType<EditorView['lineBlockAt']>;
     });
     lineBoundarySpy = vi.spyOn(EditorView.prototype, 'moveToLineBoundary').mockImplementation(function boundary(
       this: EditorView,
       start,
     ) {
       return EditorSelection.cursor(this.state.doc.lineAt(start.head).to);
+    });
+    posAtCoordsSpy = vi.spyOn(EditorView.prototype, 'posAtCoords').mockImplementation(function posAtCoords(
+      this: EditorView,
+      coordinates: { x: number; y: number },
+    ) {
+      const lineNumber = Math.min(
+        this.state.doc.lines,
+        Math.max(1, Math.floor(coordinates.y / 32)),
+      );
+      return this.state.doc.line(lineNumber).from;
     });
     documentTopSpy = vi.spyOn(EditorView.prototype, 'documentTop', 'get').mockReturnValue(0);
     scaleYSpy = vi.spyOn(EditorView.prototype, 'scaleY', 'get').mockReturnValue(1);
@@ -90,6 +108,7 @@ describe('markdown block handle rail', () => {
     coordsSpy.mockRestore();
     lineBlockSpy.mockRestore();
     lineBoundarySpy.mockRestore();
+    posAtCoordsSpy.mockRestore();
     documentTopSpy.mockRestore();
     scaleYSpy.mockRestore();
     rafSpy.mockRestore();
@@ -113,6 +132,7 @@ describe('markdown block handle rail', () => {
         extensions: [
           markdown({ base: markdownLanguage }),
           history(),
+          markdownBlockSelectionPlugin(),
           markdownBlockHandlePlugin({ onOpenMenu }),
         ],
       }),
@@ -148,6 +168,291 @@ describe('markdown block handle rail', () => {
     view.destroy();
   });
 
+  it('marquee-selects a contiguous top-level block range from the side gutter', () => {
+    rectSpy.mockImplementation(function rect(this: HTMLElement) {
+      if (this.classList.contains('cm-line')) {
+        return { ...elementRect(), left: 200, right: 760, width: 560 } as DOMRect;
+      }
+      return elementRect();
+    });
+    const { view } = createView();
+
+    fireEvent(view.dom, pointerEvent('pointerdown', 21, 32, 100));
+    fireEvent(view.dom, pointerEvent('pointermove', 21, 100, 100));
+    vi.runOnlyPendingTimers();
+
+    expect(selectedMarkdownBlocks(view.state).map(block => block.source)).toEqual(['Alpha', 'Beta']);
+    const surface = view.dom.querySelector<HTMLElement>('.cm-markdown-block-selection-surface');
+    expect(surface?.hidden).toBe(false);
+    expect(surface?.style.left).toBe('200px');
+    expect(surface?.style.width).toBe('560px');
+
+    fireEvent(view.dom, pointerEvent('pointerup', 21, 100, 100));
+    const editorDom = view.dom;
+    view.destroy();
+    expect(editorDom.classList.contains('cm-markdown-block-selection-active')).toBe(false);
+  });
+
+  it('keeps text editing native and clears block selection on block-body pointerdown', () => {
+    rectSpy.mockImplementation(function rect(this: HTMLElement) {
+      if (this.classList.contains('cm-line')) {
+        return { ...elementRect(), left: 200, right: 760, width: 560 } as DOMRect;
+      }
+      return elementRect();
+    });
+    const { view } = createView();
+    const [alpha, beta] = collectMarkdownBlocks(view.state);
+    view.dispatch({ effects: setMarkdownBlockSelection.of({ anchor: alpha.from, head: beta.from }) });
+    const firstLine = view.contentDOM.querySelector<HTMLElement>('.cm-line');
+    const event = pointerEvent('pointerdown', 22, 32, 300);
+
+    fireEvent(firstLine!, event);
+
+    expect(event.defaultPrevented).toBe(false);
+    expect(selectedMarkdownBlocks(view.state)).toEqual([]);
+    view.destroy();
+  });
+
+  it('clears selection without moving the caret on a gutter click or outside click', () => {
+    rectSpy.mockImplementation(function rect(this: HTMLElement) {
+      if (this.classList.contains('cm-line')) {
+        return { ...elementRect(), left: 200, right: 760, width: 560 } as DOMRect;
+      }
+      return elementRect();
+    });
+    const { view } = createView();
+    const [alpha, beta] = collectMarkdownBlocks(view.state);
+    view.dispatch({
+      selection: EditorSelection.cursor(beta.from),
+      effects: setMarkdownBlockSelection.of({ anchor: alpha.from, head: beta.from }),
+    });
+    const gutterDown = pointerEvent('pointerdown', 29, 32, 100);
+
+    fireEvent(view.dom, gutterDown);
+    fireEvent(view.dom, pointerEvent('pointerup', 29, 32, 100));
+
+    expect(gutterDown.defaultPrevented).toBe(true);
+    expect(view.state.selection.main.anchor).toBe(beta.from);
+    expect(selectedMarkdownBlocks(view.state)).toEqual([]);
+
+    view.dispatch({ effects: setMarkdownBlockSelection.of({ anchor: alpha.from, head: beta.from }) });
+    fireEvent(document.body, pointerEvent('pointerdown', 30, 10, 10));
+    expect(selectedMarkdownBlocks(view.state)).toEqual([]);
+    view.destroy();
+  });
+
+  it('uses the default-cursor marquee zone only for gutters and true top-level gaps', () => {
+    rectSpy.mockImplementation(function rect(this: HTMLElement) {
+      if (this.classList.contains('cm-line')) {
+        return { ...elementRect(), left: 200, right: 760, width: 560 } as DOMRect;
+      }
+      return elementRect();
+    });
+    const { view } = createView();
+    const lines = view.contentDOM.querySelectorAll<HTMLElement>('.cm-line');
+
+    fireEvent(lines[0], pointerEvent('pointermove', 23, 32, 300));
+    expect(view.dom.classList.contains('cm-markdown-block-marquee-zone')).toBe(false);
+
+    fireEvent(lines[1], pointerEvent('pointermove', 23, 64, 300));
+    expect(view.dom.classList.contains('cm-markdown-block-marquee-zone')).toBe(true);
+
+    fireEvent(view.dom, pointerEvent('pointermove', 23, 32, 100));
+    expect(view.dom.classList.contains('cm-markdown-block-marquee-zone')).toBe(true);
+    fireEvent.pointerLeave(view.dom);
+    expect(view.dom.classList.contains('cm-markdown-block-marquee-zone')).toBe(false);
+    view.destroy();
+  });
+
+  it('recognizes a measured visual gap even when coordinate lookup lands on nonblank text', () => {
+    rectSpy.mockImplementation(function rect(this: HTMLElement) {
+      if (this.classList.contains('cm-line')) {
+        return { ...elementRect(), left: 200, right: 760, width: 560 } as DOMRect;
+      }
+      return elementRect();
+    });
+    posAtCoordsSpy.mockImplementation(function posAtCoords(this: EditorView) {
+      return this.state.doc.line(1).from;
+    });
+    const { view } = createView(
+      vi.fn<(request: MarkdownBlockMenuRequest) => void>(),
+      '# Heading\nParagraph',
+    );
+    const line = view.contentDOM.querySelector<HTMLElement>('.cm-line');
+
+    fireEvent(line!, pointerEvent('pointermove', 26, 60, 300));
+
+    expect(view.dom.classList.contains('cm-markdown-block-marquee-zone')).toBe(true);
+    view.destroy();
+  });
+
+  it('does not turn an internal visual-row gap of a wrapped block into a marquee zone', () => {
+    rectSpy.mockImplementation(function rect(this: HTMLElement) {
+      if (this.classList.contains('cm-line')) {
+        return { ...elementRect(), left: 200, right: 760, width: 560 } as DOMRect;
+      }
+      return elementRect();
+    });
+    lineBlockSpy.mockImplementation(function lineBlock(this: EditorView, pos: number) {
+      const line = this.state.doc.lineAt(Math.min(pos, this.state.doc.length));
+      if (line.number === 1) {
+        return { top: 32, bottom: 104, height: 72 } as ReturnType<EditorView['lineBlockAt']>;
+      }
+      const top = line.number * 32;
+      return { top, bottom: top + 24, height: 24 } as ReturnType<EditorView['lineBlockAt']>;
+    });
+    const { view } = createView(
+      vi.fn<(request: MarkdownBlockMenuRequest) => void>(),
+      'A long paragraph that wraps onto another visual row\n\nAfter',
+    );
+    const line = view.contentDOM.querySelector<HTMLElement>('.cm-line');
+
+    fireEvent(line!, pointerEvent('pointermove', 27, 70, 300));
+
+    expect(view.dom.classList.contains('cm-markdown-block-marquee-zone')).toBe(false);
+    view.destroy();
+  });
+
+  it('owns pointer listeners and selection UI in the editor child document', () => {
+    rectSpy.mockImplementation(function rect(this: HTMLElement) {
+      if (this.classList.contains('cm-line')) {
+        return { ...elementRect(), left: 200, right: 760, width: 560 } as DOMRect;
+      }
+      return elementRect();
+    });
+    const childDocument = document.implementation.createHTMLDocument('detached-markdown-selection');
+    Object.defineProperty(childDocument, 'defaultView', { configurable: true, value: window });
+    const parent = childDocument.createElement('div');
+    childDocument.body.appendChild(parent);
+    const view = new EditorView({
+      parent,
+      state: EditorState.create({
+        doc: 'Alpha\n\nBeta',
+        extensions: [
+          markdown({ base: markdownLanguage }),
+          markdownBlockSelectionPlugin(),
+        ],
+      }),
+    });
+    vi.runOnlyPendingTimers();
+
+    expect(view.dom.ownerDocument).toBe(childDocument);
+    expect(view.dom.querySelector('.cm-markdown-block-selection-layer')?.ownerDocument).toBe(childDocument);
+    fireEvent(view.dom, pointerEvent('pointerdown', 28, 32, 100));
+    fireEvent(view.dom, pointerEvent('pointermove', 28, 100, 100));
+    expect(selectedMarkdownBlocks(view.state).map(block => block.source)).toEqual(['Alpha', 'Beta']);
+
+    view.destroy();
+  });
+
+  it('projects one rounded selection surface over a replacement block widget', () => {
+    rectSpy.mockImplementation(function rect(this: HTMLElement) {
+      if (this.classList.contains('cm-line')
+        || this.classList.contains('cm-table-widget')) {
+        return { ...elementRect(), left: 200, right: 760, width: 560 } as DOMRect;
+      }
+      return elementRect();
+    });
+    const doc = [
+      '| A | B |',
+      '| - | - |',
+      '| 1 | 2 |',
+      '',
+      '```mermaid',
+      'graph TD; A-->B;',
+      '```',
+      '',
+      'After',
+    ].join('\n');
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const view = new EditorView({
+      parent,
+      state: EditorState.create({
+        doc,
+        selection: EditorSelection.cursor(doc.length),
+        extensions: [
+          markdown({ base: markdownLanguage }),
+          tableDecoField,
+          markdownBlockSelectionPlugin(),
+        ],
+      }),
+    });
+    const blocks = collectMarkdownBlocks(view.state);
+    view.dispatch({
+      effects: setMarkdownBlockSelection.of({
+        anchor: blocks[0].from,
+        head: blocks[blocks.length - 1].from,
+      }),
+    });
+    vi.runOnlyPendingTimers();
+
+    expect(view.dom.querySelector('.cm-table-widget')).toBeInstanceOf(HTMLElement);
+    const surfaces = view.dom.querySelectorAll<HTMLElement>('.cm-markdown-block-selection-surface:not([hidden])');
+    expect(surfaces).toHaveLength(1);
+    expect(surfaces[0].style.width).toBe('560px');
+    view.destroy();
+  });
+
+  it('extends a held marquee through offscreen blocks when the editor scrolls', () => {
+    rectSpy.mockImplementation(function rect(this: HTMLElement) {
+      if (this.classList.contains('cm-line')) {
+        return { ...elementRect(), left: 200, right: 760, width: 560 } as DOMRect;
+      }
+      return elementRect();
+    });
+    let scrollLines = 0;
+    posAtCoordsSpy.mockImplementation(function posAtCoords(
+      this: EditorView,
+      coordinates: { x: number; y: number },
+    ) {
+      const lineNumber = Math.min(
+        this.state.doc.lines,
+        Math.max(1, Math.floor(coordinates.y / 32) + scrollLines),
+      );
+      return this.state.doc.line(lineNumber).from;
+    });
+    const { view } = createView(
+      vi.fn<(request: MarkdownBlockMenuRequest) => void>(),
+      'Alpha\n\nBeta\n\nGamma\n\nDelta\n\nEpsilon',
+    );
+
+    fireEvent(view.dom, pointerEvent('pointerdown', 24, 32, 100));
+    fireEvent(view.dom, pointerEvent('pointermove', 24, 100, 100));
+    expect(selectedMarkdownBlocks(view.state).map(block => block.source)).toEqual(['Alpha', 'Beta']);
+
+    scrollLines = 6;
+    fireEvent.scroll(view.scrollDOM);
+    expect(selectedMarkdownBlocks(view.state).map(block => block.source)).toEqual([
+      'Alpha',
+      'Beta',
+      'Gamma',
+      'Delta',
+      'Epsilon',
+    ]);
+
+    fireEvent(view.dom, pointerEvent('pointerup', 24, 100, 100));
+    view.destroy();
+  });
+
+  it('drags a selected block range as one undoable transaction', () => {
+    const { view } = createView();
+    const [alpha, beta] = collectMarkdownBlocks(view.state);
+    view.dispatch({ effects: setMarkdownBlockSelection.of({ anchor: alpha.from, head: beta.from }) });
+    const firstHandle = view.dom.querySelectorAll<HTMLButtonElement>('.cm-markdown-block-handle')[0];
+
+    fireEvent(firstHandle, pointerEvent('pointerdown', 25, 32));
+    fireEvent(firstHandle, pointerEvent('pointermove', 25, 220));
+    expect(view.dom.querySelector('.cm-markdown-block-drag-count')?.textContent).toBe('2');
+    fireEvent(firstHandle, pointerEvent('pointerup', 25, 220));
+
+    expect(view.state.doc.toString()).toBe('Gamma\n\nAlpha\n\nBeta');
+    expect(selectedMarkdownBlocks(view.state).map(block => block.source)).toEqual(['Alpha', 'Beta']);
+    expect(undo(view)).toBe(true);
+    expect(view.state.doc.toString()).toBe('Alpha\n\nBeta\n\nGamma');
+    view.destroy();
+  });
+
   it('moves a translucent text copy while leaving the original block untouched', () => {
     const { view } = createView();
     const firstHandle = view.dom.querySelectorAll<HTMLButtonElement>('.cm-markdown-block-handle')[0];
@@ -172,7 +477,7 @@ describe('markdown block handle rail', () => {
 
   it('centers the handle against the first visible text line', () => {
     coordsSpy.mockImplementation(() => ({ left: 200, right: 400, top: 96, bottom: 120 }));
-    lineBlockSpy.mockImplementation(() => ({ top: 32, height: 40 }) as ReturnType<EditorView['lineBlockAt']>);
+    lineBlockSpy.mockImplementation(() => ({ top: 32, bottom: 72, height: 40 }) as ReturnType<EditorView['lineBlockAt']>);
     const { view } = createView();
     const firstHandle = view.dom.querySelector<HTMLButtonElement>('.cm-markdown-block-handle');
 
@@ -182,7 +487,7 @@ describe('markdown block handle rail', () => {
 
   it('centers the handle on the first visual row when the first logical line wraps', () => {
     coordsSpy.mockImplementation(() => ({ left: 200, right: 400, top: 32, bottom: 56 }));
-    lineBlockSpy.mockImplementation(() => ({ top: 32, height: 72 }) as ReturnType<EditorView['lineBlockAt']>);
+    lineBlockSpy.mockImplementation(() => ({ top: 32, bottom: 104, height: 72 }) as ReturnType<EditorView['lineBlockAt']>);
     lineBoundarySpy.mockImplementation(function boundary(
       this: EditorView,
       start: Parameters<EditorView['moveToLineBoundary']>[0],
@@ -316,7 +621,8 @@ describe('markdown block handle rail', () => {
     });
     lineBlockSpy.mockImplementation(function lineBlock(this: EditorView, pos: number) {
       const line = this.state.doc.lineAt(Math.min(pos, this.state.doc.length));
-      return { top: (line.number * 32) - scrollOffset, height: 24 } as ReturnType<EditorView['lineBlockAt']>;
+      const top = (line.number * 32) - scrollOffset;
+      return { top, bottom: top + 24, height: 24 } as ReturnType<EditorView['lineBlockAt']>;
     });
     const { view } = createView();
     const firstHandle = view.dom.querySelectorAll<HTMLButtonElement>('.cm-markdown-block-handle')[0];
