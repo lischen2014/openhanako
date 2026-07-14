@@ -1,7 +1,19 @@
 import { EditorView, WidgetType, Decoration } from '@codemirror/view';
 import type { DecoRange } from '../md-decorations';
 
-const codeBlockLineDeco = Decoration.line({ class: 'cm-codeblock-line' });
+const codeBlockLineDecos = {
+  middle: Decoration.line({ class: 'cm-codeblock-line' }),
+  first: Decoration.line({ class: 'cm-codeblock-line cm-codeblock-line-first' }),
+  last: Decoration.line({ class: 'cm-codeblock-line cm-codeblock-line-last' }),
+  only: Decoration.line({ class: 'cm-codeblock-line cm-codeblock-line-first cm-codeblock-line-last' }),
+};
+
+function codeBlockLineDeco(isFirst: boolean, isLast: boolean): Decoration {
+  if (isFirst && isLast) return codeBlockLineDecos.only;
+  if (isFirst) return codeBlockLineDecos.first;
+  if (isLast) return codeBlockLineDecos.last;
+  return codeBlockLineDecos.middle;
+}
 
 interface FenceInfo {
   marker: '`' | '~';
@@ -140,7 +152,11 @@ export function handleCodeBlock(ctx: {
   // Add background to every line in the code block
   for (let i = startLine.number; i <= endLine.number; i++) {
     const line = view.state.doc.line(i);
-    ranges.push({ from: line.from, to: line.from, deco: codeBlockLineDeco });
+    ranges.push({
+      from: line.from,
+      to: line.from,
+      deco: codeBlockLineDeco(i === startLine.number, i === endLine.number),
+    });
   }
 
   if (openingFence) {

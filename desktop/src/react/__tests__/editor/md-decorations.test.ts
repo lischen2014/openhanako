@@ -248,6 +248,46 @@ describe('collectLivePreviewRanges', () => {
     view.destroy();
   });
 
+  it('marks the outer edges of quote and code block surfaces', () => {
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const view = new EditorView({
+      parent,
+      state: EditorState.create({
+        doc: [
+          '> first quote line',
+          '> second quote line',
+          '',
+          '```ts',
+          'const x = 1;',
+          'const y = 2;',
+          '```',
+        ].join('\n'),
+        extensions: [
+          markdown({ base: markdownLanguage }),
+          markdownDecoPlugin,
+        ],
+      }),
+    });
+
+    const quoteLines = [...parent.querySelectorAll('.cm-blockquote-line')];
+    const codeLines = [...parent.querySelectorAll('.cm-codeblock-line')];
+
+    expect(quoteLines).toHaveLength(2);
+    expect(quoteLines[0].classList.contains('cm-blockquote-line-first')).toBe(true);
+    expect(quoteLines[0].classList.contains('cm-blockquote-line-last')).toBe(false);
+    expect(quoteLines[1].classList.contains('cm-blockquote-line-last')).toBe(true);
+    expect(quoteLines[1].classList.contains('cm-blockquote-line-first')).toBe(false);
+
+    expect(codeLines).toHaveLength(4);
+    expect(codeLines[0].classList.contains('cm-codeblock-line-first')).toBe(true);
+    expect(codeLines[0].classList.contains('cm-codeblock-line-last')).toBe(false);
+    expect(codeLines.at(-1)?.classList.contains('cm-codeblock-line-last')).toBe(true);
+    expect(codeLines.at(-1)?.classList.contains('cm-codeblock-line-first')).toBe(false);
+
+    view.destroy();
+  });
+
   it('shows a copy button on inactive fenced code blocks in the markdown editor', async () => {
     window.t = ((key: string) => {
       if (key === 'attach.copy') return '复制';
