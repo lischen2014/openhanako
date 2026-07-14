@@ -3460,17 +3460,42 @@ describe("SessionCoordinator", () => {
   it("executeIsolated: resumeSessionPath 存在时 open 续接而非 create，并先修孤儿 toolResult", async () => {
     const resumeFile = path.join(tempDir, "reuse-instance.jsonl");
     fs.writeFileSync(resumeFile, '{"type":"user","content":"hi"}\n');
+    const existingManifest = {
+      sessionId: "sess_resumed_identity",
+      ownerAgentId: "hana",
+      domain: "subagent",
+      kind: "subagent_child",
+      lifecycle: "active",
+      currentLocator: { path: resumeFile },
+    };
+    const sessionManifestStore = {
+      resolveByLocatorPath: vi.fn((candidate) => candidate === resumeFile ? existingManifest : null),
+      getBySessionId: vi.fn((sessionId) => sessionId === existingManifest.sessionId ? existingManifest : null),
+      createForPath: vi.fn(),
+      updateLocatorLifecycle: vi.fn(),
+    };
+    const buildTools = vi.fn((_cwd, customTools, options) => {
+      expect(options.getSessionId()).toBe(existingManifest.sessionId);
+      return { tools: [], customTools };
+    });
     const piSdk = await import("../lib/pi-sdk/index.ts");
     (piSdk.SessionManager.open as any).mockReturnValue({ getCwd: () => tempDir, getSessionFile: () => resumeFile });
     createAgentSessionMock.mockResolvedValue({
       session: { sessionManager: { getSessionFile: () => resumeFile }, subscribe: vi.fn(() => vi.fn()), abort: vi.fn() },
     });
-    const coordinator = new SessionCoordinator(isoDeps());
+    const coordinator = new SessionCoordinator({
+      ...isoDeps(),
+      buildTools,
+      sessionManifestStore,
+    });
     const repairSpy = vi.spyOn(coordinator, "_repairOrphanToolHistory").mockImplementation(() => {});
     await coordinator.executeIsolated("continue task", { resumeSessionPath: resumeFile, persist: tempDir });
     expect(piSdk.SessionManager.open).toHaveBeenCalledWith(resumeFile, tempDir);
     expect(sessionManagerCreateMock).not.toHaveBeenCalled();
     expect(repairSpy).toHaveBeenCalledWith(resumeFile);
+    expect(buildTools).toHaveBeenCalledOnce();
+    expect(sessionManifestStore.createForPath).not.toHaveBeenCalled();
+    expect(sessionManifestStore.updateLocatorLifecycle).not.toHaveBeenCalled();
   });
 
   it("executeIsolated: resume 实例被 abort 不删持久文件（cleanup 保护，对照临时 session 会删）", async () => {
@@ -3487,6 +3512,127 @@ describe("SessionCoordinator", () => {
     vi.spyOn(coordinator, "_repairOrphanToolHistory").mockImplementation(() => {});
     await coordinator.executeIsolated("continue task", { resumeSessionPath: resumeFile, persist: tempDir, signal: controller.signal });
     expect(fs.existsSync(resumeFile)).toBe(true); // 持久实例文件保留（cleanup 保护生效）
+  });
+
+  it("executeIsolated registers a stable identity before building activity tools", async () => {
+    const sessionFile = path.join(tempDir, "heartbeat-identity.jsonl");
+    let manifest = null;
+    const sessionManifestStore = {
+      resolveByLocatorPath: vi.fn((candidate) => manifest?.currentLocator?.path === candidate ? manifest : null),
+      getBySessionId: vi.fn((sessionId) => manifest?.sessionId === sessionId ? manifest : null),
+      createForPath: vi.fn((input) => {
+        manifest = {
+          sessionId: "sess_activity_identity",
+          lifecycle: input.lifecycle,
+          domain: input.domain,
+          kind: input.kind,
+          currentLocator: { path: input.sessionPath },
+        };
+        return manifest;
+      }),
+      updateLocatorLifecycle: vi.fn(),
+    };
+    const agent = {
+      id: "hana",
+      agentDir: tempDir,
+      sessionDir: tempDir,
+      agentName: "Hana",
+      memoryMasterEnabled: true,
+      systemPrompt: "BACKGROUND PROMPT",
+      config: { models: { chat: { id: "default-model", provider: "test" } } },
+      tools: [],
+    };
+    const buildTools = vi.fn((_cwd, customTools, options) => {
+      expect(options.getSessionId()).toBe("sess_activity_identity");
+      expect(options.getAgentId()).toBe("hana");
+      expect(sessionManifestStore.resolveByLocatorPath(sessionFile)?.sessionId)
+        .toBe("sess_activity_identity");
+      return { tools: [], customTools };
+    });
+    sessionManagerCreateMock.mockReturnValue({ getCwd: () => tempDir, getSessionFile: () => sessionFile });
+    createAgentSessionMock.mockResolvedValue({
+      session: {
+        sessionManager: { getSessionFile: () => sessionFile },
+        subscribe: vi.fn(() => vi.fn()),
+        prompt: vi.fn(async () => {}),
+        abort: vi.fn(),
+      },
+    });
+
+    const coordinator = new SessionCoordinator({
+      ...isoDeps(),
+      getAgent: () => agent,
+      getAgentById: () => agent,
+      buildTools,
+      sessionManifestStore,
+    });
+    const result = await coordinator.executeIsolated("background check", {
+      persist: tempDir,
+      activityType: "heartbeat",
+    });
+
+    expect(result.error).toBeNull();
+    expect(sessionManifestStore.createForPath).toHaveBeenCalledWith(expect.objectContaining({
+      sessionPath: sessionFile,
+      ownerAgentId: "hana",
+      domain: "activity",
+      kind: "activity",
+    }));
+  });
+
+  it("executeIsolated tombstones a fresh identity before removing a failed initialization file", async () => {
+    const sessionFile = path.join(tempDir, "heartbeat-build-failure.jsonl");
+    fs.writeFileSync(sessionFile, "", "utf-8");
+    let manifest = null;
+    const sessionManifestStore = {
+      resolveByLocatorPath: vi.fn((candidate) => manifest?.currentLocator?.path === candidate ? manifest : null),
+      getBySessionId: vi.fn(),
+      createForPath: vi.fn((input) => {
+        manifest = {
+          sessionId: "sess_activity_failure",
+          lifecycle: "active",
+          currentLocator: { path: input.sessionPath },
+        };
+        return manifest;
+      }),
+      updateLocatorLifecycle: vi.fn((sessionId, nextPath, lifecycle) => {
+        manifest = { ...manifest, sessionId, lifecycle, currentLocator: { path: nextPath } };
+        return manifest;
+      }),
+    };
+    const agent = {
+      id: "hana",
+      agentDir: tempDir,
+      sessionDir: tempDir,
+      agentName: "Hana",
+      memoryMasterEnabled: true,
+      systemPrompt: "BACKGROUND PROMPT",
+      config: { models: { chat: { id: "default-model", provider: "test" } } },
+      tools: [],
+    };
+    sessionManagerCreateMock.mockReturnValue({ getCwd: () => tempDir, getSessionFile: () => sessionFile });
+    const coordinator = new SessionCoordinator({
+      ...isoDeps(),
+      getAgent: () => agent,
+      getAgentById: () => agent,
+      buildTools: vi.fn(() => { throw new Error("tool assembly failed"); }),
+      sessionManifestStore,
+    });
+
+    const result = await coordinator.executeIsolated("background check", {
+      persist: tempDir,
+      activityType: "heartbeat",
+    });
+
+    expect(result.error).toBe("tool assembly failed");
+    expect(sessionManifestStore.updateLocatorLifecycle).toHaveBeenCalledWith(
+      "sess_activity_failure",
+      sessionFile,
+      "deleted",
+      "isolated_initialization_failed",
+    );
+    expect(fs.existsSync(sessionFile)).toBe(false);
+    expect(createAgentSessionMock).not.toHaveBeenCalled();
   });
 
   it("releases a streaming session immediately when the provider abort never settles", async () => {
