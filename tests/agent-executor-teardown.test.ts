@@ -210,10 +210,11 @@ describe("runAgentSession teardown", () => {
       "plain_custom",
       "search_memory",
     ]);
-    expect((buildTools.mock.calls[0] as any)[2].getSessionRef()).toMatchObject({
+    expect((buildTools.mock.calls[0] as any)[2].runtimeSessionRef).toMatchObject({
       sessionId: "sess_s-master-tools",
       sessionPath: sessionFile,
     });
+    expect((buildTools.mock.calls[0] as any)[2].requireSessionIdentity).toBe(true);
     expect(createAgentSessionMock.mock.calls[0][0].customTools.map((tool) => tool.name)).toContain("search_memory");
   });
 
@@ -256,10 +257,11 @@ describe("runAgentSession teardown", () => {
 
     const buildOpts = (buildTools.mock.calls[0] as any)[2];
     expect(buildOpts!.getPermissionMode()).toBe("read_only");
-    expect(buildOpts!.getSessionRef()).toMatchObject({
+    expect(buildOpts!.runtimeSessionRef).toMatchObject({
       sessionId: "sess_s-read-only-tools",
       sessionPath: sessionFile,
     });
+    expect(buildOpts!.requireSessionIdentity).toBe(true);
     expect(createAgentSessionMock.mock.calls[0][0].tools.map((tool) => tool.name)).toEqual([
       "read",
       "write",
@@ -515,10 +517,11 @@ describe("runAgentSession teardown", () => {
 
     const buildOpts = (buildTools.mock.calls[0] as any)[2];
     expect(buildOpts!.getPermissionMode()).toBe("read_only");
-    expect(buildOpts!.getSessionRef()).toMatchObject({
+    expect(buildOpts!.runtimeSessionRef).toMatchObject({
       sessionId: "sess_phone-tools",
       sessionPath: sessionFile,
     });
+    expect(buildOpts!.requireSessionIdentity).toBe(true);
     expect(createAgentSessionMock.mock.calls[0][0].tools.map((tool) => tool.name)).toEqual([
       "read",
       "write",

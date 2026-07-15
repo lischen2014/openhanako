@@ -107,6 +107,7 @@ import {
   normalizeStringArray,
 } from "./session-prompt-snapshot.ts";
 import { buildTurnInputPresentationEvent } from "../lib/turn-input-presentation.ts";
+import { ensureSessionRefForPath } from "./session-manifest/ref.ts";
 
 const log = createModuleLogger("session");
 const SESSION_META_PAYLOAD_DIR = "session-meta-payloads";
@@ -117,7 +118,6 @@ const REMINDER_HEADER_RE = /^\[hana_reminder at \d{4}-\d{2}-\d{2} \d{2}:\d{2}\]$
 
 /** 巡检/定时任务默认工具白名单（"*" = 与 chat 一致，全部放行） */
 export const PATROL_TOOLS_DEFAULT = "*";
-
 function splitLeadingSessionReminder(text: any) {
   if (typeof text !== "string" || !text.startsWith(`${REMINDER_BLOCK_PREFIX} at `)) return null;
   const firstNewline = text.indexOf("\n");
@@ -5204,7 +5204,7 @@ export class SessionCoordinator {
     if (this._headlessOps.size === 1) bm.setHeadless(true);
     let tempSessionMgr;
     let childSessionPath = null;
-    let isolatedManifest = null;
+    let isolatedManifest = null, isolatedSessionRef = null;
     let isolatedManifestCreated = false;
     let isolatedIdentityPath = null;
     let isolatedInitializationReady = false;
@@ -5215,14 +5215,14 @@ export class SessionCoordinator {
       if (
         isResumedSession
         || !isolatedManifestCreated
-        || !isolatedManifest?.sessionId
+        || !(isolatedManifest?.sessionId || isolatedSessionRef?.sessionId)
         || !this._sessionManifestStore?.updateLocatorLifecycle
       ) return true;
-      const tombstonePath = isolatedManifest.currentLocator?.path || isolatedIdentityPath;
-      if (!tombstonePath || isolatedManifest.lifecycle === "deleted") return true;
+      const tombstonePath = isolatedManifest?.currentLocator?.path || isolatedSessionRef?.sessionPath || isolatedIdentityPath;
+      if (!tombstonePath || isolatedManifest?.lifecycle === "deleted") return true;
       try {
         isolatedManifest = this._sessionManifestStore.updateLocatorLifecycle(
-          isolatedManifest.sessionId,
+          isolatedManifest?.sessionId || isolatedSessionRef.sessionId,
           tombstonePath,
           "deleted",
           reason,
@@ -5321,12 +5321,13 @@ export class SessionCoordinator {
         permissionMode: opts.permissionMode || SESSION_PERMISSION_MODES.OPERATE,
       });
       isolatedIdentityPath = tempSessionMgr?.getSessionFile?.() || null;
-      if (this._sessionManifestStore && !isolatedIdentityPath) {
-        throw new Error("executeIsolated: session locator unavailable before tool assembly");
-      }
-      if (isolatedIdentityPath && this._sessionManifestStore) {
-        const existingManifest = this._resolveSessionManifestForPath(isolatedIdentityPath);
-        isolatedManifest = existingManifest || this._ensureSessionManifestForPath(isolatedIdentityPath, {
+      // Old JSONL sessions can predate manifests. Establishing the ref here backfills
+      // and persists their stable ID before any tool or SDK runtime is assembled.
+      const existingManifest = this._resolveSessionManifestForPath(isolatedIdentityPath);
+      isolatedSessionRef = ensureSessionRefForPath(
+        this._sessionManifestStore,
+        isolatedIdentityPath,
+        {
           ownerAgentId: targetAgent.id || null,
           domain: opts.subagentContext ? "subagent" : "activity",
           kind: opts.subagentContext ? "subagent_child" : "activity",
@@ -5355,13 +5356,16 @@ export class SessionCoordinator {
           },
           migration: {},
           locatorReason: isResumedSession ? "isolated_session_resume" : "isolated_session_create",
-        });
-        isolatedManifestCreated = !existingManifest && !!isolatedManifest;
-        if (!isolatedManifest?.sessionId) {
-          throw new Error("executeIsolated: session manifest could not be established before tool assembly");
-        }
+        },
+      );
+      isolatedManifestCreated = !existingManifest;
+      isolatedManifest = this._resolveSessionManifestForId(isolatedSessionRef.sessionId);
+      if (!isolatedManifest) {
+        throw Object.assign(
+          new Error(`executeIsolated: persisted manifest unavailable after SessionRef backfill (${isolatedSessionRef.sessionId})`),
+          { code: "session_manifest_not_established" },
+        );
       }
-      const isolatedSessionId = isolatedManifest?.sessionId || null;
       const targetAgentToolsSnapshot = typeof targetAgent.getToolsSnapshot === "function"
         ? targetAgent.getToolsSnapshot({
           forceMemoryEnabled: targetAgent.memoryMasterEnabled !== false,
@@ -5380,8 +5384,8 @@ export class SessionCoordinator {
           workspaceFolders: execWorkspaceScope.workspaceFolders,
           authorizedFolders: execFolderScope.authorizedFolders,
           getAuthorizedFolders: () => execFolderScope.authorizedFolders,
-          getSessionPath: () => tempSessionMgr?.getSessionFile?.() || null,
-          getSessionId: () => isolatedSessionId,
+          runtimeSessionRef: isolatedSessionRef,
+          requireSessionIdentity: true,
           agentId: targetAgent.id || null,
           getAgentId: () => targetAgent.id || null,
           fileReadSessionPaths,
@@ -5473,16 +5477,22 @@ export class SessionCoordinator {
 
       childSessionPath = session.sessionManager?.getSessionFile?.() || null;
       if (
-        isolatedManifest?.sessionId
-        && childSessionPath
-        && isolatedManifest.currentLocator?.path !== childSessionPath
-        && this._sessionManifestStore?.updateLocatorLifecycle
+        !childSessionPath
+        || path.resolve(childSessionPath) !== path.resolve(isolatedSessionRef.sessionPath)
       ) {
-        isolatedManifest = this._sessionManifestStore.updateLocatorLifecycle(
-          isolatedManifest.sessionId,
-          childSessionPath,
-          isolatedManifest.lifecycle || "active",
-          "isolated_session_ready",
+        await teardownSessionResources({
+          session,
+          unsub: null,
+          label: "executeIsolated[identity_mismatch]",
+          warn: (msg) => log.warn(msg),
+        });
+        throw Object.assign(
+          new Error(
+            childSessionPath
+              ? "executeIsolated: runtime locator does not match the assembled SessionRef"
+              : "executeIsolated: runtime locator unavailable after SDK assembly",
+          ),
+          { code: childSessionPath ? "session_identity_conflict" : "session_locator_required" },
         );
       }
       isolatedInitializationReady = true;

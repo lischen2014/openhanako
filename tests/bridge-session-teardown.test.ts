@@ -1439,11 +1439,11 @@ describe("BridgeSessionManager teardown", () => {
 
     expect(buildTools).toHaveBeenCalledOnce();
     const buildOpts = (buildTools.mock.calls[0] as any)[2];
-    expect(buildOpts!.getSessionPath()).toBe(mgrPath);
-    expect(buildOpts!.getSessionRef()).toEqual({
+    expect(buildOpts!.runtimeSessionRef).toEqual({
       sessionId: "sess_s-owner-tools",
       sessionPath: mgrPath,
     });
+    expect(buildOpts!.requireSessionIdentity).toBe(true);
   });
 
   it("guest bridge sessions pass canonical off thinking level to the SDK", async () => {

@@ -54,10 +54,32 @@ function makeModels(list = []) {
 }
 
 function makeCoordinator(tempDir, { agentConfig = {}, models = makeModels() } = {}) {
-  sessionManagerCreateMock.mockReturnValue({ getCwd: () => tempDir });
+  const sessionPath = path.join(tempDir, "s.jsonl");
+  let manifest = null;
+  const sessionManifestStore = {
+    resolveByLocatorPath: vi.fn((candidate) => manifest?.currentLocator?.path === candidate ? manifest : null),
+    getBySessionId: vi.fn((sessionId) => manifest?.sessionId === sessionId ? manifest : null),
+    createForPath: vi.fn((input) => {
+      manifest = {
+        ...input,
+        sessionId: "sess_model_test",
+        lifecycle: "active",
+        currentLocator: { path: input.sessionPath },
+      };
+      return manifest;
+    }),
+    updateLocatorLifecycle: vi.fn((sessionId, nextPath, lifecycle) => {
+      manifest = { ...manifest, sessionId, lifecycle, currentLocator: { path: nextPath } };
+      return manifest;
+    }),
+  };
+  sessionManagerCreateMock.mockReturnValue({
+    getCwd: () => tempDir,
+    getSessionFile: () => sessionPath,
+  });
   createAgentSessionMock.mockResolvedValue({
     session: {
-      sessionManager: { getSessionFile: () => path.join(tempDir, "s.jsonl") },
+      sessionManager: { getSessionFile: () => sessionPath },
       subscribe: vi.fn(() => vi.fn()),
       abort: vi.fn(),
     },
@@ -95,6 +117,7 @@ function makeCoordinator(tempDir, { agentConfig = {}, models = makeModels() } = 
       buildSystemPrompt: () => "prompt",
     }),
     listAgents: () => [],
+    sessionManifestStore,
   });
 }
 

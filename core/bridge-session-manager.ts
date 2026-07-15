@@ -1416,8 +1416,8 @@ export class BridgeSessionManager {
       {
         workspace: homeCwd,
         agentDir: agent.agentDir,
-        getSessionPath: () => sessionPathRef.current,
-        getSessionRef: () => opts.sessionRefRef?.current || null,
+        runtimeSessionRef: opts.sessionRefRef?.current || null,
+        requireSessionIdentity: true,
         getPermissionMode: () => bridgePermissionMode,
         allowHumanApproval: false,
         bridgeContext: opts.bridgeContext || null,

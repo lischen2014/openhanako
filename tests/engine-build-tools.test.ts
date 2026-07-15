@@ -16,6 +16,18 @@ describe("HanaEngine.buildTools", () => {
     tmpDir = null;
   });
 
+  it("rejects strict tool assembly without a complete runtime SessionRef", () => {
+    const engine = Object.create(HanaEngine.prototype);
+
+    expect(() => engine.buildTools("/tmp", [], {
+      requireSessionIdentity: true,
+    })).toThrow(expect.objectContaining({ code: "session_manifest_ref_required" }));
+    expect(() => engine.buildTools("/tmp", [], {
+      runtimeSessionRef: { sessionId: "sess_missing_path" },
+      requireSessionIdentity: true,
+    })).toThrow(expect.objectContaining({ code: "session_manifest_ref_required" }));
+  });
+
   it("throws when opts.agentDir points at an unknown agent instead of using focus tools", () => {
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "hana-build-tools-"));
     const focusAgentDir = path.join(tmpDir, "agents", "focus");
@@ -407,7 +419,7 @@ describe("HanaEngine.buildTools", () => {
     );
   });
 
-  it("passes the explicit buildTools SessionRef into agent tool runtime context", async () => {
+  it("freezes and injects the explicit runtime SessionRef into agent tool context", async () => {
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "hana-build-tools-agent-session-"));
     const agentDir = path.join(tmpDir, "agents", "focus");
     const workspace = path.join(tmpDir, "workspace");
@@ -430,10 +442,12 @@ describe("HanaEngine.buildTools", () => {
     const { customTools } = engine.buildTools(workspace, [{ name: "stage_files", execute }], {
       agentDir,
       workspace,
-      getSessionPath: () => sessionPath,
-      getSessionRef: () => sessionRef,
+      runtimeSessionRef: sessionRef,
+      requireSessionIdentity: true,
       getPermissionMode: () => "operate",
     });
+    sessionRef.sessionId = "sess_mutated_after_assembly";
+    sessionRef.sessionPath = path.join(tmpDir, "mutated.jsonl");
 
     await customTools.find((tool) => tool.name === "stage_files").execute("call-1", {}, {});
 
@@ -445,9 +459,11 @@ describe("HanaEngine.buildTools", () => {
       expect.objectContaining({
         sessionId: "sess_phone",
         sessionPath,
-        sessionRef,
+        sessionRef: { sessionId: "sess_phone", sessionPath },
       }),
     );
+    const injectedCtx = (execute.mock.calls[0] as any)[4];
+    expect(Object.isFrozen(injectedCtx.sessionRef)).toBe(true);
   });
 
   it("passes Pi SDK fifth-argument session ctx into plugin tools", async () => {

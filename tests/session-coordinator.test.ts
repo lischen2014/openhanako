@@ -47,6 +47,38 @@ import { SessionManifestStore } from "../core/session-manifest/store.ts";
 
 const PNG_BASE64 = "iVBORw0KGgo=";
 
+function createTestSessionManifestStore() {
+  let nextId = 0;
+  const manifestsByPath = new Map<string, any>();
+  const manifestsById = new Map<string, any>();
+  return {
+    resolveByLocatorPath: vi.fn((sessionPath) => manifestsByPath.get(sessionPath) || null),
+    getBySessionId: vi.fn((sessionId) => manifestsById.get(sessionId) || null),
+    createForPath: vi.fn((input) => {
+      const existing = manifestsByPath.get(input.sessionPath);
+      if (existing) return existing;
+      const manifest = {
+        ...input,
+        sessionId: `sess_test_${++nextId}`,
+        lifecycle: input.lifecycle || "active",
+        currentLocator: { path: input.sessionPath },
+      };
+      manifestsByPath.set(input.sessionPath, manifest);
+      manifestsById.set(manifest.sessionId, manifest);
+      return manifest;
+    }),
+    updateLocatorLifecycle: vi.fn((sessionId, sessionPath, lifecycle) => {
+      const current = manifestsById.get(sessionId);
+      if (!current) return null;
+      if (current.currentLocator?.path) manifestsByPath.delete(current.currentLocator.path);
+      const updated = { ...current, lifecycle, currentLocator: { path: sessionPath } };
+      manifestsByPath.set(sessionPath, updated);
+      manifestsById.set(sessionId, updated);
+      return updated;
+    }),
+  };
+}
+
 describe("SessionCoordinator", () => {
   let tempDir;
 
@@ -3278,6 +3310,7 @@ describe("SessionCoordinator", () => {
       getActivityStore: () => null,
       getAgentById: () => null,
       listAgents: () => [],
+      sessionManifestStore: createTestSessionManifestStore(),
     });
 
     const result = await coordinator.executeIsolated("subagent task", {
@@ -3456,6 +3489,7 @@ describe("SessionCoordinator", () => {
     getActivityStore: () => null,
     getAgentById: () => null,
     listAgents: () => [],
+    sessionManifestStore: createTestSessionManifestStore(),
   });
 
   it("executeIsolated: resumeSessionPath 存在时 open 续接而非 create，并先修孤儿 toolResult", async () => {
@@ -3476,7 +3510,11 @@ describe("SessionCoordinator", () => {
       updateLocatorLifecycle: vi.fn(),
     };
     const buildTools = vi.fn((_cwd, customTools, options) => {
-      expect(options.getSessionId()).toBe(existingManifest.sessionId);
+      expect(options.runtimeSessionRef).toEqual({
+        sessionId: existingManifest.sessionId,
+        sessionPath: resumeFile,
+      });
+      expect(options.requireSessionIdentity).toBe(true);
       return { tools: [], customTools };
     });
     const piSdk = await import("../lib/pi-sdk/index.ts");
@@ -3497,6 +3535,62 @@ describe("SessionCoordinator", () => {
     expect(buildTools).toHaveBeenCalledOnce();
     expect(sessionManifestStore.createForPath).not.toHaveBeenCalled();
     expect(sessionManifestStore.updateLocatorLifecycle).not.toHaveBeenCalled();
+  });
+
+  it("executeIsolated backfills a missing legacy identity once and reuses it", async () => {
+    const resumeFile = path.join(tempDir, "legacy-without-manifest.jsonl");
+    fs.writeFileSync(resumeFile, '{"type":"user","content":"hi"}\n');
+    let manifest = null;
+    const sessionManifestStore = {
+      resolveByLocatorPath: vi.fn((candidate) => (
+        manifest?.currentLocator?.path === candidate ? manifest : null
+      )),
+      getBySessionId: vi.fn((sessionId) => manifest?.sessionId === sessionId ? manifest : null),
+      createForPath: vi.fn((input) => {
+        manifest = {
+          ...input,
+          sessionId: "sess_legacy_backfilled",
+          lifecycle: "active",
+          currentLocator: { path: input.sessionPath },
+        };
+        return manifest;
+      }),
+      updateLocatorLifecycle: vi.fn(),
+    };
+    const assembledRefs = [];
+    const buildTools = vi.fn((_cwd, customTools, options) => {
+      assembledRefs.push(options.runtimeSessionRef);
+      expect(options.requireSessionIdentity).toBe(true);
+      return { tools: [], customTools };
+    });
+    const piSdk = await import("../lib/pi-sdk/index.ts");
+    (piSdk.SessionManager.open as any).mockReturnValue({
+      getCwd: () => tempDir,
+      getSessionFile: () => resumeFile,
+    });
+    createAgentSessionMock.mockResolvedValue({
+      session: {
+        sessionManager: { getSessionFile: () => resumeFile },
+        subscribe: vi.fn(() => vi.fn()),
+        prompt: vi.fn(async () => {}),
+        abort: vi.fn(),
+      },
+    });
+    const coordinator = new SessionCoordinator({
+      ...isoDeps(),
+      buildTools,
+      sessionManifestStore,
+    });
+    vi.spyOn(coordinator, "_repairOrphanToolHistory").mockImplementation(() => {});
+
+    await coordinator.executeIsolated("first run", { resumeSessionPath: resumeFile, persist: tempDir });
+    await coordinator.executeIsolated("second run", { resumeSessionPath: resumeFile, persist: tempDir });
+
+    expect(sessionManifestStore.createForPath).toHaveBeenCalledOnce();
+    expect(assembledRefs).toEqual([
+      { sessionId: "sess_legacy_backfilled", sessionPath: resumeFile },
+      { sessionId: "sess_legacy_backfilled", sessionPath: resumeFile },
+    ]);
   });
 
   it("executeIsolated: resume 实例被 abort 不删持久文件（cleanup 保护，对照临时 session 会删）", async () => {
@@ -3544,7 +3638,11 @@ describe("SessionCoordinator", () => {
       tools: [],
     };
     const buildTools = vi.fn((_cwd, customTools, options) => {
-      expect(options.getSessionId()).toBe("sess_activity_identity");
+      expect(options.runtimeSessionRef).toEqual({
+        sessionId: "sess_activity_identity",
+        sessionPath: sessionFile,
+      });
+      expect(options.requireSessionIdentity).toBe(true);
       expect(options.getAgentId()).toBe("hana");
       expect(sessionManifestStore.resolveByLocatorPath(sessionFile)?.sessionId)
         .toBe("sess_activity_identity");
@@ -3587,7 +3685,7 @@ describe("SessionCoordinator", () => {
     let manifest = null;
     const sessionManifestStore = {
       resolveByLocatorPath: vi.fn((candidate) => manifest?.currentLocator?.path === candidate ? manifest : null),
-      getBySessionId: vi.fn(),
+      getBySessionId: vi.fn((sessionId) => manifest?.sessionId === sessionId ? manifest : null),
       createForPath: vi.fn((input) => {
         manifest = {
           sessionId: "sess_activity_failure",
@@ -3634,6 +3732,32 @@ describe("SessionCoordinator", () => {
     );
     expect(fs.existsSync(sessionFile)).toBe(false);
     expect(createAgentSessionMock).not.toHaveBeenCalled();
+  });
+
+  it("executeIsolated rejects an SDK runtime whose locator differs from the assembled SessionRef", async () => {
+    const identityPath = path.join(tempDir, "identity-before-sdk.jsonl");
+    const runtimePath = path.join(tempDir, "different-runtime.jsonl");
+    const prompt = vi.fn(async () => {});
+    const dispose = vi.fn();
+    sessionManagerCreateMock.mockReturnValue({
+      getCwd: () => tempDir,
+      getSessionFile: () => identityPath,
+    });
+    createAgentSessionMock.mockResolvedValue({
+      session: {
+        sessionManager: { getSessionFile: () => runtimePath },
+        subscribe: vi.fn(() => vi.fn()),
+        prompt,
+        dispose,
+      },
+    });
+    const coordinator = new SessionCoordinator(isoDeps());
+
+    const result = await coordinator.executeIsolated("background check", { persist: tempDir });
+
+    expect(result.error).toMatch(/runtime locator does not match/);
+    expect(prompt).not.toHaveBeenCalled();
+    expect(dispose).toHaveBeenCalledOnce();
   });
 
   it("releases a streaming session immediately when the provider abort never settles", async () => {
@@ -3923,6 +4047,7 @@ describe("SessionCoordinator", () => {
       getActivityStore: () => null,
       getAgentById: () => null,
       listAgents: () => [],
+      sessionManifestStore: createTestSessionManifestStore(),
     });
 
     await coordinator.executeIsolated("background check");
@@ -3996,6 +4121,7 @@ describe("SessionCoordinator", () => {
       getActivityStore: () => null,
       getAgentById: () => null,
       listAgents: () => [],
+      sessionManifestStore: createTestSessionManifestStore(),
     });
 
     try {
@@ -4075,6 +4201,7 @@ describe("SessionCoordinator", () => {
       getAgentById: (agentId) => (agentId === "cold-agent" ? agent : null),
       ensureAgentRuntime,
       listAgents: () => [],
+      sessionManifestStore: createTestSessionManifestStore(),
     });
 
     await coordinator.executeIsolated("background check", { agentId: "cold-agent" });
@@ -4140,6 +4267,7 @@ describe("SessionCoordinator", () => {
       getActivityStore: () => null,
       getAgentById: () => agent,
       listAgents: () => [],
+      sessionManifestStore: createTestSessionManifestStore(),
     });
 
     const result = await coordinator.executeIsolated("background check");
@@ -4211,6 +4339,7 @@ describe("SessionCoordinator", () => {
       getAgentById: () => agent,
       ensureAgentRuntime: async () => agent,
       listAgents: () => [],
+      sessionManifestStore: createTestSessionManifestStore(),
     });
 
     const result = await coordinator.executeIsolated("background check", {
@@ -4289,6 +4418,7 @@ describe("SessionCoordinator", () => {
       getAgentById: () => agent,
       ensureAgentRuntime: async () => agent,
       listAgents: () => [],
+      sessionManifestStore: createTestSessionManifestStore(),
     });
 
     const result = await coordinator.executeIsolated("background check", {
@@ -4447,6 +4577,7 @@ describe("SessionCoordinator", () => {
       getActivityStore: () => null,
       getAgentById: () => agent,
       listAgents: () => [],
+      sessionManifestStore: createTestSessionManifestStore(),
     });
 
     await coordinator.executeIsolated("background check", {
@@ -4460,7 +4591,11 @@ describe("SessionCoordinator", () => {
       expect.objectContaining({
         agentDir: agent.agentDir,
         workspace: inheritedCwd,
-        getSessionPath: expect.any(Function),
+        runtimeSessionRef: {
+          sessionId: expect.any(String),
+          sessionPath: sessionFile,
+        },
+        requireSessionIdentity: true,
         fileReadSessionPaths: [parentSessionPath],
       }),
     );
@@ -4518,6 +4653,7 @@ describe("SessionCoordinator", () => {
       getActivityStore: () => null,
       getAgentById: () => agent,
       listAgents: () => [],
+      sessionManifestStore: createTestSessionManifestStore(),
     });
 
     await coordinator.executeIsolated("background check", {
@@ -4601,6 +4737,7 @@ describe("SessionCoordinator", () => {
       getActivityStore: () => null,
       getAgentById: () => agent,
       listAgents: () => [],
+      sessionManifestStore: createTestSessionManifestStore(),
     });
 
     const result = await coordinator.executeIsolated("background check", {
@@ -4683,6 +4820,7 @@ describe("SessionCoordinator", () => {
       getActivityStore: () => null,
       getAgentById: () => agent,
       listAgents: () => [],
+      sessionManifestStore: createTestSessionManifestStore(),
     });
 
     const result = await coordinator.executeIsolated("background check", {
@@ -4761,6 +4899,7 @@ describe("SessionCoordinator", () => {
       getActivityStore: () => null,
       getAgentById: () => agent,
       listAgents: () => [],
+      sessionManifestStore: createTestSessionManifestStore(),
     });
 
     const result = await coordinator.executeIsolated("background check", {
@@ -4841,6 +4980,7 @@ describe("SessionCoordinator", () => {
       getActivityStore: () => null,
       getAgentById: () => agent,
       listAgents: () => [],
+      sessionManifestStore: createTestSessionManifestStore(),
     });
 
     const result = await coordinator.executeIsolated("write a report", {

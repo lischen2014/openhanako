@@ -627,7 +627,7 @@
     ],
     "version": 2
   },
-  "payloadFingerprint": "sha256:da7570f49ba60c43195c9987cdf591f83291075b6a7060e20f2b3b593e9481c6",
+  "payloadFingerprint": "sha256:14e15fa23777387ae9e2388702808020591a42c668ebb5fc1068d0b4212b4103",
   "registry": [
     {
       "affectedByEpochMigration": true,
@@ -2802,8 +2802,8 @@
   ],
   "review": {
     "classification": "compatible",
-    "compatibilityReason": "Expands legacy session discovery and runtime identity propagation without changing persisted table or file formats.",
-    "payloadFingerprint": "sha256:da7570f49ba60c43195c9987cdf591f83291075b6a7060e20f2b3b593e9481c6"
+    "compatibilityReason": "Backfills legacy session identities before runtime tool assembly without changing persisted fields or file formats.",
+    "payloadFingerprint": "sha256:14e15fa23777387ae9e2388702808020591a42c668ebb5fc1068d0b4212b4103"
   },
   "schemas": [
     {
@@ -3140,7 +3140,7 @@
         {
           "contract": "core/session-coordinator.ts Hana metadata extensions",
           "module": "core/session-coordinator.ts",
-          "sourceHash": "sha256:a84f70426d78297f55b64ea711e2dcac715c3d600cfd8d16d77a4707ca00484c"
+          "sourceHash": "sha256:b5e361eb7c24160330dc278fee95cab0349dcca24c4206121cd3256a4b12ef01"
         },
         {
           "contract": "core/session-jsonl-file.ts repair contract",
@@ -3232,7 +3232,7 @@
       "contract": "bridge index, legacy session metadata, title, and vision sidecar readers",
       "kind": "runtime-contract",
       "module": "core/bridge-session-manager.ts",
-      "sourceHash": "sha256:d5e93a0f35511ecddb04a50b65b4956d27d82dddbd1359682f78a1a8c8f30da9",
+      "sourceHash": "sha256:b683c3a4785e0c6cebe525d785a311f4262341a51d26d3ee4635e19efb1a3ce5",
       "storeId": "session-sidecars"
     },
     {

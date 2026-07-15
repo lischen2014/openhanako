@@ -266,8 +266,8 @@ export async function runAgentSession(agentId, rounds, { engine, signal, session
       const built = ctx.buildTools(cwd, agentToolsSnapshot, {
         agentDir,
         workspace: engine.getHomeCwd(agentId),
-        getSessionPath: () => tempSessionMgr?.getSessionFile?.() || null,
-        getSessionRef: () => sessionRef,
+        runtimeSessionRef: sessionRef,
+        requireSessionIdentity: true,
         getPermissionMode: () => permissionMode,
       });
       tools = built.tools;
@@ -447,8 +447,8 @@ export async function runAgentPhoneSession(agentId, rounds, {
   const built = ctx.buildTools(cwd, agentToolsSnapshot, {
     agentDir,
     workspace: engine.getHomeCwd(agentId),
-    getSessionPath: () => sessionManager?.getSessionFile?.() || null,
-    getSessionRef: () => sessionRef,
+    runtimeSessionRef: sessionRef,
+    requireSessionIdentity: true,
     getPermissionMode: () => phonePermissionMode,
     // 拦截分层（#1614）：标记 conversation surface，read_only 拦截时错误提示
     // 指向"会话设置面板可切换"而非通用 plan 模式提示。
