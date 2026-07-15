@@ -314,6 +314,7 @@ describe('editor typography settings', () => {
     expect(previewCss).toMatch(/--editor-markdown-block-rail-space:\s*36px/);
     expect(highlight).toMatch(/tags\.heading1,\s*fontSize:\s*'var\(--editor-markdown-h1-font-size\)'/);
     expect(highlight).toMatch(/tags\.heading6,\s*fontSize:\s*'var\(--editor-markdown-h6-font-size\)'/);
+    expect(theme).toMatch(/'\.cm-line\.cm-unconfirmed-heading-line \*':\s*\{[\s\S]*fontSize:\s*'var\(--editor-markdown-font-size\)'[\s\S]*fontWeight:\s*'inherit'/);
     expect(previewCss).toMatch(/font-size:\s*var\(--editor-markdown-font-size\)/);
     expect(previewCss).toMatch(/max-width:\s*var\(--editor-markdown-content-width\)/);
     expect(previewCss).toMatch(/margin-left:\s*auto/);

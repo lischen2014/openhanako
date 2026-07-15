@@ -41,6 +41,7 @@ export const markdownImageContextFacet = Facet.define<MarkdownImageContext, Mark
 
 export const hideMark = Decoration.replace({});
 const centerLineDeco = Decoration.line({ class: 'cm-center-line' });
+const unconfirmedHeadingLineDeco = Decoration.line({ class: 'cm-unconfirmed-heading-line' });
 const markDeco = Decoration.mark({ class: 'cm-md-mark' });
 
 class ListBulletWidget extends WidgetType {
@@ -506,10 +507,21 @@ export function buildMarkdownDecorations(view: EditorView): DecorationSet {
       from, to,
       enter(node) {
         const line = view.state.doc.lineAt(node.from);
+        const isUnconfirmedHeading = /^#{1,6}$/.test(line.text);
         // ── 始终渲染，不再由焦点行改变文档外观 ──
         switch (node.name) {
           case 'ATXHeading1':
-            ranges.push({ from: line.from, to: line.from, deco: centerLineDeco });
+            ranges.push({
+              from: line.from,
+              to: line.from,
+              deco: isUnconfirmedHeading ? unconfirmedHeadingLineDeco : centerLineDeco,
+            });
+            return;
+          case 'ATXHeading2': case 'ATXHeading3': case 'ATXHeading4':
+          case 'ATXHeading5': case 'ATXHeading6':
+            if (isUnconfirmedHeading) {
+              ranges.push({ from: line.from, to: line.from, deco: unconfirmedHeadingLineDeco });
+            }
             return;
           case 'HorizontalRule':
             ranges.push({ from: node.from, to: node.to, deco: hrDecoration });
@@ -565,6 +577,7 @@ export function buildMarkdownDecorations(view: EditorView): DecorationSet {
           case 'StrikethroughMark': case 'LinkMark': case 'URL': case 'QuoteMark': {
             let hideTo = node.to;
             if (node.name === 'HeaderMark') {
+              if (isUnconfirmedHeading) break;
               const next = view.state.doc.sliceString(hideTo, hideTo + 1);
               if (next === ' ') hideTo += 1;
             }

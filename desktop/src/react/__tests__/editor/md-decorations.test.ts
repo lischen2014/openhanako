@@ -463,6 +463,100 @@ describe('collectLivePreviewRanges', () => {
 });
 
 describe('markdown syntax reveal lifetime', () => {
+  it('renders one to six bare heading markers as body text without changing hash-prefixed words', () => {
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const view = new EditorView({
+      parent,
+      state: EditorState.create({
+        doc: ['#', '##', '###', '####', '#####', '######', '#标签', '#text'].join('\n'),
+        extensions: [
+          markdown({ base: markdownLanguage }),
+          markdownDecoPlugin,
+        ],
+      }),
+    });
+
+    const lines = [...parent.querySelectorAll('.cm-line')];
+    expect(lines.map(line => line.textContent)).toEqual([
+      '#', '##', '###', '####', '#####', '######', '#标签', '#text',
+    ]);
+    for (const line of lines.slice(0, 6)) {
+      expect(line.classList.contains('cm-unconfirmed-heading-line')).toBe(true);
+      expect(line.classList.contains('cm-center-line')).toBe(false);
+    }
+    for (const line of lines.slice(6)) {
+      expect(line.classList.contains('cm-unconfirmed-heading-line')).toBe(false);
+      expect(line.classList.contains('cm-center-line')).toBe(false);
+    }
+
+    view.destroy();
+  });
+
+  it('keeps bare heading markers visible until space confirms the heading, then reveals them on Backspace', () => {
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const view = new EditorView({
+      parent,
+      state: EditorState.create({
+        doc: '',
+        extensions: [
+          markdown({ base: markdownLanguage }),
+          markdownDecoPlugin,
+        ],
+      }),
+    });
+
+    view.dispatch({
+      changes: { from: 0, insert: '#' },
+      selection: { anchor: 1 },
+      annotations: Transaction.userEvent.of('input.type'),
+    });
+    expect(parent.textContent).toBe('#');
+    expect(parent.querySelector('.cm-line')?.classList.contains('cm-unconfirmed-heading-line')).toBe(true);
+    expect(parent.querySelector('.cm-line')?.classList.contains('cm-center-line')).toBe(false);
+
+    view.dispatch({
+      changes: { from: 1, insert: '#' },
+      selection: { anchor: 2 },
+      annotations: Transaction.userEvent.of('input.type'),
+    });
+    expect(parent.textContent).toBe('##');
+    expect(parent.querySelector('.cm-line')?.classList.contains('cm-unconfirmed-heading-line')).toBe(true);
+
+    view.dispatch({
+      changes: { from: 2, insert: ' ' },
+      selection: { anchor: 3 },
+      annotations: Transaction.userEvent.of('input.type'),
+    });
+    expect(parent.textContent).toBe('');
+    expect(parent.querySelector('.cm-line')?.classList.contains('cm-unconfirmed-heading-line')).toBe(false);
+
+    view.dispatch({
+      changes: { from: 2, to: 3 },
+      selection: { anchor: 2 },
+      annotations: Transaction.userEvent.of('delete.backward'),
+    });
+    expect(parent.textContent).toBe('##');
+    expect(parent.querySelector('.cm-line')?.classList.contains('cm-unconfirmed-heading-line')).toBe(true);
+
+    view.dispatch({
+      changes: { from: 1, to: 2 },
+      selection: { anchor: 1 },
+      annotations: Transaction.userEvent.of('delete.backward'),
+    });
+    expect(parent.textContent).toBe('#');
+
+    view.dispatch({
+      changes: { from: 0, to: 1 },
+      selection: { anchor: 0 },
+      annotations: Transaction.userEvent.of('delete.backward'),
+    });
+    expect(parent.textContent).toBe('');
+
+    view.destroy();
+  });
+
   it('keeps completed marks concealed while leaving an unfinished typed prefix visible', () => {
     const parent = document.createElement('div');
     document.body.appendChild(parent);

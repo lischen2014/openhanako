@@ -42,6 +42,10 @@ export const markdownTheme = EditorView.theme({
   '.cm-line.cm-markdown-cover-line': {
     maxWidth: 'none',
   },
+  '.cm-line.cm-unconfirmed-heading-line *': {
+    fontSize: 'var(--editor-markdown-font-size)',
+    fontWeight: 'inherit',
+  },
   '.cm-activeLine': { backgroundColor: 'transparent' },
   '.cm-activeLineGutter': { backgroundColor: 'transparent' },
   '.cm-cursor': { borderLeftColor: 'var(--text)' },
