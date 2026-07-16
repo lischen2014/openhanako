@@ -3,6 +3,85 @@
   "entries": [
     {
       "schemaVersion": 1,
+      "tag": "v0.407.3",
+      "version": "0.407.3",
+      "previousTag": "v0.403.0",
+      "generatedAt": "2026-07-16T13:17:00.000Z",
+      "noUserFacingChanges": false,
+      "summary": {
+        "zh": "本版在数据版本门禁拦住启动时，补上专用恢复界面与命令行恢复路径：桌面给出双语说明与恢复点信息，CLI 可诊断、列出恢复点并在确认后还原；同时修掉拦截对话框英文行里混进中文的问题。",
+        "en": "When a data-version gate blocks startup, this release adds dedicated recovery surfaces: bilingual desktop dialogs with recovery-point details, plus CLI diagnose / list / confirmed restore; it also fixes Chinese text leaking into the English line of the BLOCKED dialog."
+      },
+      "counts": {
+        "feature": 1,
+        "fix": 1,
+        "improvement": 0,
+        "migration": 0
+      },
+      "source": {
+        "owner": "liliMozi",
+        "repo": "openhanako",
+        "commitRange": "v0.403.0..v0.407.3",
+        "releaseUrl": "https://github.com/liliMozi/openhanako/releases/tag/v0.407.3",
+        "releaseNotes": ""
+      },
+      "items": [
+        {
+          "id": "data-version-recovery-surfaces",
+          "kind": "feature",
+          "importance": "high",
+          "title": {
+            "zh": "数据版本恢复界面与 CLI",
+            "en": "Data-version recovery surfaces and CLI"
+          },
+          "summary": {
+            "zh": "启动被数据版本门禁拦住时，桌面显示专用双语对话框（本机/戳记版本、恢复点是否可用、两条明确出路）；CLI 新增 hana data diagnose、checkpoints、restore，还原需重打确认短语。",
+            "en": "Blocked startups get dedicated bilingual desktop dialogs (own/stamped epoch, recovery-point availability, two clear next steps); CLI adds hana data diagnose, checkpoints, and restore with a typed confirmation phrase."
+          },
+          "details": [],
+          "sources": [
+            {
+              "type": "commit",
+              "ref": "4272857df",
+              "title": "feat: add dedicated data-version recovery surfaces to desktop and CLI"
+            },
+            {
+              "type": "commit",
+              "ref": "3bfecd1f5",
+              "title": "feat(server): add journaled data-epoch restore with guarded stamp republish"
+            },
+            {
+              "type": "commit",
+              "ref": "6edaf9ba1",
+              "title": "feat(server): capture per-store checkpoints before breaking data migrations"
+            }
+          ]
+        },
+        {
+          "id": "blocked-dialog-checkpoint-line-locale",
+          "kind": "fix",
+          "importance": "medium",
+          "title": {
+            "zh": "拦截对话框英文恢复点行不再串中文",
+            "en": "BLOCKED dialog English checkpoint line no longer mixes Chinese"
+          },
+          "summary": {
+            "zh": "英文 “Recovery point available:” 行不再粘上中文短语。",
+            "en": "The English “Recovery point available:” line no longer prefixes the Chinese phrase."
+          },
+          "details": [],
+          "sources": [
+            {
+              "type": "commit",
+              "ref": "59e086c9c",
+              "title": "fix(desktop): stop leaking Chinese text into the BLOCKED dialog's English checkpoint line"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "schemaVersion": 1,
       "tag": "v0.403.0",
       "version": "0.403.0",
       "previousTag": "v0.401.8",

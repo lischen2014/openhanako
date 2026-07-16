@@ -1,130 +1,77 @@
 {
   "schemaVersion": 1,
-  "tag": "v0.403.0",
-  "version": "0.403.0",
-  "previousTag": "v0.401.8",
-  "generatedAt": "2026-07-15T18:18:27.000Z",
+  "tag": "v0.407.3",
+  "version": "0.407.3",
+  "previousTag": "v0.403.0",
+  "generatedAt": "2026-07-16T13:17:00.000Z",
   "noUserFacingChanges": false,
   "summary": {
-    "zh": "本版让 Dreamina 模型与能力随本机 CLI 自动识别，并把完成提醒收成桌面聊天与计划任务/巡检结果两类；同时修复编辑器标题语法与触控 Grabber，以及非会话模型调用的凭证请求头。",
-    "en": "This release discovers Dreamina models from the installed CLI, narrows completion alerts to desktop chats and scheduled/patrol outcomes, and fixes editor heading syntax, touch Grabbers, and credential headers for non-session model calls."
+    "zh": "本版在数据版本门禁拦住启动时，补上专用恢复界面与命令行恢复路径：桌面给出双语说明与恢复点信息，CLI 可诊断、列出恢复点并在确认后还原；同时修掉拦截对话框英文行里混进中文的问题。",
+    "en": "When a data-version gate blocks startup, this release adds dedicated recovery surfaces: bilingual desktop dialogs with recovery-point details, plus CLI diagnose / list / confirmed restore; it also fixes Chinese text leaking into the English line of the BLOCKED dialog."
   },
   "counts": {
-    "feature": 2,
-    "fix": 3,
+    "feature": 1,
+    "fix": 1,
     "improvement": 0,
     "migration": 0
   },
   "source": {
     "owner": "liliMozi",
     "repo": "openhanako",
-    "commitRange": "v0.401.8..v0.403.0",
-    "releaseUrl": "https://github.com/liliMozi/openhanako/releases/tag/v0.403.0",
+    "commitRange": "v0.403.0..v0.407.3",
+    "releaseUrl": "https://github.com/liliMozi/openhanako/releases/tag/v0.407.3",
     "releaseNotes": ""
   },
   "items": [
     {
-      "id": "dreamina-cli-capability-discovery",
+      "id": "data-version-recovery-surfaces",
       "kind": "feature",
       "importance": "high",
       "title": {
-        "zh": "Dreamina CLI 能力发现",
-        "en": "Dreamina CLI capability discovery"
+        "zh": "数据版本恢复界面与 CLI",
+        "en": "Data-version recovery surfaces and CLI"
       },
       "summary": {
-        "zh": "媒体设置里的 Dreamina 模型与约束改为读取本机 CLI，并在回到设置或开始生成时刷新。",
-        "en": "Dreamina models and constraints now follow the installed CLI and refresh when Media settings regain focus or generation starts."
+        "zh": "启动被数据版本门禁拦住时，桌面显示专用双语对话框（本机/戳记版本、恢复点是否可用、两条明确出路）；CLI 新增 hana data diagnose、checkpoints、restore，还原需重打确认短语。",
+        "en": "Blocked startups get dedicated bilingual desktop dialogs (own/stamped epoch, recovery-point availability, two clear next steps); CLI adds hana data diagnose, checkpoints, and restore with a typed confirmation phrase."
       },
       "details": [],
       "sources": [
         {
           "type": "commit",
-          "ref": "284fba7b4",
-          "title": "feat(media): discover Dreamina CLI capabilities at runtime"
-        }
-      ]
-    },
-    {
-      "id": "completion-alert-categories",
-      "kind": "feature",
-      "importance": "high",
-      "title": {
-        "zh": "完成提醒分类收紧",
-        "en": "Narrower completion alert categories"
-      },
-      "summary": {
-        "zh": "成功回合不再一律弹完成提醒；仅桌面聊天，以及计划任务/巡检的汇总结果可以通知。",
-        "en": "Successful turns no longer always fire completion alerts; only desktop chats and aggregate scheduled-task or patrol outcomes can notify."
-      },
-      "details": [],
-      "sources": [
+          "ref": "4272857df",
+          "title": "feat: add dedicated data-version recovery surfaces to desktop and CLI"
+        },
         {
           "type": "commit",
-          "ref": "403bb2775",
-          "title": "feat(notifications): separate completion alert categories"
+          "ref": "3bfecd1f5",
+          "title": "feat(server): add journaled data-epoch restore with guarded stamp republish"
+        },
+        {
+          "type": "commit",
+          "ref": "6edaf9ba1",
+          "title": "feat(server): capture per-store checkpoints before breaking data migrations"
         }
       ]
     },
     {
-      "id": "provider-execution-headers",
+      "id": "blocked-dialog-checkpoint-line-locale",
       "kind": "fix",
       "importance": "medium",
       "title": {
-        "zh": "非会话模型调用统一请求头",
-        "en": "Unified headers for non-session model calls"
+        "zh": "拦截对话框英文恢复点行不再串中文",
+        "en": "BLOCKED dialog English checkpoint line no longer mixes Chinese"
       },
       "summary": {
-        "zh": "辅助视觉、记忆、健康检查等非会话模型调用现在共用同一套带凭证的执行配置，避免漏带协议头或误拒仅靠请求头的凭证。",
-        "en": "Auxiliary vision, memory, health checks, and similar non-session calls now share one credential-aware execution config so protocol headers are not omitted and header-only credentials are not rejected."
+        "zh": "英文 “Recovery point available:” 行不再粘上中文短语。",
+        "en": "The English “Recovery point available:” line no longer prefixes the Chinese phrase."
       },
       "details": [],
       "sources": [
         {
           "type": "commit",
-          "ref": "5ee661892",
-          "title": "fix(models): unify provider execution headers"
-        }
-      ]
-    },
-    {
-      "id": "bare-heading-hashes-visible",
-      "kind": "fix",
-      "importance": "medium",
-      "title": {
-        "zh": "裸标题井号保持可见",
-        "en": "Keep bare heading hashes visible"
-      },
-      "summary": {
-        "zh": "只有 `#` 到 `######`、后面还没有空格的行，会当作普通正文显示，不再被提前藏成标题样式。",
-        "en": "Bare `#` through `######` lines stay visible as body text until a space confirms a heading."
-      },
-      "details": [],
-      "sources": [
-        {
-          "type": "commit",
-          "ref": "889f7ec0f",
-          "title": "fix(editor): keep bare heading hashes visible"
-        }
-      ]
-    },
-    {
-      "id": "touch-grabber-focused-block",
-      "kind": "fix",
-      "importance": "medium",
-      "title": {
-        "zh": "触控 Grabber 只跟焦点块",
-        "en": "Touch Grabbers follow the focused block"
-      },
-      "summary": {
-        "zh": "触控设备上只显示当前焦点块的 Grabber；仅点击打开的块菜单不再替换原先悬停的节点。",
-        "en": "Touch surfaces show only the focused block’s Grabber, and click-only block menus no longer replace the hovered node."
-      },
-      "details": [],
-      "sources": [
-        {
-          "type": "commit",
-          "ref": "3862f8482",
-          "title": "fix(editor): scope touch Grabbers to the focused block"
+          "ref": "59e086c9c",
+          "title": "fix(desktop): stop leaking Chinese text into the BLOCKED dialog's English checkpoint line"
         }
       ]
     }
