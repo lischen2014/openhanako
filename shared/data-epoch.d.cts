@@ -83,3 +83,41 @@ export function describeDataEpochBlock(args: {
   ownEpoch: number;
   stampLastVersion: string | null;
 }): string;
+
+export const DATA_EPOCH_RESTORE_JOURNAL_SCHEMA_VERSION: 1;
+
+export type DataEpochRestoreJournalPhase =
+  | "restore:starting"
+  | "restore:stores_restored"
+  | "restore:metadata_republished";
+
+export const DATA_EPOCH_RESTORE_JOURNAL_PHASES: readonly DataEpochRestoreJournalPhase[];
+
+export interface DataEpochRestoreJournal {
+  kind: "restore";
+  restoreSchemaVersion: 1;
+  restoreId: string;
+  transitionId: string;
+  fromEpoch: number;
+  phase: DataEpochRestoreJournalPhase;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export function readDataEpochRestoreJournal(homeDir: string): DataEpochReadResult<DataEpochRestoreJournal, "journal">;
+export function createDataEpochRestoreJournal(input: {
+  restoreId: string;
+  transitionId: string;
+  fromEpoch: number;
+  phase: DataEpochRestoreJournalPhase;
+  createdAt?: string;
+  updatedAt?: string;
+}): DataEpochRestoreJournal;
+export function writeDataEpochRestoreJournal(homeDir: string, input: Parameters<typeof createDataEpochRestoreJournal>[0]): Promise<DataEpochRestoreJournal>;
+
+export function republishDataEpochStampForRestore(args: {
+  homeDir: string;
+  fromEpoch: number;
+  lastVersion: string;
+  updatedAt?: string;
+}): Promise<DataEpochStamp & { schemaVersion: 2; lastVersion: string; updatedAt: string }>;

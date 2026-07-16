@@ -105,6 +105,7 @@ import { resolveHanakoHome } from "../shared/hana-runtime-paths.ts";
 import { DATA_EPOCH } from "../shared/contract-versions.cjs";
 import { describeForeignServerBlock, isForeignServerBlocking, probeServerInfo } from "../shared/server-info-probe.cjs";
 import { coordinateDataEpochStartup, describeDataEpochStartupBlock } from "../core/data-epoch-coordinator.ts";
+import { createDataEpochCheckpointProvider } from "../core/data-epoch-checkpoint-provider.ts";
 // internal-browser WS is handled directly via raw ws.WebSocketServer in the
 // upgrade handler below (WsTransport needs raw ws .on()/.off() methods)
 import { ConfirmStore } from "../lib/confirm-store.ts";
@@ -310,6 +311,12 @@ try {
     ownVersion: appVersion,
     allowDowngrade: allowDataDowngrade,
     log: { warn: (msg: string) => console.warn(msg) },
+    // DATA_EPOCH is pinned at 1, so production never actually runs a
+    // transition today — this injection only makes sure the checkpoint
+    // provider is wired in, rather than absent, the day DATA_EPOCH first
+    // bumps (an absent provider fails closed with
+    // "checkpoint-provider-unavailable"; this makes that dead branch live).
+    checkpointProvider: createDataEpochCheckpointProvider(),
   });
   if (epochResult.allowed === false) {
     console.error(describeDataEpochStartupBlock(epochResult));

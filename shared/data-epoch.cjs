@@ -345,6 +345,144 @@ async function removeDataEpochJournal(homeDir) {
   return true;
 }
 
+// ---------------------------------------------------------------------------
+// Restore journal + guarded stamp republish.
+//
+// A restore is the only path in this codebase allowed to lower the epoch
+// stamp. It writes its own journal shape to the SAME on-disk path as the
+// forward transition journal (dataEpochJournalPath) but under a distinct
+// `kind`/`restoreSchemaVersion` pair that deliberately does not satisfy
+// readDataEpochJournal's schema — any kernel (old or new) that inspects the
+// journal through the forward reader sees `status: "corrupt"` and fails
+// closed, exactly the same way it already fails closed on any other
+// unrecognized journal shape (see "rejects malformed or unknown journal
+// phases instead of guessing" in tests/data-epoch.test.ts). That is
+// intentional: while a restore is mid-flight, ordinary startup must refuse
+// rather than guess. Only core/data-epoch-restore.ts, reading through
+// readDataEpochRestoreJournal, understands this shape and can resume or
+// complete it.
+// ---------------------------------------------------------------------------
+
+const DATA_EPOCH_RESTORE_JOURNAL_SCHEMA_VERSION = 1;
+const DATA_EPOCH_RESTORE_JOURNAL_PHASES = Object.freeze([
+  "restore:starting",
+  "restore:stores_restored",
+  "restore:metadata_republished",
+]);
+
+function restoreJournalValidationProblem(value) {
+  if (value.kind !== "restore") return 'restore journal requires kind "restore"';
+  if (value.restoreSchemaVersion !== DATA_EPOCH_RESTORE_JOURNAL_SCHEMA_VERSION) {
+    return `unsupported restore journal restoreSchemaVersion: ${String(value.restoreSchemaVersion)}`;
+  }
+  if (typeof value.restoreId !== "string" || value.restoreId.length === 0) {
+    return "restore journal requires a non-empty restoreId";
+  }
+  if (typeof value.transitionId !== "string" || value.transitionId.length === 0) {
+    return "restore journal requires a non-empty transitionId";
+  }
+  if (!isPositiveInteger(value.fromEpoch)) {
+    return "restore journal requires a positive integer fromEpoch";
+  }
+  if (!DATA_EPOCH_RESTORE_JOURNAL_PHASES.includes(value.phase)) {
+    return `invalid restore journal phase: ${String(value.phase)}`;
+  }
+  if (!isTimestamp(value.createdAt) || !isTimestamp(value.updatedAt)) {
+    return "restore journal requires valid timestamps";
+  }
+  return null;
+}
+
+/**
+ * Reads the on-disk transition journal as a restore-phase journal. This is a
+ * distinct shape from readDataEpochJournal's forward-transition journal even
+ * though both live at dataEpochJournalPath — a file holding a forward
+ * journal (or anything else that isn't a restore journal) reads back here as
+ * `status: "corrupt"`, the mirror image of how a restore journal reads back
+ * as `status: "corrupt"` through readDataEpochJournal. Callers that need to
+ * tell "genuinely corrupt" apart from "it's the other kind of journal" must
+ * consult both readers, exactly as core/data-epoch-restore.ts does.
+ */
+function readDataEpochRestoreJournal(homeDir) {
+  const filePath = dataEpochJournalPath(homeDir);
+  const read = readJsonFile(filePath);
+  if (read.status !== "present") return read;
+
+  const value = read.value;
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return corrupt(filePath, "transition journal must be a JSON object");
+  }
+  const problem = restoreJournalValidationProblem(value);
+  if (problem !== null) return corrupt(filePath, problem);
+
+  return {
+    status: "ok",
+    filePath,
+    journal: {
+      kind: "restore",
+      restoreSchemaVersion: DATA_EPOCH_RESTORE_JOURNAL_SCHEMA_VERSION,
+      restoreId: value.restoreId,
+      transitionId: value.transitionId,
+      fromEpoch: value.fromEpoch,
+      phase: value.phase,
+      createdAt: value.createdAt,
+      updatedAt: value.updatedAt,
+    },
+  };
+}
+
+function createDataEpochRestoreJournal(input) {
+  const now = input.updatedAt ?? new Date().toISOString();
+  const journal = {
+    kind: "restore",
+    restoreSchemaVersion: DATA_EPOCH_RESTORE_JOURNAL_SCHEMA_VERSION,
+    restoreId: input.restoreId,
+    transitionId: input.transitionId,
+    fromEpoch: input.fromEpoch,
+    phase: input.phase,
+    createdAt: input.createdAt ?? now,
+    updatedAt: now,
+  };
+  const problem = restoreJournalValidationProblem(journal);
+  if (problem !== null) throw new Error(problem);
+  return journal;
+}
+
+async function writeDataEpochRestoreJournal(homeDir, input) {
+  const journal = createDataEpochRestoreJournal(input);
+  await durableWriteJson(dataEpochJournalPath(homeDir), journal);
+  return journal;
+}
+
+/**
+ * The sole channel in this codebase allowed to write a lower epoch stamp.
+ * Every other write path (writeDataEpochStamp, and the coordinator's
+ * --allow-data-downgrade override, which only ever *accepts* an existing
+ * lower stamp — it never writes one) can only hold or raise the stamp. This
+ * function's hard precondition is proof, read fresh off disk, that a restore
+ * transaction which has already finished restoring store bytes is in
+ * progress; without that journal in place it throws and writes nothing.
+ */
+async function republishDataEpochStampForRestore({ homeDir, fromEpoch, lastVersion, updatedAt } = {}) {
+  const restoreJournalRead = readDataEpochRestoreJournal(homeDir);
+  const restorePhasesAllowingRepublish = ["restore:stores_restored", "restore:metadata_republished"];
+  if (restoreJournalRead.status !== "ok" || !restorePhasesAllowingRepublish.includes(restoreJournalRead.journal.phase)) {
+    throw new Error(
+      "republishDataEpochStampForRestore requires an on-disk restore journal that has finished restoring store "
+      + "bytes; this is the only channel allowed to lower the data epoch stamp",
+    );
+  }
+  if (restoreJournalRead.journal.fromEpoch !== fromEpoch) {
+    throw new Error(
+      `republishDataEpochStampForRestore: the restore journal targets fromEpoch=${restoreJournalRead.journal.fromEpoch}, `
+      + `but was called with fromEpoch=${String(fromEpoch)}`,
+    );
+  }
+  const stamp = createDataEpochStamp({ minimumReaderEpoch: fromEpoch, committedDataEpoch: fromEpoch, lastVersion, updatedAt });
+  await durableWriteJson(dataEpochStampPath(homeDir), stamp);
+  return stamp;
+}
+
 function describeDataEpochBlock({ stampEpoch, ownEpoch, stampLastVersion }) {
   const lastVersionNote = stampLastVersion ? ` (last opened by version ${stampLastVersion})` : "";
   return (
@@ -373,4 +511,10 @@ module.exports = {
   writeDataEpochJournal,
   removeDataEpochJournal,
   describeDataEpochBlock,
+  DATA_EPOCH_RESTORE_JOURNAL_SCHEMA_VERSION,
+  DATA_EPOCH_RESTORE_JOURNAL_PHASES,
+  readDataEpochRestoreJournal,
+  createDataEpochRestoreJournal,
+  writeDataEpochRestoreJournal,
+  republishDataEpochStampForRestore,
 };

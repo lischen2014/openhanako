@@ -420,6 +420,43 @@
       "exemption": null
     },
     {
+      "id": "data-epoch-restore-quarantine",
+      "ownerModule": "core/data-epoch-restore.ts",
+      "pathPattern": "data-epoch-restore-quarantine/{restoreId}/**",
+      "pathPatterns": [
+        "data-epoch-restore-quarantine/{restoreId}/**",
+        "data-epoch-restores.log"
+      ],
+      "pathExclusions": [],
+      "pathKind": "tree",
+      "format": "mixed-directory",
+      "schemaSource": {
+        "kind": "runtime-contract",
+        "module": "core/data-epoch-restore.ts",
+        "contract": "restore quarantine layout, restore-receipt.json schema, and append-only data-epoch-restores.log line shape"
+      },
+      "schemaContract": {
+        "kind": "runtime-source",
+        "source": "core/data-epoch-restore.ts",
+        "compatibility": "The named runtime reader is canonical; this inventory does not imply stricter validation than runtime currently performs."
+      },
+      "openEntry": [
+        "restoreDataEpochCheckpoint"
+      ],
+      "migrationEntry": [],
+      "protocolModules": [],
+      "firstPossibleOpenPhase": "epoch_transition",
+      "firstPossibleWritePhase": "epoch_transition",
+      "epochPolicy": "compatible",
+      "checkpointPolicy": "Excluded from epoch checkpoints; this store only ever holds the output of an already-completed restore, never an affected store's forward-transition input.",
+      "restorePolicy": "Never restored; quarantined bytes are historical evidence retained for manual forensic recovery, not replayed automatically by any restore.",
+      "affectedByEpochMigration": false,
+      "bootstrapSafety": null,
+      "preCoordinatorReadProjection": null,
+      "identityContract": "restoreId identifies one restore transaction's quarantined bytes for one canonical HANA_HOME; data-epoch-restores.log is one shared append-only audit trail across every restore for that home.",
+      "exemption": null
+    },
+    {
       "id": "data-epoch-stamp",
       "ownerModule": "shared/data-epoch.cjs",
       "pathPattern": "data-epoch.json",
@@ -2622,6 +2659,69 @@
       "excerpt": "fs.promises.rm(entry.dir, { recursive: true, force: true })",
       "reason": "Captures, verifies, or prunes data epoch transition checkpoints.",
       "storeId": "data-epoch-checkpoints",
+      "exemptionId": null
+    },
+    {
+      "sourceFile": "core/data-epoch-restore.ts",
+      "line": 301,
+      "kind": "mkdir",
+      "excerpt": "fs.promises.mkdir(path.dirname(destination), { recursive: true })",
+      "reason": "Quarantines pre-restore bytes, copies back checkpointed bytes, and records the restore audit trail.",
+      "storeId": "data-epoch-restore-quarantine",
+      "exemptionId": null
+    },
+    {
+      "sourceFile": "core/data-epoch-restore.ts",
+      "line": 302,
+      "kind": "rename",
+      "excerpt": "fs.promises.rename(file.absPath, destination)",
+      "reason": "Quarantines pre-restore bytes, copies back checkpointed bytes, and records the restore audit trail.",
+      "storeId": "data-epoch-restore-quarantine",
+      "exemptionId": null
+    },
+    {
+      "sourceFile": "core/data-epoch-restore.ts",
+      "line": 309,
+      "kind": "mkdir",
+      "excerpt": "fs.promises.mkdir(path.dirname(destination), { recursive: true })",
+      "reason": "Quarantines pre-restore bytes, copies back checkpointed bytes, and records the restore audit trail.",
+      "storeId": "data-epoch-restore-quarantine",
+      "exemptionId": null
+    },
+    {
+      "sourceFile": "core/data-epoch-restore.ts",
+      "line": 310,
+      "kind": "copy-file",
+      "excerpt": "fs.promises.copyFile(source, destination)",
+      "reason": "Quarantines pre-restore bytes, copies back checkpointed bytes, and records the restore audit trail.",
+      "storeId": "data-epoch-restore-quarantine",
+      "exemptionId": null
+    },
+    {
+      "sourceFile": "core/data-epoch-restore.ts",
+      "line": 544,
+      "kind": "mkdir",
+      "excerpt": "fs.promises.mkdir(path.dirname(logPath), { recursive: true })",
+      "reason": "Quarantines pre-restore bytes, copies back checkpointed bytes, and records the restore audit trail.",
+      "storeId": "data-epoch-restore-quarantine",
+      "exemptionId": null
+    },
+    {
+      "sourceFile": "core/data-epoch-restore.ts",
+      "line": 545,
+      "kind": "append-file",
+      "excerpt": "fs.promises.appendFile(logPath, `${JSON.stringify(receipt)}\\n`, \"utf8\")",
+      "reason": "Quarantines pre-restore bytes, copies back checkpointed bytes, and records the restore audit trail.",
+      "storeId": "data-epoch-restore-quarantine",
+      "exemptionId": null
+    },
+    {
+      "sourceFile": "core/data-epoch-restore.ts",
+      "line": 546,
+      "kind": "atomic-write",
+      "excerpt": "durableWriteJson(receiptPath, receipt)",
+      "reason": "Quarantines pre-restore bytes, copies back checkpointed bytes, and records the restore audit trail.",
+      "storeId": "data-epoch-restore-quarantine",
       "exemptionId": null
     },
     {
@@ -7549,7 +7649,7 @@
     },
     {
       "sourceFile": "server/index.ts",
-      "line": 297,
+      "line": 298,
       "kind": "remove-path",
       "excerpt": "fs.unlinkSync(serverInfoPath)",
       "reason": "Writes or deletes live server discovery state.",
@@ -7558,7 +7658,7 @@
     },
     {
       "sourceFile": "server/index.ts",
-      "line": 445,
+      "line": 452,
       "kind": "persistent-store-constructor",
       "excerpt": "new DeferredResultStore( hub.eventBus, path.join(hanakoHome, \".ephemeral\", \"deferred-tasks.json\"), { getSessionIdForPath: (sessionPath: string) => engine.getSessionIdForPath?.(sessionPath) || null }, )",
       "reason": "Constructs the deferred result store.",
@@ -7567,7 +7667,7 @@
     },
     {
       "sourceFile": "server/index.ts",
-      "line": 645,
+      "line": 652,
       "kind": "persistent-store-constructor",
       "excerpt": "new ConfirmStore({ getSessionIdForPath: (sessionPath: string) => engine.getSessionIdForPath?.(sessionPath) || null, })",
       "reason": "ConfirmStore is deliberately process-memory-only: pending approvals time out or abort with their session and have no restart replay contract.",
@@ -7576,7 +7676,7 @@
     },
     {
       "sourceFile": "server/index.ts",
-      "line": 650,
+      "line": 657,
       "kind": "persistent-store-constructor",
       "excerpt": "new SubagentRunStore( path.join(hanakoHome, \"subagent-runs.json\"), { getSessionIdForPath: (sessionPath: string) => engine.getSessionIdForPath?.(sessionPath) || null }, )",
       "reason": "Constructs subagent stores.",
@@ -7585,7 +7685,7 @@
     },
     {
       "sourceFile": "server/index.ts",
-      "line": 656,
+      "line": 663,
       "kind": "persistent-store-constructor",
       "excerpt": "new SubagentThreadStore( path.join(hanakoHome, \"subagent-threads.json\"), { getSessionIdForPath: (sessionPath: string) => engine.getSessionIdForPath?.(sessionPath) || null }, )",
       "reason": "Constructs subagent stores.",
@@ -7594,7 +7694,7 @@
     },
     {
       "sourceFile": "server/index.ts",
-      "line": 667,
+      "line": 674,
       "kind": "persistent-store-constructor",
       "excerpt": "new WorkflowActivityStore( path.join(hanakoHome, \"workflow-activity.json\"), )",
       "reason": "Constructs the workflow activity store.",
@@ -7603,7 +7703,7 @@
     },
     {
       "sourceFile": "server/index.ts",
-      "line": 1139,
+      "line": 1146,
       "kind": "append-file",
       "excerpt": "fs.promises.appendFile(_bwsLogPath, chunk)",
       "reason": "Appends the browser worker log.",
@@ -7612,7 +7712,7 @@
     },
     {
       "sourceFile": "server/index.ts",
-      "line": 1198,
+      "line": 1205,
       "kind": "write-file",
       "excerpt": "fs.writeFileSync(serverInfoPath, JSON.stringify({ pid: process.pid, port: actualPort, host, configuredHost: serverRuntimeState.listenHost, networkMode: serverRuntimeState.mode, configuredMode: serverRuntimeState.configuredMode, configuredLi",
       "reason": "Writes or deletes live server discovery state.",
@@ -7621,7 +7721,7 @@
     },
     {
       "sourceFile": "server/index.ts",
-      "line": 1296,
+      "line": 1303,
       "kind": "remove-path",
       "excerpt": "fs.unlinkSync(path.join(hanakoHome, \"server-info.json\"))",
       "reason": "Writes or deletes live server discovery state.",
@@ -8661,6 +8761,24 @@
       "excerpt": "fs.promises.unlink(filePath)",
       "reason": "Removes only a proven committed transition journal tail.",
       "storeId": "data-epoch-transition-journal",
+      "exemptionId": null
+    },
+    {
+      "sourceFile": "shared/data-epoch.cjs",
+      "line": 453,
+      "kind": "atomic-write",
+      "excerpt": "durableWriteJson(dataEpochJournalPath(homeDir), journal)",
+      "reason": "Atomically writes the data epoch transition journal.",
+      "storeId": "data-epoch-transition-journal",
+      "exemptionId": null
+    },
+    {
+      "sourceFile": "shared/data-epoch.cjs",
+      "line": 482,
+      "kind": "atomic-write",
+      "excerpt": "durableWriteJson(dataEpochStampPath(homeDir), stamp)",
+      "reason": "Atomically writes the DATA_EPOCH coordinator stamp.",
+      "storeId": "data-epoch-stamp",
       "exemptionId": null
     },
     {

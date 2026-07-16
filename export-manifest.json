@@ -34,6 +34,7 @@
     "core/computer-use/providers/windows-uia-script.ts",
     "core/computer-use/settings.ts",
     "core/config-coordinator.ts",
+    "core/data-epoch-checkpoint-provider.ts",
     "core/data-epoch-coordinator.ts",
     "core/data-epoch-migrations.ts",
     "core/device-registry.ts",

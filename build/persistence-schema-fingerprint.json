@@ -627,7 +627,7 @@
     ],
     "version": 2
   },
-  "payloadFingerprint": "sha256:80be3b55a6ee3964547fbf0493d0091a6e8809e64a565cc9d94293cc34cca86c",
+  "payloadFingerprint": "sha256:33c0e9e7ff98dbd0f4acf4ca7343efd74060897566fe647f85f4f13dc9fca972",
   "registry": [
     {
       "affectedByEpochMigration": true,
@@ -1000,6 +1000,43 @@
         "contract": "checkpoint metadata.json layout, per-store capture strategy, and verify byte/sha256 reconciliation",
         "kind": "runtime-contract",
         "module": "core/data-epoch-checkpoint-provider.ts"
+      }
+    },
+    {
+      "affectedByEpochMigration": false,
+      "bootstrapSafety": null,
+      "checkpointPolicy": "Excluded from epoch checkpoints; this store only ever holds the output of an already-completed restore, never an affected store's forward-transition input.",
+      "epochPolicy": "compatible",
+      "exemption": null,
+      "firstPossibleOpenPhase": "epoch_transition",
+      "firstPossibleWritePhase": "epoch_transition",
+      "format": "mixed-directory",
+      "id": "data-epoch-restore-quarantine",
+      "identityContract": "restoreId identifies one restore transaction's quarantined bytes for one canonical HANA_HOME; data-epoch-restores.log is one shared append-only audit trail across every restore for that home.",
+      "migrationEntry": [],
+      "openEntry": [
+        "restoreDataEpochCheckpoint"
+      ],
+      "ownerModule": "core/data-epoch-restore.ts",
+      "pathExclusions": [],
+      "pathKind": "tree",
+      "pathPattern": "data-epoch-restore-quarantine/{restoreId}/**",
+      "pathPatterns": [
+        "data-epoch-restore-quarantine/{restoreId}/**",
+        "data-epoch-restores.log"
+      ],
+      "preCoordinatorReadProjection": null,
+      "protocolModules": [],
+      "restorePolicy": "Never restored; quarantined bytes are historical evidence retained for manual forensic recovery, not replayed automatically by any restore.",
+      "schemaContract": {
+        "compatibility": "The named runtime reader is canonical; this inventory does not imply stricter validation than runtime currently performs.",
+        "kind": "runtime-source",
+        "source": "core/data-epoch-restore.ts"
+      },
+      "schemaSource": {
+        "contract": "restore quarantine layout, restore-receipt.json schema, and append-only data-epoch-restores.log line shape",
+        "kind": "runtime-contract",
+        "module": "core/data-epoch-restore.ts"
       }
     },
     {
@@ -2839,8 +2876,8 @@
   ],
   "review": {
     "classification": "compatible",
-    "compatibilityReason": "Adds the data-epoch-checkpoints store descriptor and its owning provider module; every existing store's on-disk format and schema contract is unchanged.",
-    "payloadFingerprint": "sha256:80be3b55a6ee3964547fbf0493d0091a6e8809e64a565cc9d94293cc34cca86c"
+    "compatibilityReason": "Additive only: introduces a new data-epoch-restore-quarantine store (owner core/data-epoch-restore.ts) plus a distinct restore-phase journal shape written to the existing transition-journal path. Older kernels that do not understand the new restore journal shape encounter it through the existing, unchanged forward-journal validation in shared/data-epoch.cjs (readDataEpochJournal), which already fails closed on any unrecognized phase/shape -- so an old kernel sees an in-progress restore journal as corrupt-journal and refuses ordinary startup, the same safe direction it already takes for any other malformed journal. No existing store's on-disk shape, schema source, or reader contract changes; DATA_EPOCH stays at 1.",
+    "payloadFingerprint": "sha256:33c0e9e7ff98dbd0f4acf4ca7343efd74060897566fe647f85f4f13dc9fca972"
   },
   "schemas": [
     {
@@ -2954,10 +2991,17 @@
       "storeId": "data-epoch-checkpoints"
     },
     {
+      "contract": "restore quarantine layout, restore-receipt.json schema, and append-only data-epoch-restores.log line shape",
+      "kind": "runtime-contract",
+      "module": "core/data-epoch-restore.ts",
+      "sourceHash": "sha256:399d31b16c09240727c9936059d253cf27e34312d14e96c3ceb24cd3d666fdb0",
+      "storeId": "data-epoch-restore-quarantine"
+    },
+    {
       "contract": "DATA_EPOCH stamp parser and atomic writer",
       "kind": "runtime-contract",
       "module": "shared/data-epoch.cjs",
-      "sourceHash": "sha256:7a5b788e58d5f8ff9a09bd0520c6777b7eb6af1e29ab78d3ec6b0f56012f4614",
+      "sourceHash": "sha256:3b30685f891b9321e68efde0970ec941bb77e5cbe58d4d380c20f23d2b59d916",
       "storeId": "data-epoch-stamp"
     },
     {
@@ -2974,7 +3018,7 @@
           "sourceHash": "sha256:f029751febc9e97a1786dac99390ff409efb0cc8f226085fc396537b66b1d933"
         }
       ],
-      "sourceHash": "sha256:7a5b788e58d5f8ff9a09bd0520c6777b7eb6af1e29ab78d3ec6b0f56012f4614",
+      "sourceHash": "sha256:3b30685f891b9321e68efde0970ec941bb77e5cbe58d4d380c20f23d2b59d916",
       "storeId": "data-epoch-transition-journal"
     },
     {
@@ -3162,7 +3206,7 @@
       "contract": "server-info writer and desktop bootstrap reader",
       "kind": "runtime-contract",
       "module": "server/index.ts",
-      "sourceHash": "sha256:6c98e4f6d56245745142b7deb0c1715ba3fbf8557293db0521af6db93ea87554",
+      "sourceHash": "sha256:cda708e162c76a30489fda3c68ae78b5556b1e2c1ca0789b4f32d833b2246f36",
       "storeId": "server-runtime-info"
     },
     {
@@ -3692,6 +3736,62 @@
       "reason": "Captures, verifies, or prunes data epoch transition checkpoints.",
       "sourceFile": "core/data-epoch-checkpoint-provider.ts",
       "storeId": "data-epoch-checkpoints"
+    },
+    {
+      "exemptionId": null,
+      "kind": "mkdir",
+      "line": 301,
+      "reason": "Quarantines pre-restore bytes, copies back checkpointed bytes, and records the restore audit trail.",
+      "sourceFile": "core/data-epoch-restore.ts",
+      "storeId": "data-epoch-restore-quarantine"
+    },
+    {
+      "exemptionId": null,
+      "kind": "rename",
+      "line": 302,
+      "reason": "Quarantines pre-restore bytes, copies back checkpointed bytes, and records the restore audit trail.",
+      "sourceFile": "core/data-epoch-restore.ts",
+      "storeId": "data-epoch-restore-quarantine"
+    },
+    {
+      "exemptionId": null,
+      "kind": "mkdir",
+      "line": 309,
+      "reason": "Quarantines pre-restore bytes, copies back checkpointed bytes, and records the restore audit trail.",
+      "sourceFile": "core/data-epoch-restore.ts",
+      "storeId": "data-epoch-restore-quarantine"
+    },
+    {
+      "exemptionId": null,
+      "kind": "copy-file",
+      "line": 310,
+      "reason": "Quarantines pre-restore bytes, copies back checkpointed bytes, and records the restore audit trail.",
+      "sourceFile": "core/data-epoch-restore.ts",
+      "storeId": "data-epoch-restore-quarantine"
+    },
+    {
+      "exemptionId": null,
+      "kind": "mkdir",
+      "line": 544,
+      "reason": "Quarantines pre-restore bytes, copies back checkpointed bytes, and records the restore audit trail.",
+      "sourceFile": "core/data-epoch-restore.ts",
+      "storeId": "data-epoch-restore-quarantine"
+    },
+    {
+      "exemptionId": null,
+      "kind": "append-file",
+      "line": 545,
+      "reason": "Quarantines pre-restore bytes, copies back checkpointed bytes, and records the restore audit trail.",
+      "sourceFile": "core/data-epoch-restore.ts",
+      "storeId": "data-epoch-restore-quarantine"
+    },
+    {
+      "exemptionId": null,
+      "kind": "atomic-write",
+      "line": 546,
+      "reason": "Quarantines pre-restore bytes, copies back checkpointed bytes, and records the restore audit trail.",
+      "sourceFile": "core/data-epoch-restore.ts",
+      "storeId": "data-epoch-restore-quarantine"
     },
     {
       "exemptionId": null,
@@ -8072,7 +8172,7 @@
     {
       "exemptionId": null,
       "kind": "remove-path",
-      "line": 297,
+      "line": 298,
       "reason": "Writes or deletes live server discovery state.",
       "sourceFile": "server/index.ts",
       "storeId": "server-runtime-info"
@@ -8080,7 +8180,7 @@
     {
       "exemptionId": null,
       "kind": "persistent-store-constructor",
-      "line": 445,
+      "line": 452,
       "reason": "Constructs the deferred result store.",
       "sourceFile": "server/index.ts",
       "storeId": "deferred-result-state"
@@ -8088,7 +8188,7 @@
     {
       "exemptionId": "in-memory-confirm-registry",
       "kind": "persistent-store-constructor",
-      "line": 645,
+      "line": 652,
       "reason": "ConfirmStore is deliberately process-memory-only: pending approvals time out or abort with their session and have no restart replay contract.",
       "sourceFile": "server/index.ts",
       "storeId": null
@@ -8096,7 +8196,7 @@
     {
       "exemptionId": null,
       "kind": "persistent-store-constructor",
-      "line": 650,
+      "line": 657,
       "reason": "Constructs subagent stores.",
       "sourceFile": "server/index.ts",
       "storeId": "subagent-state"
@@ -8104,7 +8204,7 @@
     {
       "exemptionId": null,
       "kind": "persistent-store-constructor",
-      "line": 656,
+      "line": 663,
       "reason": "Constructs subagent stores.",
       "sourceFile": "server/index.ts",
       "storeId": "subagent-state"
@@ -8112,7 +8212,7 @@
     {
       "exemptionId": null,
       "kind": "persistent-store-constructor",
-      "line": 667,
+      "line": 674,
       "reason": "Constructs the workflow activity store.",
       "sourceFile": "server/index.ts",
       "storeId": "workflow-state"
@@ -8120,7 +8220,7 @@
     {
       "exemptionId": null,
       "kind": "append-file",
-      "line": 1139,
+      "line": 1146,
       "reason": "Appends the browser worker log.",
       "sourceFile": "server/index.ts",
       "storeId": "runtime-diagnostics"
@@ -8128,7 +8228,7 @@
     {
       "exemptionId": null,
       "kind": "write-file",
-      "line": 1198,
+      "line": 1205,
       "reason": "Writes or deletes live server discovery state.",
       "sourceFile": "server/index.ts",
       "storeId": "server-runtime-info"
@@ -8136,7 +8236,7 @@
     {
       "exemptionId": null,
       "kind": "remove-path",
-      "line": 1296,
+      "line": 1303,
       "reason": "Writes or deletes live server discovery state.",
       "sourceFile": "server/index.ts",
       "storeId": "server-runtime-info"
@@ -9060,6 +9160,22 @@
       "reason": "Removes only a proven committed transition journal tail.",
       "sourceFile": "shared/data-epoch.cjs",
       "storeId": "data-epoch-transition-journal"
+    },
+    {
+      "exemptionId": null,
+      "kind": "atomic-write",
+      "line": 453,
+      "reason": "Atomically writes the data epoch transition journal.",
+      "sourceFile": "shared/data-epoch.cjs",
+      "storeId": "data-epoch-transition-journal"
+    },
+    {
+      "exemptionId": null,
+      "kind": "atomic-write",
+      "line": 482,
+      "reason": "Atomically writes the DATA_EPOCH coordinator stamp.",
+      "sourceFile": "shared/data-epoch.cjs",
+      "storeId": "data-epoch-stamp"
     },
     {
       "exemptionId": "external-default-workspace",

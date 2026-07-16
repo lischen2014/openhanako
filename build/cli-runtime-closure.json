@@ -580,6 +580,18 @@
       "reason": "Reached via esbuild source module graph, imported by core/engine.ts (import-statement)."
     },
     {
+      "path": "core/data-epoch-checkpoint-provider.ts",
+      "inputType": "source-graph",
+      "provenance": [
+        {
+          "root": "server-bootstrap",
+          "from": "server/index.ts",
+          "kind": "import-statement"
+        }
+      ],
+      "reason": "Reached via esbuild source module graph, imported by server/index.ts (import-statement)."
+    },
+    {
       "path": "core/data-epoch-coordinator.ts",
       "inputType": "source-graph",
       "provenance": [
@@ -110298,9 +110310,14 @@
           "root": "server-bootstrap",
           "from": "core/data-epoch-coordinator.ts",
           "kind": "import-statement"
+        },
+        {
+          "root": "server-bootstrap",
+          "from": "core/data-epoch-checkpoint-provider.ts",
+          "kind": "import-statement"
         }
       ],
-      "reason": "Reached via esbuild source module graph, imported by core/data-epoch-coordinator.ts (import-statement)."
+      "reason": "Reached via esbuild source module graph, imported by core/data-epoch-coordinator.ts (import-statement); core/data-epoch-checkpoint-provider.ts (import-statement)."
     },
     {
       "path": "shared/default-workspace-constants.ts",
@@ -111016,9 +111033,14 @@
           "root": "server-bootstrap",
           "from": "core/data-epoch-coordinator.ts",
           "kind": "import-statement"
+        },
+        {
+          "root": "server-bootstrap",
+          "from": "core/data-epoch-checkpoint-provider.ts",
+          "kind": "import-statement"
         }
       ],
-      "reason": "Reached via esbuild source module graph, imported by core/data-epoch-coordinator.ts (import-statement)."
+      "reason": "Reached via esbuild source module graph, imported by core/data-epoch-coordinator.ts (import-statement); core/data-epoch-checkpoint-provider.ts (import-statement)."
     },
     {
       "path": "shared/preview-reading-position.ts",
@@ -111917,9 +111939,9 @@
     }
   ],
   "stats": {
-    "totalFiles": 9605,
+    "totalFiles": 9606,
     "byInputType": {
-      "source-graph": 626,
+      "source-graph": 627,
       "runtime-asset": 11,
       "nft-runtime-trace": 8968
     }
