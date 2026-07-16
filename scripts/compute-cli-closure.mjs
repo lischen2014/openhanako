@@ -949,6 +949,7 @@ export const CLOSED_PRODUCT_PATTERNS = Object.freeze([
     note: "The closed-source desktop UI's unified message-submission entry point for local input and bridge takeover -- product surface, not generic host capability.",
   },
   { pattern: /^lib\/character-cards\//, note: "Implements the closed-source character-card content system." },
+  { pattern: /^lib\/desk\//, note: "Implements the closed-source desk product surface (named as closed product experience by the split classification principles)." },
   { pattern: /^desktop\/src\/react\//, note: "The renderer's React application bundle -- the closed-source desktop UI implementation." },
   { pattern: /^desktop\/(index\.html|src\/main\.tsx)$/, note: "The renderer's own HTML/entry files." },
   {

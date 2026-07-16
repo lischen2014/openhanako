@@ -4,6 +4,27 @@
   "sourceClosure": "build/cli-runtime-closure.json",
   "edges": [
     {
+      "from": "core/agent-manager.ts",
+      "to": "lib/desk/activity-store.ts",
+      "provenance": "server-bootstrap:import-statement",
+      "classification": "closed-product",
+      "note": "Implements the closed-source desk product surface (named as closed product experience by the split classification principles)."
+    },
+    {
+      "from": "core/agent.ts",
+      "to": "lib/desk/cron-store.ts",
+      "provenance": "server-bootstrap:import-statement",
+      "classification": "closed-product",
+      "note": "Implements the closed-source desk product surface (named as closed product experience by the split classification principles)."
+    },
+    {
+      "from": "core/agent.ts",
+      "to": "lib/desk/desk-manager.ts",
+      "provenance": "server-bootstrap:import-statement",
+      "classification": "closed-product",
+      "note": "Implements the closed-source desk product surface (named as closed product experience by the split classification principles)."
+    },
+    {
       "from": "core/engine.ts",
       "to": "core/current-turn-native-media.ts",
       "provenance": "server-bootstrap:import-statement",
@@ -53,11 +74,25 @@
       "note": "The closed-source desktop UI's unified message-submission entry point for local input and bridge takeover -- product surface, not generic host capability."
     },
     {
+      "from": "core/migrations.ts",
+      "to": "lib/desk/automation-normalizer.ts",
+      "provenance": "server-bootstrap:import-statement",
+      "classification": "closed-product",
+      "note": "Implements the closed-source desk product surface (named as closed product experience by the split classification principles)."
+    },
+    {
       "from": "core/session-turn-actions.ts",
       "to": "core/desktop-session-submit.ts",
       "provenance": "server-bootstrap:import-statement",
       "classification": "closed-product",
       "note": "The closed-source desktop UI's unified message-submission entry point for local input and bridge takeover -- product surface, not generic host capability."
+    },
+    {
+      "from": "core/studio-cron-service.ts",
+      "to": "lib/desk/cron-store.ts",
+      "provenance": "server-bootstrap:import-statement",
+      "classification": "closed-product",
+      "note": "Implements the closed-source desk product surface (named as closed product experience by the split classification principles)."
     },
     {
       "from": "desktop/src/shared/theme-registry.cjs",
@@ -74,11 +109,53 @@
       "note": "The closed-source desktop UI's unified message-submission entry point for local input and bridge takeover -- product surface, not generic host capability."
     },
     {
+      "from": "hub/scheduler.ts",
+      "to": "lib/desk/automation-executors.ts",
+      "provenance": "server-bootstrap:import-statement",
+      "classification": "closed-product",
+      "note": "Implements the closed-source desk product surface (named as closed product experience by the split classification principles)."
+    },
+    {
+      "from": "hub/scheduler.ts",
+      "to": "lib/desk/cron-scheduler.ts",
+      "provenance": "server-bootstrap:import-statement",
+      "classification": "closed-product",
+      "note": "Implements the closed-source desk product surface (named as closed product experience by the split classification principles)."
+    },
+    {
+      "from": "hub/scheduler.ts",
+      "to": "lib/desk/heartbeat.ts",
+      "provenance": "server-bootstrap:import-statement",
+      "classification": "closed-product",
+      "note": "Implements the closed-source desk product surface (named as closed product experience by the split classification principles)."
+    },
+    {
+      "from": "lib/desk/automation-normalizer.ts",
+      "to": "lib/desk/agent-run-automation.ts",
+      "provenance": "server-bootstrap:import-statement",
+      "classification": "closed-product",
+      "note": "Implements the closed-source desk product surface (named as closed product experience by the split classification principles)."
+    },
+    {
+      "from": "lib/desk/cron-store.ts",
+      "to": "lib/desk/automation-normalizer.ts",
+      "provenance": "server-bootstrap:import-statement",
+      "classification": "closed-product",
+      "note": "Implements the closed-source desk product surface (named as closed product experience by the split classification principles)."
+    },
+    {
       "from": "lib/session-collab/delivery.ts",
       "to": "core/desktop-session-submit.ts",
       "provenance": "server-bootstrap:import-statement",
       "classification": "closed-product",
       "note": "The closed-source desktop UI's unified message-submission entry point for local input and bridge takeover -- product surface, not generic host capability."
+    },
+    {
+      "from": "lib/tools/automation-tool.ts",
+      "to": "lib/desk/agent-run-automation.ts",
+      "provenance": "server-bootstrap:import-statement",
+      "classification": "closed-product",
+      "note": "Implements the closed-source desk product surface (named as closed product experience by the split classification principles)."
     },
     {
       "from": "lib/tools/update-settings-tool.ts",
@@ -313,6 +390,13 @@
     },
     {
       "from": "server/routes/desk.ts",
+      "to": "lib/desk/activity-store.ts",
+      "provenance": "server-bootstrap:import-statement",
+      "classification": "closed-product",
+      "note": "Implements the closed-source desk product surface (named as closed product experience by the split classification principles)."
+    },
+    {
+      "from": "server/routes/desk.ts",
       "to": "plugins/beautify/lib/cover-gallery-assets.ts",
       "provenance": "server-bootstrap:import-statement",
       "classification": "closed-content",
@@ -401,13 +485,13 @@
     }
   ],
   "stats": {
-    "totalEdges": 50,
+    "totalEdges": 62,
     "byClassification": {
-      "closed-product": 13,
+      "closed-product": 25,
       "closed-content": 31,
       "provisional": 3,
       "evidence-needed": 3
     },
-    "uniqueCoupledFiles": 32
+    "uniqueCoupledFiles": 40
   }
 }
