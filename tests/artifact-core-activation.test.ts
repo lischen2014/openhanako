@@ -26,6 +26,7 @@ const {
   clearSentinel,
   consecutiveFailures,
   sha256File,
+  renameWithBusyRetry,
 } = activationModule as {
   activateFromArchive: (archivePath: string, manifest: any, opts: any) => Promise<any>;
   resolveBoot: (channel: string, homeDir: string) => Promise<{ slot: string; pointer: any } | null>;
@@ -33,6 +34,11 @@ const {
   clearSentinel: (homeDir: string, channel: string) => Promise<void>;
   consecutiveFailures: (homeDir: string, channel: string) => Promise<number>;
   sha256File: (filePath: string) => Promise<string>;
+  renameWithBusyRetry: (
+    from: string,
+    to: string,
+    opts?: { rename?: (from: string, to: string) => Promise<void>; sleep?: (ms: number) => Promise<void>; platform?: string },
+  ) => Promise<void>;
 };
 
 const tempDirs: string[] = [];
@@ -545,5 +551,106 @@ describe("activation: crash sentinel helpers", () => {
     await clearSentinel(homeDir, "beta");
     expect(await consecutiveFailures(homeDir, "stable")).toBe(1);
     expect(await consecutiveFailures(homeDir, "beta")).toBe(0);
+  });
+});
+
+describe("activation: renameWithBusyRetry", () => {
+  function fakeSleep() {
+    const delays: number[] = [];
+    const sleep = async (ms: number) => {
+      delays.push(ms);
+    };
+    return { sleep, delays };
+  }
+
+  function failNTimesThenSucceed(n: number, code: string) {
+    let calls = 0;
+    const rename = async (_from: string, _to: string) => {
+      calls += 1;
+      if (calls <= n) {
+        const err: any = new Error(`simulated ${code} on rename attempt ${calls}`);
+        err.code = code;
+        throw err;
+      }
+    };
+    return { rename, callCount: () => calls };
+  }
+
+  it("matrix #1 — non-win32: single call, original error rethrown as-is, zero retries and zero delay", async () => {
+    const { sleep, delays } = fakeSleep();
+    const { rename, callCount } = failNTimesThenSucceed(Infinity, "EPERM");
+
+    await expect(
+      renameWithBusyRetry("/from", "/to", { rename, sleep, platform: "darwin" }),
+    ).rejects.toThrow(/simulated EPERM on rename attempt 1/);
+
+    expect(callCount()).toBe(1);
+    expect(delays).toEqual([]);
+  });
+
+  it("matrix #2 — win32 + retryable code (EBUSY): retries with the default backoff sequence until it succeeds", async () => {
+    const { sleep, delays } = fakeSleep();
+    const { rename, callCount } = failNTimesThenSucceed(3, "EBUSY");
+
+    await expect(
+      renameWithBusyRetry("/from", "/to", { rename, sleep, platform: "win32" }),
+    ).resolves.toBeUndefined();
+
+    expect(callCount()).toBe(4); // 3 failures + 1 success
+    expect(delays).toEqual([100, 250, 500]);
+  });
+
+  it("matrix #3 — win32 but non-retryable code (ENOENT): rethrows immediately, no retry consumed", async () => {
+    const { sleep, delays } = fakeSleep();
+    const { rename, callCount } = failNTimesThenSucceed(Infinity, "ENOENT");
+
+    await expect(
+      renameWithBusyRetry("/from", "/to", { rename, sleep, platform: "win32" }),
+    ).rejects.toThrow(/simulated ENOENT on rename attempt 1/);
+
+    expect(callCount()).toBe(1);
+    expect(delays).toEqual([]);
+  });
+
+  it("matrix #4 — win32, retry budget exhausted: rethrows the last error unmodified after 8 attempts / ~15.9s of backoff", async () => {
+    const { sleep, delays } = fakeSleep();
+    const { rename, callCount } = failNTimesThenSucceed(Infinity, "EPERM");
+
+    await expect(
+      renameWithBusyRetry("/from", "/to", { rename, sleep, platform: "win32" }),
+    ).rejects.toThrow(/simulated EPERM on rename attempt 8/);
+
+    expect(callCount()).toBe(8);
+    expect(delays).toEqual([100, 250, 500, 1000, 2000, 4000, 8000]);
+    expect(delays.reduce((a, b) => a + b, 0)).toBe(15850);
+  });
+
+  it("matrix #5 — no module-level mutable state: two independent calls do not share retry/backoff progress", async () => {
+    const first = failNTimesThenSucceed(2, "EACCES");
+    const second = failNTimesThenSucceed(2, "EACCES");
+    const firstSleep = fakeSleep();
+    const secondSleep = fakeSleep();
+
+    // Run two retrying activations "concurrently" — if attempt count or
+    // backoff position lived on the module instead of in each call's own
+    // closure, interleaving would corrupt one or both sequences.
+    await Promise.all([
+      renameWithBusyRetry("/from-1", "/to-1", { rename: first.rename, sleep: firstSleep.sleep, platform: "win32" }),
+      renameWithBusyRetry("/from-2", "/to-2", { rename: second.rename, sleep: secondSleep.sleep, platform: "win32" }),
+    ]);
+
+    expect(first.callCount()).toBe(3);
+    expect(second.callCount()).toBe(3);
+    expect(firstSleep.delays).toEqual([100, 250]);
+    expect(secondSleep.delays).toEqual([100, 250]);
+
+    // A prior call's failures must not leak into a fresh call's attempt
+    // counter: a brand-new call still gets the full default budget.
+    const third = failNTimesThenSucceed(Infinity, "EPERM");
+    const thirdSleep = fakeSleep();
+    await expect(
+      renameWithBusyRetry("/from-3", "/to-3", { rename: third.rename, sleep: thirdSleep.sleep, platform: "win32" }),
+    ).rejects.toThrow(/simulated EPERM on rename attempt 8/);
+    expect(third.callCount()).toBe(8);
   });
 });

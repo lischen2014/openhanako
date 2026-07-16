@@ -8252,43 +8252,7 @@
     },
     {
       "sourceFile": "shared/artifact-core/activation.cjs",
-      "line": 164,
-      "kind": "rename",
-      "excerpt": "fsp.rename(tmpDir, versionedDir)",
-      "reason": "Writes, deletes, or repairs signed artifact activation and OTA state.",
-      "storeId": "signed-artifacts",
-      "exemptionId": null
-    },
-    {
-      "sourceFile": "shared/artifact-core/activation.cjs",
-      "line": 169,
-      "kind": "rename",
-      "excerpt": "fsp.rename(versionedDir, oldDir)",
-      "reason": "Writes, deletes, or repairs signed artifact activation and OTA state.",
-      "storeId": "signed-artifacts",
-      "exemptionId": null
-    },
-    {
-      "sourceFile": "shared/artifact-core/activation.cjs",
-      "line": 171,
-      "kind": "rename",
-      "excerpt": "fsp.rename(tmpDir, versionedDir)",
-      "reason": "Writes, deletes, or repairs signed artifact activation and OTA state.",
-      "storeId": "signed-artifacts",
-      "exemptionId": null
-    },
-    {
-      "sourceFile": "shared/artifact-core/activation.cjs",
-      "line": 174,
-      "kind": "rename",
-      "excerpt": "fsp.rename(oldDir, versionedDir)",
-      "reason": "Writes, deletes, or repairs signed artifact activation and OTA state.",
-      "storeId": "signed-artifacts",
-      "exemptionId": null
-    },
-    {
-      "sourceFile": "shared/artifact-core/activation.cjs",
-      "line": 191,
+      "line": 247,
       "kind": "remove-path",
       "excerpt": "fsp.rm(oldDir, { recursive: true, force: true })",
       "reason": "Writes, deletes, or repairs signed artifact activation and OTA state.",
@@ -8297,7 +8261,7 @@
     },
     {
       "sourceFile": "shared/artifact-core/activation.cjs",
-      "line": 307,
+      "line": 363,
       "kind": "atomic-write",
       "excerpt": "pointerStore.atomicWriteJson(path.join(tmpDir, \".verified\"), receipt)",
       "reason": "Writes, deletes, or repairs signed artifact activation and OTA state.",
@@ -8306,7 +8270,7 @@
     },
     {
       "sourceFile": "shared/artifact-core/activation.cjs",
-      "line": 324,
+      "line": 380,
       "kind": "remove-path",
       "excerpt": "fsp.rm(tmpDir, { recursive: true, force: true })",
       "reason": "Writes, deletes, or repairs signed artifact activation and OTA state.",
@@ -8315,7 +8279,7 @@
     },
     {
       "sourceFile": "shared/artifact-core/activation.cjs",
-      "line": 395,
+      "line": 451,
       "kind": "atomic-write",
       "excerpt": "pointerStore.atomicWriteJson(filePath, value)",
       "reason": "Writes, deletes, or repairs signed artifact activation and OTA state.",
@@ -8324,7 +8288,7 @@
     },
     {
       "sourceFile": "shared/artifact-core/activation.cjs",
-      "line": 405,
+      "line": 461,
       "kind": "remove-path",
       "excerpt": "fsp.unlink(sentinelPath(homeDir, channel))",
       "reason": "Writes, deletes, or repairs signed artifact activation and OTA state.",

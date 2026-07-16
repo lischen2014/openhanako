@@ -627,7 +627,7 @@
     ],
     "version": 2
   },
-  "payloadFingerprint": "sha256:c010fea7e5ad958ce28e44f4bb082679062836eefcb1bbe60bdc2359278c37d4",
+  "payloadFingerprint": "sha256:7d69cd8d53aa4f22773d6f48f896706f293509029bc922ba79578e2580d2b606",
   "registry": [
     {
       "affectedByEpochMigration": true,
@@ -2876,8 +2876,8 @@
   ],
   "review": {
     "classification": "compatible",
-    "compatibilityReason": "Fix: split the bilingual BLOCKED-dialog checkpoint-availability line into distinct zh/en strings (previous text mixed both languages into the English line); this only shifts desktop/main.cjs's existing persistence site line numbers by one.",
-    "payloadFingerprint": "sha256:c010fea7e5ad958ce28e44f4bb082679062836eefcb1bbe60bdc2359278c37d4"
+    "compatibilityReason": "Fix: wrap the artifact directory-swap renames in a bounded win32 busy-retry helper (antivirus/indexer file handles transiently block directory renames on Windows); no persisted format changes — the swap's rename sites are now inside the helper and other activation.cjs site line numbers shifted.",
+    "payloadFingerprint": "sha256:7d69cd8d53aa4f22773d6f48f896706f293509029bc922ba79578e2580d2b606"
   },
   "schemas": [
     {
@@ -8707,40 +8707,8 @@
     },
     {
       "exemptionId": null,
-      "kind": "rename",
-      "line": 164,
-      "reason": "Writes, deletes, or repairs signed artifact activation and OTA state.",
-      "sourceFile": "shared/artifact-core/activation.cjs",
-      "storeId": "signed-artifacts"
-    },
-    {
-      "exemptionId": null,
-      "kind": "rename",
-      "line": 169,
-      "reason": "Writes, deletes, or repairs signed artifact activation and OTA state.",
-      "sourceFile": "shared/artifact-core/activation.cjs",
-      "storeId": "signed-artifacts"
-    },
-    {
-      "exemptionId": null,
-      "kind": "rename",
-      "line": 171,
-      "reason": "Writes, deletes, or repairs signed artifact activation and OTA state.",
-      "sourceFile": "shared/artifact-core/activation.cjs",
-      "storeId": "signed-artifacts"
-    },
-    {
-      "exemptionId": null,
-      "kind": "rename",
-      "line": 174,
-      "reason": "Writes, deletes, or repairs signed artifact activation and OTA state.",
-      "sourceFile": "shared/artifact-core/activation.cjs",
-      "storeId": "signed-artifacts"
-    },
-    {
-      "exemptionId": null,
       "kind": "remove-path",
-      "line": 191,
+      "line": 247,
       "reason": "Writes, deletes, or repairs signed artifact activation and OTA state.",
       "sourceFile": "shared/artifact-core/activation.cjs",
       "storeId": "signed-artifacts"
@@ -8748,7 +8716,7 @@
     {
       "exemptionId": null,
       "kind": "atomic-write",
-      "line": 307,
+      "line": 363,
       "reason": "Writes, deletes, or repairs signed artifact activation and OTA state.",
       "sourceFile": "shared/artifact-core/activation.cjs",
       "storeId": "signed-artifacts"
@@ -8756,7 +8724,7 @@
     {
       "exemptionId": null,
       "kind": "remove-path",
-      "line": 324,
+      "line": 380,
       "reason": "Writes, deletes, or repairs signed artifact activation and OTA state.",
       "sourceFile": "shared/artifact-core/activation.cjs",
       "storeId": "signed-artifacts"
@@ -8764,7 +8732,7 @@
     {
       "exemptionId": null,
       "kind": "atomic-write",
-      "line": 395,
+      "line": 451,
       "reason": "Writes, deletes, or repairs signed artifact activation and OTA state.",
       "sourceFile": "shared/artifact-core/activation.cjs",
       "storeId": "signed-artifacts"
@@ -8772,7 +8740,7 @@
     {
       "exemptionId": null,
       "kind": "remove-path",
-      "line": 405,
+      "line": 461,
       "reason": "Writes, deletes, or repairs signed artifact activation and OTA state.",
       "sourceFile": "shared/artifact-core/activation.cjs",
       "storeId": "signed-artifacts"

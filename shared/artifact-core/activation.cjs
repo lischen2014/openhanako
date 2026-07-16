@@ -143,6 +143,62 @@ async function findProtectingPointers(homeDir, targetDir) {
   return matches;
 }
 
+// On Windows, antivirus real-time scanning or the built-in search indexer
+// can hold a handle open on a file inside a directory tree without granting
+// FILE_SHARE_DELETE — and freshly extracted files (hundreds of them landing
+// on disk at once) are exactly what those scanners/indexers reach for next.
+// Renaming a directory while any file inside it is held that way fails with
+// EPERM/EACCES/EBUSY. The lock is transient: it clears once the scanner
+// finishes with the file, so a bounded retry with backoff turns what would
+// otherwise be an immediate startup crash into an invisible wait.
+const WIN32_RENAME_RETRYABLE_CODES = new Set(["EPERM", "EACCES", "EBUSY"]);
+const WIN32_RENAME_RETRY_DELAYS_MS = [100, 250, 500, 1000, 2000, 4000, 8000];
+
+function defaultRenameRetrySleep(ms) {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
+/**
+ * `fsp.rename`, but on win32 a transient EPERM/EACCES/EBUSY is retried with
+ * bounded backoff instead of propagating immediately (see the constants
+ * above for why: a directory tree just written by `ustar.extract` is the
+ * prime target for antivirus/indexer file handles). On every other
+ * platform, and for every other error code even on win32, this is a single
+ * passthrough call — no retry, no delay, original error rethrown as-is.
+ * Holds no state of its own between calls; `opts` exists only so tests can
+ * inject a fake `rename`/`sleep`/`platform` — production call sites never
+ * pass it.
+ * @param {string} from
+ * @param {string} to
+ * @param {{rename?: typeof fsp.rename, sleep?: (ms: number) => Promise<void>, platform?: string}} [opts]
+ * @returns {Promise<void>}
+ */
+async function renameWithBusyRetry(from, to, opts = {}) {
+  const rename = opts.rename || fsp.rename;
+  const sleep = opts.sleep || defaultRenameRetrySleep;
+  const platform = opts.platform || process.platform;
+
+  if (platform !== "win32") {
+    return rename(from, to);
+  }
+
+  let attempt = 0;
+  for (;;) {
+    try {
+      return await rename(from, to);
+    } catch (err) {
+      const retryable = err && WIN32_RENAME_RETRYABLE_CODES.has(err.code);
+      if (!retryable || attempt >= WIN32_RENAME_RETRY_DELAYS_MS.length) {
+        throw err;
+      }
+      await sleep(WIN32_RENAME_RETRY_DELAYS_MS[attempt]);
+      attempt += 1;
+    }
+  }
+}
+
 /**
  * Moves the fully-staged `tmpDir` into `versionedDir`. If `versionedDir`
  * doesn't exist yet, this is a single atomic rename. If it does, the
@@ -161,17 +217,17 @@ async function findProtectingPointers(homeDir, targetDir) {
  */
 async function swapIntoPlace(tmpDir, versionedDir, finalExists) {
   if (!finalExists) {
-    await fsp.rename(tmpDir, versionedDir);
+    await renameWithBusyRetry(tmpDir, versionedDir);
     return;
   }
 
   const oldDir = `${versionedDir}.old-${Date.now()}`;
-  await fsp.rename(versionedDir, oldDir);
+  await renameWithBusyRetry(versionedDir, oldDir);
   try {
-    await fsp.rename(tmpDir, versionedDir);
+    await renameWithBusyRetry(tmpDir, versionedDir);
   } catch (swapErr) {
     try {
-      await fsp.rename(oldDir, versionedDir);
+      await renameWithBusyRetry(oldDir, versionedDir);
     } catch (recoverErr) {
       const err = new Error(
         `activateFromArchive: failed to move new content into ${versionedDir} after moving the `
@@ -430,4 +486,5 @@ module.exports = {
   writeSentinel,
   clearSentinel,
   consecutiveFailures,
+  renameWithBusyRetry,
 };
