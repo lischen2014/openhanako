@@ -627,7 +627,7 @@
     ],
     "version": 2
   },
-  "payloadFingerprint": "sha256:86412f63641b9244d9420a4050d89732b544b11302f776fe44efe4413b9ca440",
+  "payloadFingerprint": "sha256:a4aac2ca9a598e1f454f2f416e7730d8cb8b324d2f89f196c04bf77f8f2c1c33",
   "registry": [
     {
       "affectedByEpochMigration": true,
@@ -2876,8 +2876,8 @@
   ],
   "review": {
     "classification": "compatible",
-    "compatibilityReason": "Route composition refactor moved server/index.ts's inline open/closed-product route mounting into server/composition/{open-root,full-root}.ts and wrapped the rest of the file's top-level script body into an exported startServer() function; every persistent-store call site keeps the exact same code, only its line number inside server/index.ts shifted. No store's serialized format, schema, or migration contract changed.",
-    "payloadFingerprint": "sha256:86412f63641b9244d9420a4050d89732b544b11302f776fe44efe4413b9ca440"
+    "compatibilityReason": "Receipt refresh only: a models-sync fix shifted one atomic-write call site by five lines; the persistence inventory was rescanned and no store schema, key format, or record format changed.",
+    "payloadFingerprint": "sha256:a4aac2ca9a598e1f454f2f416e7730d8cb8b324d2f89f196c04bf77f8f2c1c33"
   },
   "schemas": [
     {
@@ -4860,7 +4860,7 @@
     {
       "exemptionId": null,
       "kind": "atomic-write",
-      "line": 485,
+      "line": 480,
       "reason": "Owns provider catalog, authentication, model compatibility, or local provider plugin state.",
       "sourceFile": "core/model-sync.ts",
       "storeId": "provider-state"

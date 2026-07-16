@@ -3923,7 +3923,7 @@
     },
     {
       "sourceFile": "core/model-sync.ts",
-      "line": 485,
+      "line": 480,
       "kind": "atomic-write",
       "excerpt": "atomicWriteSync(modelsJsonPath, newStr)",
       "reason": "Owns provider catalog, authentication, model compatibility, or local provider plugin state.",
