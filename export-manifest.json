@@ -259,6 +259,7 @@
     "lib/desk/cron-store.ts",
     "lib/desk/desk-manager.ts",
     "lib/desk/heartbeat.ts",
+    "lib/desk/permissions.ts",
     "lib/diary/diary-writer.ts",
     "lib/exec-command/guidance.ts",
     "lib/exec-command/policy.ts",

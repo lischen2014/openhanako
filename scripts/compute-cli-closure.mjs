@@ -978,7 +978,14 @@ export const CLOSED_PRODUCT_PATTERNS = Object.freeze([
   // redistributable, and "desktop session" names an engine-side session
   // kind, not the desktop renderer.
   { pattern: /^lib\/character-cards\//, note: "Implements the closed-source character-card content system." },
-  { pattern: /^lib\/desk\//, note: "Implements the closed-source desk product surface (named as closed product experience by the split classification principles)." },
+  // lib/desk/ was reclassified redistributable 2026-07-17 (all files listed
+  // in export-manifest.json). It is the automation machinery -- cron
+  // store/scheduler, heartbeat, automation executors/normalizer, activity
+  // log, permission stub -- which runs headless under the CLI, has long
+  // been published in this repository, and is imported unconditionally by
+  // the redistributable agent/hub code. The desk product EXPERIENCE
+  // (routes and renderer surface) is a separate closed set and stays
+  // closed; only the backend machinery is open.
   { pattern: /^desktop\/src\/react\//, note: "The renderer's React application bundle -- the closed-source desktop UI implementation." },
   { pattern: /^desktop\/(index\.html|src\/main\.tsx)$/, note: "The renderer's own HTML/entry files." },
   {

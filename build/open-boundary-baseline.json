@@ -4,83 +4,6 @@
   "sourceClosure": "build/cli-runtime-closure.json",
   "edges": [
     {
-      "from": "core/agent-manager.ts",
-      "to": "lib/desk/activity-store.ts",
-      "provenance": "server-bootstrap:import-statement",
-      "classification": "closed-product",
-      "note": "Implements the closed-source desk product surface (named as closed product experience by the split classification principles)."
-    },
-    {
-      "from": "core/agent.ts",
-      "to": "lib/desk/cron-store.ts",
-      "provenance": "server-bootstrap:import-statement",
-      "classification": "closed-product",
-      "note": "Implements the closed-source desk product surface (named as closed product experience by the split classification principles)."
-    },
-    {
-      "from": "core/agent.ts",
-      "to": "lib/desk/desk-manager.ts",
-      "provenance": "server-bootstrap:import-statement",
-      "classification": "closed-product",
-      "note": "Implements the closed-source desk product surface (named as closed product experience by the split classification principles)."
-    },
-    {
-      "from": "core/migrations.ts",
-      "to": "lib/desk/automation-normalizer.ts",
-      "provenance": "server-bootstrap:import-statement",
-      "classification": "closed-product",
-      "note": "Implements the closed-source desk product surface (named as closed product experience by the split classification principles)."
-    },
-    {
-      "from": "core/studio-cron-service.ts",
-      "to": "lib/desk/cron-store.ts",
-      "provenance": "server-bootstrap:import-statement",
-      "classification": "closed-product",
-      "note": "Implements the closed-source desk product surface (named as closed product experience by the split classification principles)."
-    },
-    {
-      "from": "hub/scheduler.ts",
-      "to": "lib/desk/automation-executors.ts",
-      "provenance": "server-bootstrap:import-statement",
-      "classification": "closed-product",
-      "note": "Implements the closed-source desk product surface (named as closed product experience by the split classification principles)."
-    },
-    {
-      "from": "hub/scheduler.ts",
-      "to": "lib/desk/cron-scheduler.ts",
-      "provenance": "server-bootstrap:import-statement",
-      "classification": "closed-product",
-      "note": "Implements the closed-source desk product surface (named as closed product experience by the split classification principles)."
-    },
-    {
-      "from": "hub/scheduler.ts",
-      "to": "lib/desk/heartbeat.ts",
-      "provenance": "server-bootstrap:import-statement",
-      "classification": "closed-product",
-      "note": "Implements the closed-source desk product surface (named as closed product experience by the split classification principles)."
-    },
-    {
-      "from": "lib/desk/automation-normalizer.ts",
-      "to": "lib/desk/agent-run-automation.ts",
-      "provenance": "server-bootstrap:import-statement",
-      "classification": "closed-product",
-      "note": "Implements the closed-source desk product surface (named as closed product experience by the split classification principles)."
-    },
-    {
-      "from": "lib/desk/cron-store.ts",
-      "to": "lib/desk/automation-normalizer.ts",
-      "provenance": "server-bootstrap:import-statement",
-      "classification": "closed-product",
-      "note": "Implements the closed-source desk product surface (named as closed product experience by the split classification principles)."
-    },
-    {
-      "from": "lib/tools/automation-tool.ts",
-      "to": "lib/desk/agent-run-automation.ts",
-      "provenance": "server-bootstrap:import-statement",
-      "classification": "closed-product",
-      "note": "Implements the closed-source desk product surface (named as closed product experience by the split classification principles)."
-    },
-    {
       "from": "server/index.ts",
       "to": "server/routes/mobile-workbench.ts",
       "provenance": "server-bootstrap:import-statement",
@@ -122,11 +45,10 @@
     }
   ],
   "stats": {
-    "totalEdges": 12,
+    "totalEdges": 1,
     "byClassification": {
-      "closed-product": 11,
       "evidence-needed": 1
     },
-    "uniqueCoupledFiles": 9
+    "uniqueCoupledFiles": 1
   }
 }
