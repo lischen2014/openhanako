@@ -290,6 +290,9 @@ if (!gpuStartupPolicy.hardwareAccelerationEnabled) {
   console.warn(`[desktop] GPU safe mode enabled (${gpuStartupPolicy.reason}); hardware acceleration disabled for this launch`);
 }
 const desktopStartupId = `${Date.now()}-${process.pid}`;
+// 壳身份用途：启动诊断记录"哪个壳进程在跑"，不是"用户在用哪个内容版本"——
+// 此处语义是壳版本，不经 getCurrentContentVersion()（该访问器此时也还没
+// 被赋值：resolvePackagedArtifactBoot 在启动流程里晚于这里执行）。
 const desktopLaunchDiagnostics = createDesktopLaunchDiagnostics({
   hanakoHome,
   startupId: desktopStartupId,
@@ -1907,6 +1910,8 @@ function monitorServer() {
       } catch (err) {
         console.error("[desktop] Server 重启失败:", err.message);
         writeCrashLog(`Server 重启失败: ${err.message}`);
+        // 壳身份用途：崩溃诊断对话框，问的是"哪个壳进程崩了"，见
+        // getCurrentContentVersion() 声明处对这类诊断文案的例外说明。
         dialog.showErrorBox("HanaAgent Server", mt("dialog.serverRestartFailed", {
           version: app?.getVersion?.() || "unknown",
           error: err.message,
@@ -1914,6 +1919,7 @@ function monitorServer() {
       }
     } else {
       writeCrashLog(`Server 多次崩溃 (${reason})，放弃重启`);
+      // 壳身份用途：同上。
       dialog.showErrorBox("HanaAgent Server", mt("dialog.serverMultipleCrash", {
         version: app?.getVersion?.() || "unknown",
         reason,
@@ -2198,6 +2204,8 @@ function writeCrashLog(errorMessage) {
 
   const content = redactMainLogText([
     `=== HanaAgent Crash Log ===`,
+    // 壳身份用途：crash log 记录的是"哪个壳进程崩了"，见
+    // getCurrentContentVersion() 声明处对这类诊断文案的例外说明。
     `HanaAgent: v${app?.getVersion?.() || "unknown"}`,
     `Time: ${timestamp}`,
     `Error: ${errorMessage}`,
@@ -2670,6 +2678,14 @@ function startBackgroundOtaSchedulerOnce() {
   if (!app.isPackaged && !artifactOta.hasDevOverrideConfigured()) return;
   _otaSchedulerStarted = true;
   try {
+    // 壳身份用途：currentShellVersion 喂给 isShellVersionSufficient() 跟
+    // manifest.minShell 比较，问的是"这个壳二进制新不新"——这必须是壳自己
+    // 的版本，换成已激活内容版本会让 minShell 闸门失去意义（内容版本随
+    // OTA 变化，minShell 门槛检查的是壳能不能跑得动候选内容，不是内容
+    // 本身多新）。见 shared/artifact-core/ota-core.cjs 的
+    // isShellVersionSufficient() 与本函数下游 checkOnce() 对 minShell 的
+    // 处理；与之相邻的"这班车是否比已激活内容更新"判断走的是
+    // pointerStore 记录的 train/version，完全不经 app.getVersion()。
     artifactOta.scheduleBackgroundOtaChecks({
       homeDir: hanakoHome,
       keyset: loadPinnedKeyset(),
@@ -4876,6 +4892,8 @@ async function applyTrainUpdateNow(senderWebContents) {
     return { ok: false, error: err.message };
   }
 
+  // 壳身份用途：同 startBackgroundOtaSchedulerOnce() 里的说明——minShell
+  // 闸门问的是壳二进制新不新，必须是 app.getVersion()，不是内容版本。
   const downloadResult = await artifactOta.downloadAndApplyArtifacts({
     homeDir: hanakoHome,
     keyset: loadPinnedKeyset(),
@@ -4929,6 +4947,7 @@ async function applyTrainUpdateNow(senderWebContents) {
       // 旧 server 已经停了、新 server 也没起来：没有任何页内恢复手段，
       // 用跟现有崩溃重启失败同款的错误对话框告知用户重启应用（复用既有
       // installFailedTitle 键——同属"更新失败"这一类对话框标题）。
+      // 壳身份用途：诊断对话框，见 getCurrentContentVersion() 声明处的例外说明。
       dialog.showErrorBox(mt("dialog.installFailedTitle", null, "HanaAgent Update"), mt(
         "dialog.trainUpdateApplyFailedBody",
         { version: app?.getVersion?.() || "unknown", error: result.error },
@@ -4962,6 +4981,7 @@ wrapIpcHandler("train-fallback-notice-ack", () => {
 // 验签、过闸门、把发现的结果写进 ota-state.json 并原样返回给渲染进程。
 wrapIpcHandler("train-update-check", async () => {
   if (!app.isPackaged) return { outcome: "dev-skipped" };
+  // 壳身份用途：同 startBackgroundOtaSchedulerOnce() 里的说明。
   return artifactOta.checkOnce({
     homeDir: hanakoHome,
     keyset: loadPinnedKeyset(),
@@ -5019,6 +5039,12 @@ wrapIpcHandler("run-edit-command", (event, command) => {
   event.sender[command]();
   return true;
 });
+// 壳身份用途：这个 IPC 通道字面意思是"app 版本"，容易被误认成产品版本
+// 出口，但它读的是壳的 app.getVersion()，不是已激活内容版本。渲染进程侧
+// 的 getAppVersion() 桥接方法目前也没有任何调用点会拿它做面向用户的版本
+// 展示——那类展示一律走 train-update-status 的 currentVersion 字段（见
+// desktop/src/react/types.ts 里 TrainUpdateStatus 的文档注释）。保留这个
+// handler 作为壳版本自省的通道，不删、不改语义。
 wrapIpcHandler("get-app-version", () => app.getVersion());
 wrapIpcBestEffortHandler("get-pending-announcement", () => computePendingAnnouncement());
 // 书签必须写内容版本——跟 computePendingAnnouncement 读书签时用的比较基准
@@ -5984,6 +6010,8 @@ app.whenReady().then(async () => {
     // 写入 crash.log 并获取详细日志
     const crashInfo = writeCrashLog(err.message);
     const detail = buildLaunchFailureDialogDetail(err, crashInfo);
+    // 壳身份用途：启动失败对话框，见 getCurrentContentVersion() 声明处的
+    // 例外说明——这里问的是"哪个壳进程启动失败"。
     dialog.showErrorBox(
       mt("dialog.launchFailedTitle", null, "HanaAgent Launch Failed"),
       mt("dialog.launchFailedBody", {

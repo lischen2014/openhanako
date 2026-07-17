@@ -419,6 +419,10 @@ async function cleanUpdateCache() {
       }
     }
   } catch {}
+  // 壳身份用途：这个文件是 electron-updater 的壳级自动更新封装
+  // （DMG/NSIS 整体替换壳二进制的那条更新路径，跟 artifact-ota.cjs 的
+  // 内容列车 OTA 是两套独立系统）。last-update-version 记录的是"这次启动
+  // 用的壳二进制是不是刚被 electron-updater 换过"，必须是 app.getVersion()。
   const currentVersion = app.getVersion();
 
   let shouldClean = false;

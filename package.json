@@ -1,6 +1,6 @@
 {
   "name": "hanako",
-  "version": "0.410.0",
+  "version": "0.411.0",
   "type": "module",
   "description": "HanaAgent - a personal AI agent with memory and soul",
   "license": "Apache-2.0",
@@ -42,6 +42,7 @@
     "build:computer-use-helper": "node scripts/build-computer-use-helper.mjs",
     "build:windows-sandbox-helper": "node scripts/build-windows-sandbox-helper.mjs",
     "build:client": "npm run build:main && npm run build:preload && npm run build:renderer && npm run build:splash && npm run build:theme",
+    "build:shell": "node scripts/build-shell.mjs",
     "build:packages": "npm run build --workspaces --if-present",
     "generate:windows-icon": "node scripts/generate-windows-icon.cjs",
     "pack": "npm run build:computer-use-helper && npm run build:client && npm run build:server && npm run verify:seed-kit && electron-builder --dir",
