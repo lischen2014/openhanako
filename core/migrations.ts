@@ -161,6 +161,9 @@ const migrations = {
   47: migrateStableDingTalkCredentialsToLegacyAuthMode,
   // stable 会加载项目内兼容技能目录；只为缺少新策略字段的旧 Agent 显式保留该行为
   48: preserveStableCompatibleWorkspaceSkillDiscovery,
+  // 迁移 #45 曾把 model_change / assistant message 事件记录自身的 id 误收为
+  // Codex 模型 id 并写入 Provider Catalog；用闭环证据法清理这批污染条目
+  49: repairPollutedCodexEventIdModels,
 };
 
 // ── Runner ──────────────────────────────────────────────────────────────────
@@ -1505,6 +1508,27 @@ const MODEL_ID_KEYS_BY_PROVIDER_KEY = new Map([
   ["agentPhoneModelOverrideProvider", ["agentPhoneModelOverrideId"]],
 ]);
 
+// Session event records — `model_change` entries and assistant `message`
+// entries written by the Pi SDK session writer (core/session-manager.js
+// appendModelChange / appendMessage) — always carry the record's OWN event id
+// under `id` (an 8-hex session-tree node id from randomUUID().slice(0, 8)),
+// never a model id. Only `modelId` (model_change) or `model` (assistant
+// message) legitimately hold a Codex model id in these two shapes.
+//
+// This cannot be merged into MODEL_ID_KEYS_BY_PROVIDER_KEY above: both shapes
+// key their provider under the same "provider" property name that legitimate
+// model *descriptor* objects also use (e.g. `{ provider, id }` stored in
+// preferences.utility_model, config.models.chat, entry.model snapshots).
+// Descriptor objects are never event records — their `id` genuinely is the
+// model id — so the key name alone can't distinguish the two shapes. The
+// distinguishing fact is the caller's structural knowledge of which shape it
+// is looking at (an event-record field vs. a standalone descriptor value),
+// which is exactly what routes callers to this table instead of the one
+// above. See collectCodexEventRecordModelReference.
+const EVENT_RECORD_MODEL_ID_KEYS_BY_PROVIDER_KEY = new Map([
+  ["provider", ["modelId", "model"]],
+]);
+
 const PROVIDER_SCOPED_MODEL_VALUE_KEYS = new Set([
   "chat",
   "utility",
@@ -1537,7 +1561,27 @@ function migrationCodexModelId(value) {
   return normalized || null;
 }
 
+/**
+ * Extracts referenced Codex OAuth model ids from a model *descriptor* value —
+ * e.g. `{ provider, id }` stored in preferences.utility_model, an agent
+ * config.yaml models.chat ref, a DM/channel frontmatter override, or a cron
+ * job's model field. In this shape `id` legitimately identifies the model.
+ */
 function collectCodexModelReference(value, modelIds) {
+  collectCodexModelReferenceWithKeyTable(value, modelIds, MODEL_ID_KEYS_BY_PROVIDER_KEY);
+}
+
+/**
+ * Extracts referenced Codex OAuth model ids from a session *event record* —
+ * a `model_change` entry or an assistant `message` entry. These shapes carry
+ * their own session-tree event id under `id`, which must never be read as a
+ * model id (see EVENT_RECORD_MODEL_ID_KEYS_BY_PROVIDER_KEY above).
+ */
+function collectCodexEventRecordModelReference(value, modelIds) {
+  collectCodexModelReferenceWithKeyTable(value, modelIds, EVENT_RECORD_MODEL_ID_KEYS_BY_PROVIDER_KEY);
+}
+
+function collectCodexModelReferenceWithKeyTable(value, modelIds, keyTable) {
   if (typeof value === "string") {
     const modelId = migrationCodexModelIdFromQualifiedRef(value);
     if (modelId) modelIds.add(modelId);
@@ -1545,7 +1589,7 @@ function collectCodexModelReference(value, modelIds) {
   }
   if (!value || typeof value !== "object" || Array.isArray(value)) return;
 
-  for (const [providerKey, modelKeys] of MODEL_ID_KEYS_BY_PROVIDER_KEY) {
+  for (const [providerKey, modelKeys] of keyTable) {
     if (!migrationCodexProviderId(value[providerKey])) continue;
     for (const modelKey of modelKeys) {
       const modelId = migrationCodexModelId(value[modelKey]);
@@ -1652,12 +1696,14 @@ function migrationReadSessionJsonl(filePath, modelIds, log) {
     if (!lines[index].trim()) continue;
     try {
       const entry = JSON.parse(lines[index]);
-      if (entry?.type === "model_change") collectCodexModelReference(entry, modelIds);
+      if (entry?.type === "model_change") collectCodexEventRecordModelReference(entry, modelIds);
       if (entry?.type === "message" && entry.message?.role === "assistant") {
-        collectCodexModelReference(entry.message, modelIds);
+        collectCodexEventRecordModelReference(entry.message, modelIds);
       }
       // Some older Hana-produced snapshots stored the restored model beside
-      // the entry rather than as a model_change record.
+      // the entry as a bare `{ provider, id }` descriptor rather than as a
+      // model_change record — that's a descriptor, not an event record, so
+      // its `id` is read through the descriptor-context extractor.
       collectCodexModelReference(entry?.model, modelIds);
     } catch (err) {
       log?.(`[migrations] #45 skipped invalid session JSONL line at ${filePath}:${index + 1} (${err.message})`);
@@ -1844,6 +1890,152 @@ function repairLegacyProviderModelMetadata(ctx) {
   }
   log?.(
     `[migrations] #46: repaired Provider Catalog model metadata (models=${result.repairs.length}, backup=${path.basename(backupDir)})`,
+  );
+}
+
+/**
+ * #49 — 清理迁移 #45 误把 session 事件 id 收成 Codex 模型 id 而写入
+ * Provider Catalog 的污染条目。
+ *
+ * 识别标准是闭环证据法，不是模式匹配：重新走一遍 #45 当时扫描的同一批持久化
+ * 面，用修复后的提取器算出 S_correct（真正被引用过的模型 id），再单独重放
+ * model_change / assistant message 两种事件记录形状下"把 id 当模型 id 读"这一
+ * 具体错误算出 S_wrong（旧版提取器会误收的 id 集合）。S_wrong 里但不在
+ * S_correct 里的 id 才是可证伪的污染条目；真实模型 id 即使恰好撞上某个事件
+ * id，只要它同时被 S_correct 收录（换句话说，它在别处也被合法引用过），就
+ * 保留不删。禁止按"八位十六进制"之类的形状特征直接匹配删除。
+ */
+function collectPreFixPollutedCodexEventIds(ctx) {
+  const { hanakoHome, agentsDir, log } = ctx;
+  const wrongIds = new Set();
+
+  for (const sessionPath of migrationWalkRealFiles(
+    hanakoHome,
+    agentsDir,
+    (filePath) => filePath.endsWith(".jsonl"),
+    log,
+  )) {
+    let raw;
+    try {
+      raw = fs.readFileSync(sessionPath, "utf-8");
+    } catch (err) {
+      log?.(`[migrations] #49 skipped unreadable session JSONL at ${sessionPath} (${err.message})`);
+      continue;
+    }
+
+    for (const line of raw.split(/\r?\n/)) {
+      if (!line.trim()) continue;
+      let entry;
+      try {
+        entry = JSON.parse(line);
+      } catch {
+        // #45's own scan already logs malformed lines when it computes
+        // S_correct; skip silently here to avoid duplicate log noise.
+        continue;
+      }
+
+      if (entry?.type === "model_change" && migrationCodexProviderId(entry.provider)) {
+        const wrongId = migrationCodexModelId(entry.id);
+        if (wrongId) wrongIds.add(wrongId);
+      }
+      if (
+        entry?.type === "message"
+        && entry.message?.role === "assistant"
+        && migrationCodexProviderId(entry.message?.provider)
+      ) {
+        const wrongId = migrationCodexModelId(entry.message?.id);
+        if (wrongId) wrongIds.add(wrongId);
+      }
+    }
+  }
+
+  return wrongIds;
+}
+
+function writeCodexEventIdPollutionRepairBackup({ store, hanakoHome, removed }) {
+  if (!fs.existsSync(store.catalogPath)) {
+    throw new Error("provider catalog source is missing before Codex event-id pollution repair");
+  }
+
+  const backupRoot = path.join(hanakoHome, "migration-backups");
+  fs.mkdirSync(backupRoot, { recursive: true });
+  const backupDir = fs.mkdtempSync(path.join(backupRoot, "codex-model-id-pollution-v49-"));
+  const backupPath = path.join(backupDir, path.basename(store.catalogPath));
+  fs.copyFileSync(store.catalogPath, backupPath);
+
+  const report = {
+    migration: 49,
+    createdAt: new Date().toISOString(),
+    sourceFile: path.basename(store.catalogPath),
+    removed,
+  };
+  atomicWriteSync(
+    path.join(backupDir, "migration-report.json"),
+    JSON.stringify(report, null, 2) + "\n",
+  );
+  return backupDir;
+}
+
+function repairPollutedCodexEventIdModels(ctx) {
+  const { hanakoHome, providerRegistry, log } = ctx;
+  const store = providerRegistry?._catalog || new ProviderCatalogStore(hanakoHome);
+
+  let catalog;
+  try {
+    catalog = store.load();
+  } catch (err) {
+    log?.(`[migrations] #49 skipped unreadable provider catalog (${err.message})`);
+    return;
+  }
+
+  const providers = structuredClone(catalog.providers || {});
+  const current = providers[CODEX_OAUTH_PROVIDER_ID];
+  if (!current || !Array.isArray(current.models) || current.models.length === 0) {
+    log?.("[migrations] #49: no Codex OAuth model list to repair");
+    return;
+  }
+
+  const correctIds = new Set(collectCodexModelsFromLegacyPersistence(ctx));
+  const wrongIds = collectPreFixPollutedCodexEventIds(ctx);
+  const wrongOnlyIds = new Set([...wrongIds].filter((id) => !correctIds.has(id)));
+  if (wrongOnlyIds.size === 0) {
+    log?.("[migrations] #49: no polluted Codex OAuth event-id entries found");
+    return;
+  }
+
+  // Extra safety net: a shipped default model is never removed even if one
+  // were to coincidentally collide with a wrongly-collected event id.
+  const defaultIds = new Set(
+    (providerRegistry?.getDefaultModelEntries?.(CODEX_OAUTH_PROVIDER_ID)
+      || providerRegistry?.getDefaultModels?.(CODEX_OAUTH_PROVIDER_ID)
+      || [])
+      .map((model) => migrationModelId(model))
+      .filter((id) => typeof id === "string" && id),
+  );
+
+  const removed = [];
+  const nextModels = current.models.filter((model) => {
+    const id = migrationModelId(model);
+    if (typeof id !== "string" || !wrongOnlyIds.has(id) || defaultIds.has(id)) return true;
+    removed.push(id);
+    return false;
+  });
+
+  if (removed.length === 0) {
+    log?.("[migrations] #49: polluted event ids found but none present in the current Codex OAuth model list");
+    return;
+  }
+
+  const backupDir = writeCodexEventIdPollutionRepairBackup({ store, hanakoHome, removed });
+  providers[CODEX_OAUTH_PROVIDER_ID] = { ...current, models: nextModels };
+  store.saveProviders(providers);
+  if (providerRegistry) {
+    providerRegistry._addedModelsCache = null;
+    providerRegistry._addedModelsMtime = 0;
+    providerRegistry._entries?.clear?.();
+  }
+  log?.(
+    `[migrations] #49: removed ${removed.length} polluted Codex OAuth event-id entries (${removed.join(", ")}, backup=${path.basename(backupDir)})`,
   );
 }
 

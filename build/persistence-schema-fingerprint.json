@@ -627,7 +627,7 @@
     ],
     "version": 2
   },
-  "payloadFingerprint": "sha256:8900e99e062d5242e162aa0234e6fd9884778facc5acb119ea3cc38bb4177b60",
+  "payloadFingerprint": "sha256:0058e7c1f8ab40461879d6ab2bc47ae28a6c7568a6a904bb99b635cb38f6c1fb",
   "registry": [
     {
       "affectedByEpochMigration": true,
@@ -2876,8 +2876,8 @@
   ],
   "review": {
     "classification": "compatible",
-    "compatibilityReason": "Train-update progress unification added two new fields (overallReceivedBytes/overallTotalBytes) to the in-memory onProgress event shape in shared/artifact-core/ota-core.cjs and shifted several existing signed-artifacts fs.rm/fs.mkdir call sites by a few lines via added comments and a new emitProgress helper; no store's serialized format, schema, or migration contract changed.",
-    "payloadFingerprint": "sha256:8900e99e062d5242e162aa0234e6fd9884778facc5acb119ea3cc38bb4177b60"
+    "compatibilityReason": "Migration #45's Codex model extractor now distinguishes session event records from model descriptors (adds EVENT_RECORD_MODEL_ID_KEYS_BY_PROVIDER_KEY table and a collectCodexEventRecordModelReference entry point), and a new migration #49 removes catalog entries the old extractor polluted with session event ids. This shifts line numbers for every existing core/migrations.ts persistence site and adds three new sites for the repair migration's own backup write (mkdir/copy-file/atomic-write), all already covered by the existing cross-store-legacy-migrations exemption; no store schema, serialized format, or migration contract changed.",
+    "payloadFingerprint": "sha256:0058e7c1f8ab40461879d6ab2bc47ae28a6c7568a6a904bb99b635cb38f6c1fb"
   },
   "schemas": [
     {
@@ -4372,7 +4372,7 @@
     {
       "exemptionId": "cross-store-legacy-migrations",
       "kind": "write-file",
-      "line": 267,
+      "line": 270,
       "reason": "The legacy migration orchestrator mutates many registered targets. Each target is inventoried, while exact-site flow attribution remains prerequisite work for the coordinator.",
       "sourceFile": "core/migrations.ts",
       "storeId": null
@@ -4380,7 +4380,7 @@
     {
       "exemptionId": "cross-store-legacy-migrations",
       "kind": "rename",
-      "line": 268,
+      "line": 271,
       "reason": "The legacy migration orchestrator mutates many registered targets. Each target is inventoried, while exact-site flow attribution remains prerequisite work for the coordinator.",
       "sourceFile": "core/migrations.ts",
       "storeId": null
@@ -4388,7 +4388,7 @@
     {
       "exemptionId": "cross-store-legacy-migrations",
       "kind": "write-file",
-      "line": 520,
+      "line": 523,
       "reason": "The legacy migration orchestrator mutates many registered targets. Each target is inventoried, while exact-site flow attribution remains prerequisite work for the coordinator.",
       "sourceFile": "core/migrations.ts",
       "storeId": null
@@ -4396,7 +4396,7 @@
     {
       "exemptionId": "cross-store-legacy-migrations",
       "kind": "mkdir",
-      "line": 572,
+      "line": 575,
       "reason": "The legacy migration orchestrator mutates many registered targets. Each target is inventoried, while exact-site flow attribution remains prerequisite work for the coordinator.",
       "sourceFile": "core/migrations.ts",
       "storeId": null
@@ -4404,7 +4404,7 @@
     {
       "exemptionId": "cross-store-legacy-migrations",
       "kind": "write-file",
-      "line": 573,
+      "line": 576,
       "reason": "The legacy migration orchestrator mutates many registered targets. Each target is inventoried, while exact-site flow attribution remains prerequisite work for the coordinator.",
       "sourceFile": "core/migrations.ts",
       "storeId": null
@@ -4412,7 +4412,7 @@
     {
       "exemptionId": "cross-store-legacy-migrations",
       "kind": "mkdir",
-      "line": 595,
+      "line": 598,
       "reason": "The legacy migration orchestrator mutates many registered targets. Each target is inventoried, while exact-site flow attribution remains prerequisite work for the coordinator.",
       "sourceFile": "core/migrations.ts",
       "storeId": null
@@ -4420,7 +4420,7 @@
     {
       "exemptionId": "cross-store-legacy-migrations",
       "kind": "write-file",
-      "line": 596,
+      "line": 599,
       "reason": "The legacy migration orchestrator mutates many registered targets. Each target is inventoried, while exact-site flow attribution remains prerequisite work for the coordinator.",
       "sourceFile": "core/migrations.ts",
       "storeId": null
@@ -4428,7 +4428,7 @@
     {
       "exemptionId": "cross-store-legacy-migrations",
       "kind": "write-file",
-      "line": 777,
+      "line": 780,
       "reason": "The legacy migration orchestrator mutates many registered targets. Each target is inventoried, while exact-site flow attribution remains prerequisite work for the coordinator.",
       "sourceFile": "core/migrations.ts",
       "storeId": null
@@ -4436,7 +4436,7 @@
     {
       "exemptionId": "cross-store-legacy-migrations",
       "kind": "rename",
-      "line": 778,
+      "line": 781,
       "reason": "The legacy migration orchestrator mutates many registered targets. Each target is inventoried, while exact-site flow attribution remains prerequisite work for the coordinator.",
       "sourceFile": "core/migrations.ts",
       "storeId": null
@@ -4444,7 +4444,7 @@
     {
       "exemptionId": "cross-store-legacy-migrations",
       "kind": "write-file",
-      "line": 839,
+      "line": 842,
       "reason": "The legacy migration orchestrator mutates many registered targets. Each target is inventoried, while exact-site flow attribution remains prerequisite work for the coordinator.",
       "sourceFile": "core/migrations.ts",
       "storeId": null
@@ -4452,7 +4452,7 @@
     {
       "exemptionId": "cross-store-legacy-migrations",
       "kind": "rename",
-      "line": 840,
+      "line": 843,
       "reason": "The legacy migration orchestrator mutates many registered targets. Each target is inventoried, while exact-site flow attribution remains prerequisite work for the coordinator.",
       "sourceFile": "core/migrations.ts",
       "storeId": null
@@ -4460,7 +4460,7 @@
     {
       "exemptionId": "cross-store-legacy-migrations",
       "kind": "atomic-write",
-      "line": 1096,
+      "line": 1099,
       "reason": "The legacy migration orchestrator mutates many registered targets. Each target is inventoried, while exact-site flow attribution remains prerequisite work for the coordinator.",
       "sourceFile": "core/migrations.ts",
       "storeId": null
@@ -4468,7 +4468,7 @@
     {
       "exemptionId": "cross-store-legacy-migrations",
       "kind": "write-file",
-      "line": 1154,
+      "line": 1157,
       "reason": "The legacy migration orchestrator mutates many registered targets. Each target is inventoried, while exact-site flow attribution remains prerequisite work for the coordinator.",
       "sourceFile": "core/migrations.ts",
       "storeId": null
@@ -4476,7 +4476,7 @@
     {
       "exemptionId": "cross-store-legacy-migrations",
       "kind": "rename",
-      "line": 1155,
+      "line": 1158,
       "reason": "The legacy migration orchestrator mutates many registered targets. Each target is inventoried, while exact-site flow attribution remains prerequisite work for the coordinator.",
       "sourceFile": "core/migrations.ts",
       "storeId": null
@@ -4484,7 +4484,7 @@
     {
       "exemptionId": "cross-store-legacy-migrations",
       "kind": "write-file",
-      "line": 1183,
+      "line": 1186,
       "reason": "The legacy migration orchestrator mutates many registered targets. Each target is inventoried, while exact-site flow attribution remains prerequisite work for the coordinator.",
       "sourceFile": "core/migrations.ts",
       "storeId": null
@@ -4492,7 +4492,7 @@
     {
       "exemptionId": "cross-store-legacy-migrations",
       "kind": "rename",
-      "line": 1188,
+      "line": 1191,
       "reason": "The legacy migration orchestrator mutates many registered targets. Each target is inventoried, while exact-site flow attribution remains prerequisite work for the coordinator.",
       "sourceFile": "core/migrations.ts",
       "storeId": null
@@ -4500,7 +4500,7 @@
     {
       "exemptionId": "cross-store-legacy-migrations",
       "kind": "write-file",
-      "line": 1289,
+      "line": 1292,
       "reason": "The legacy migration orchestrator mutates many registered targets. Each target is inventoried, while exact-site flow attribution remains prerequisite work for the coordinator.",
       "sourceFile": "core/migrations.ts",
       "storeId": null
@@ -4508,7 +4508,7 @@
     {
       "exemptionId": "cross-store-legacy-migrations",
       "kind": "rename",
-      "line": 1290,
+      "line": 1293,
       "reason": "The legacy migration orchestrator mutates many registered targets. Each target is inventoried, while exact-site flow attribution remains prerequisite work for the coordinator.",
       "sourceFile": "core/migrations.ts",
       "storeId": null
@@ -4516,7 +4516,7 @@
     {
       "exemptionId": "cross-store-legacy-migrations",
       "kind": "atomic-write",
-      "line": 1354,
+      "line": 1357,
       "reason": "The legacy migration orchestrator mutates many registered targets. Each target is inventoried, while exact-site flow attribution remains prerequisite work for the coordinator.",
       "sourceFile": "core/migrations.ts",
       "storeId": null
@@ -4524,7 +4524,7 @@
     {
       "exemptionId": "cross-store-legacy-migrations",
       "kind": "mkdir",
-      "line": 1800,
+      "line": 1846,
       "reason": "The legacy migration orchestrator mutates many registered targets. Each target is inventoried, while exact-site flow attribution remains prerequisite work for the coordinator.",
       "sourceFile": "core/migrations.ts",
       "storeId": null
@@ -4532,7 +4532,7 @@
     {
       "exemptionId": "cross-store-legacy-migrations",
       "kind": "copy-file",
-      "line": 1803,
+      "line": 1849,
       "reason": "The legacy migration orchestrator mutates many registered targets. Each target is inventoried, while exact-site flow attribution remains prerequisite work for the coordinator.",
       "sourceFile": "core/migrations.ts",
       "storeId": null
@@ -4540,39 +4540,7 @@
     {
       "exemptionId": "cross-store-legacy-migrations",
       "kind": "atomic-write",
-      "line": 1811,
-      "reason": "The legacy migration orchestrator mutates many registered targets. Each target is inventoried, while exact-site flow attribution remains prerequisite work for the coordinator.",
-      "sourceFile": "core/migrations.ts",
-      "storeId": null
-    },
-    {
-      "exemptionId": "cross-store-legacy-migrations",
-      "kind": "atomic-write",
-      "line": 1930,
-      "reason": "The legacy migration orchestrator mutates many registered targets. Each target is inventoried, while exact-site flow attribution remains prerequisite work for the coordinator.",
-      "sourceFile": "core/migrations.ts",
-      "storeId": null
-    },
-    {
-      "exemptionId": "cross-store-legacy-migrations",
-      "kind": "atomic-write",
-      "line": 2014,
-      "reason": "The legacy migration orchestrator mutates many registered targets. Each target is inventoried, while exact-site flow attribution remains prerequisite work for the coordinator.",
-      "sourceFile": "core/migrations.ts",
-      "storeId": null
-    },
-    {
-      "exemptionId": "cross-store-legacy-migrations",
-      "kind": "atomic-write",
-      "line": 2062,
-      "reason": "The legacy migration orchestrator mutates many registered targets. Each target is inventoried, while exact-site flow attribution remains prerequisite work for the coordinator.",
-      "sourceFile": "core/migrations.ts",
-      "storeId": null
-    },
-    {
-      "exemptionId": "cross-store-legacy-migrations",
-      "kind": "atomic-write",
-      "line": 2257,
+      "line": 1857,
       "reason": "The legacy migration orchestrator mutates many registered targets. Each target is inventoried, while exact-site flow attribution remains prerequisite work for the coordinator.",
       "sourceFile": "core/migrations.ts",
       "storeId": null
@@ -4580,15 +4548,7 @@
     {
       "exemptionId": "cross-store-legacy-migrations",
       "kind": "mkdir",
-      "line": 2354,
-      "reason": "The legacy migration orchestrator mutates many registered targets. Each target is inventoried, while exact-site flow attribution remains prerequisite work for the coordinator.",
-      "sourceFile": "core/migrations.ts",
-      "storeId": null
-    },
-    {
-      "exemptionId": "cross-store-legacy-migrations",
-      "kind": "remove-path",
-      "line": 2357,
+      "line": 1961,
       "reason": "The legacy migration orchestrator mutates many registered targets. Each target is inventoried, while exact-site flow attribution remains prerequisite work for the coordinator.",
       "sourceFile": "core/migrations.ts",
       "storeId": null
@@ -4596,31 +4556,47 @@
     {
       "exemptionId": "cross-store-legacy-migrations",
       "kind": "copy-file",
-      "line": 2358,
+      "line": 1964,
       "reason": "The legacy migration orchestrator mutates many registered targets. Each target is inventoried, while exact-site flow attribution remains prerequisite work for the coordinator.",
       "sourceFile": "core/migrations.ts",
       "storeId": null
     },
     {
       "exemptionId": "cross-store-legacy-migrations",
-      "kind": "write-file",
-      "line": 2359,
+      "kind": "atomic-write",
+      "line": 1972,
       "reason": "The legacy migration orchestrator mutates many registered targets. Each target is inventoried, while exact-site flow attribution remains prerequisite work for the coordinator.",
       "sourceFile": "core/migrations.ts",
       "storeId": null
     },
     {
       "exemptionId": "cross-store-legacy-migrations",
-      "kind": "rename",
-      "line": 2364,
+      "kind": "atomic-write",
+      "line": 2122,
       "reason": "The legacy migration orchestrator mutates many registered targets. Each target is inventoried, while exact-site flow attribution remains prerequisite work for the coordinator.",
       "sourceFile": "core/migrations.ts",
       "storeId": null
     },
     {
       "exemptionId": "cross-store-legacy-migrations",
-      "kind": "remove-path",
-      "line": 2366,
+      "kind": "atomic-write",
+      "line": 2206,
+      "reason": "The legacy migration orchestrator mutates many registered targets. Each target is inventoried, while exact-site flow attribution remains prerequisite work for the coordinator.",
+      "sourceFile": "core/migrations.ts",
+      "storeId": null
+    },
+    {
+      "exemptionId": "cross-store-legacy-migrations",
+      "kind": "atomic-write",
+      "line": 2254,
+      "reason": "The legacy migration orchestrator mutates many registered targets. Each target is inventoried, while exact-site flow attribution remains prerequisite work for the coordinator.",
+      "sourceFile": "core/migrations.ts",
+      "storeId": null
+    },
+    {
+      "exemptionId": "cross-store-legacy-migrations",
+      "kind": "atomic-write",
+      "line": 2449,
       "reason": "The legacy migration orchestrator mutates many registered targets. Each target is inventoried, while exact-site flow attribution remains prerequisite work for the coordinator.",
       "sourceFile": "core/migrations.ts",
       "storeId": null
@@ -4628,7 +4604,7 @@
     {
       "exemptionId": "cross-store-legacy-migrations",
       "kind": "mkdir",
-      "line": 2400,
+      "line": 2546,
       "reason": "The legacy migration orchestrator mutates many registered targets. Each target is inventoried, while exact-site flow attribution remains prerequisite work for the coordinator.",
       "sourceFile": "core/migrations.ts",
       "storeId": null
@@ -4636,15 +4612,39 @@
     {
       "exemptionId": "cross-store-legacy-migrations",
       "kind": "remove-path",
-      "line": 2450,
+      "line": 2549,
       "reason": "The legacy migration orchestrator mutates many registered targets. Each target is inventoried, while exact-site flow attribution remains prerequisite work for the coordinator.",
       "sourceFile": "core/migrations.ts",
       "storeId": null
     },
     {
       "exemptionId": "cross-store-legacy-migrations",
-      "kind": "atomic-write",
-      "line": 2515,
+      "kind": "copy-file",
+      "line": 2550,
+      "reason": "The legacy migration orchestrator mutates many registered targets. Each target is inventoried, while exact-site flow attribution remains prerequisite work for the coordinator.",
+      "sourceFile": "core/migrations.ts",
+      "storeId": null
+    },
+    {
+      "exemptionId": "cross-store-legacy-migrations",
+      "kind": "write-file",
+      "line": 2551,
+      "reason": "The legacy migration orchestrator mutates many registered targets. Each target is inventoried, while exact-site flow attribution remains prerequisite work for the coordinator.",
+      "sourceFile": "core/migrations.ts",
+      "storeId": null
+    },
+    {
+      "exemptionId": "cross-store-legacy-migrations",
+      "kind": "rename",
+      "line": 2556,
+      "reason": "The legacy migration orchestrator mutates many registered targets. Each target is inventoried, while exact-site flow attribution remains prerequisite work for the coordinator.",
+      "sourceFile": "core/migrations.ts",
+      "storeId": null
+    },
+    {
+      "exemptionId": "cross-store-legacy-migrations",
+      "kind": "remove-path",
+      "line": 2558,
       "reason": "The legacy migration orchestrator mutates many registered targets. Each target is inventoried, while exact-site flow attribution remains prerequisite work for the coordinator.",
       "sourceFile": "core/migrations.ts",
       "storeId": null
@@ -4652,7 +4652,15 @@
     {
       "exemptionId": "cross-store-legacy-migrations",
       "kind": "mkdir",
-      "line": 2525,
+      "line": 2592,
+      "reason": "The legacy migration orchestrator mutates many registered targets. Each target is inventoried, while exact-site flow attribution remains prerequisite work for the coordinator.",
+      "sourceFile": "core/migrations.ts",
+      "storeId": null
+    },
+    {
+      "exemptionId": "cross-store-legacy-migrations",
+      "kind": "remove-path",
+      "line": 2642,
       "reason": "The legacy migration orchestrator mutates many registered targets. Each target is inventoried, while exact-site flow attribution remains prerequisite work for the coordinator.",
       "sourceFile": "core/migrations.ts",
       "storeId": null
@@ -4660,127 +4668,15 @@
     {
       "exemptionId": "cross-store-legacy-migrations",
       "kind": "atomic-write",
-      "line": 2548,
+      "line": 2707,
       "reason": "The legacy migration orchestrator mutates many registered targets. Each target is inventoried, while exact-site flow attribution remains prerequisite work for the coordinator.",
       "sourceFile": "core/migrations.ts",
       "storeId": null
     },
     {
       "exemptionId": "cross-store-legacy-migrations",
-      "kind": "write-file",
-      "line": 2606,
-      "reason": "The legacy migration orchestrator mutates many registered targets. Each target is inventoried, while exact-site flow attribution remains prerequisite work for the coordinator.",
-      "sourceFile": "core/migrations.ts",
-      "storeId": null
-    },
-    {
-      "exemptionId": "cross-store-legacy-migrations",
-      "kind": "rename",
-      "line": 2611,
-      "reason": "The legacy migration orchestrator mutates many registered targets. Each target is inventoried, while exact-site flow attribution remains prerequisite work for the coordinator.",
-      "sourceFile": "core/migrations.ts",
-      "storeId": null
-    },
-    {
-      "exemptionId": "cross-store-legacy-migrations",
-      "kind": "write-file",
-      "line": 2787,
-      "reason": "The legacy migration orchestrator mutates many registered targets. Each target is inventoried, while exact-site flow attribution remains prerequisite work for the coordinator.",
-      "sourceFile": "core/migrations.ts",
-      "storeId": null
-    },
-    {
-      "exemptionId": "cross-store-legacy-migrations",
-      "kind": "rename",
-      "line": 2788,
-      "reason": "The legacy migration orchestrator mutates many registered targets. Each target is inventoried, while exact-site flow attribution remains prerequisite work for the coordinator.",
-      "sourceFile": "core/migrations.ts",
-      "storeId": null
-    },
-    {
-      "exemptionId": "cross-store-legacy-migrations",
-      "kind": "write-file",
-      "line": 2949,
-      "reason": "The legacy migration orchestrator mutates many registered targets. Each target is inventoried, while exact-site flow attribution remains prerequisite work for the coordinator.",
-      "sourceFile": "core/migrations.ts",
-      "storeId": null
-    },
-    {
-      "exemptionId": "cross-store-legacy-migrations",
-      "kind": "rename",
-      "line": 2950,
-      "reason": "The legacy migration orchestrator mutates many registered targets. Each target is inventoried, while exact-site flow attribution remains prerequisite work for the coordinator.",
-      "sourceFile": "core/migrations.ts",
-      "storeId": null
-    },
-    {
-      "exemptionId": "cross-store-legacy-migrations",
-      "kind": "write-file",
-      "line": 3001,
-      "reason": "The legacy migration orchestrator mutates many registered targets. Each target is inventoried, while exact-site flow attribution remains prerequisite work for the coordinator.",
-      "sourceFile": "core/migrations.ts",
-      "storeId": null
-    },
-    {
-      "exemptionId": "cross-store-legacy-migrations",
-      "kind": "rename",
-      "line": 3002,
-      "reason": "The legacy migration orchestrator mutates many registered targets. Each target is inventoried, while exact-site flow attribution remains prerequisite work for the coordinator.",
-      "sourceFile": "core/migrations.ts",
-      "storeId": null
-    },
-    {
-      "exemptionId": "cross-store-legacy-migrations",
-      "kind": "write-file",
-      "line": 3110,
-      "reason": "The legacy migration orchestrator mutates many registered targets. Each target is inventoried, while exact-site flow attribution remains prerequisite work for the coordinator.",
-      "sourceFile": "core/migrations.ts",
-      "storeId": null
-    },
-    {
-      "exemptionId": "cross-store-legacy-migrations",
-      "kind": "rename",
-      "line": 3115,
-      "reason": "The legacy migration orchestrator mutates many registered targets. Each target is inventoried, while exact-site flow attribution remains prerequisite work for the coordinator.",
-      "sourceFile": "core/migrations.ts",
-      "storeId": null
-    },
-    {
-      "exemptionId": "cross-store-legacy-migrations",
-      "kind": "write-file",
-      "line": 3124,
-      "reason": "The legacy migration orchestrator mutates many registered targets. Each target is inventoried, while exact-site flow attribution remains prerequisite work for the coordinator.",
-      "sourceFile": "core/migrations.ts",
-      "storeId": null
-    },
-    {
-      "exemptionId": "cross-store-legacy-migrations",
-      "kind": "rename",
-      "line": 3135,
-      "reason": "The legacy migration orchestrator mutates many registered targets. Each target is inventoried, while exact-site flow attribution remains prerequisite work for the coordinator.",
-      "sourceFile": "core/migrations.ts",
-      "storeId": null
-    },
-    {
-      "exemptionId": "cross-store-legacy-migrations",
-      "kind": "write-file",
-      "line": 3231,
-      "reason": "The legacy migration orchestrator mutates many registered targets. Each target is inventoried, while exact-site flow attribution remains prerequisite work for the coordinator.",
-      "sourceFile": "core/migrations.ts",
-      "storeId": null
-    },
-    {
-      "exemptionId": "cross-store-legacy-migrations",
-      "kind": "rename",
-      "line": 3232,
-      "reason": "The legacy migration orchestrator mutates many registered targets. Each target is inventoried, while exact-site flow attribution remains prerequisite work for the coordinator.",
-      "sourceFile": "core/migrations.ts",
-      "storeId": null
-    },
-    {
-      "exemptionId": "cross-store-legacy-migrations",
-      "kind": "write-file",
-      "line": 3250,
+      "kind": "mkdir",
+      "line": 2717,
       "reason": "The legacy migration orchestrator mutates many registered targets. Each target is inventoried, while exact-site flow attribution remains prerequisite work for the coordinator.",
       "sourceFile": "core/migrations.ts",
       "storeId": null
@@ -4788,7 +4684,7 @@
     {
       "exemptionId": "cross-store-legacy-migrations",
       "kind": "atomic-write",
-      "line": 3300,
+      "line": 2740,
       "reason": "The legacy migration orchestrator mutates many registered targets. Each target is inventoried, while exact-site flow attribution remains prerequisite work for the coordinator.",
       "sourceFile": "core/migrations.ts",
       "storeId": null
@@ -4796,15 +4692,7 @@
     {
       "exemptionId": "cross-store-legacy-migrations",
       "kind": "write-file",
-      "line": 3314,
-      "reason": "The legacy migration orchestrator mutates many registered targets. Each target is inventoried, while exact-site flow attribution remains prerequisite work for the coordinator.",
-      "sourceFile": "core/migrations.ts",
-      "storeId": null
-    },
-    {
-      "exemptionId": "cross-store-legacy-migrations",
-      "kind": "write-file",
-      "line": 3355,
+      "line": 2798,
       "reason": "The legacy migration orchestrator mutates many registered targets. Each target is inventoried, while exact-site flow attribution remains prerequisite work for the coordinator.",
       "sourceFile": "core/migrations.ts",
       "storeId": null
@@ -4812,7 +4700,7 @@
     {
       "exemptionId": "cross-store-legacy-migrations",
       "kind": "rename",
-      "line": 3356,
+      "line": 2803,
       "reason": "The legacy migration orchestrator mutates many registered targets. Each target is inventoried, while exact-site flow attribution remains prerequisite work for the coordinator.",
       "sourceFile": "core/migrations.ts",
       "storeId": null
@@ -4820,15 +4708,7 @@
     {
       "exemptionId": "cross-store-legacy-migrations",
       "kind": "write-file",
-      "line": 3402,
-      "reason": "The legacy migration orchestrator mutates many registered targets. Each target is inventoried, while exact-site flow attribution remains prerequisite work for the coordinator.",
-      "sourceFile": "core/migrations.ts",
-      "storeId": null
-    },
-    {
-      "exemptionId": "cross-store-legacy-migrations",
-      "kind": "write-file",
-      "line": 3458,
+      "line": 2979,
       "reason": "The legacy migration orchestrator mutates many registered targets. Each target is inventoried, while exact-site flow attribution remains prerequisite work for the coordinator.",
       "sourceFile": "core/migrations.ts",
       "storeId": null
@@ -4836,7 +4716,7 @@
     {
       "exemptionId": "cross-store-legacy-migrations",
       "kind": "rename",
-      "line": 3469,
+      "line": 2980,
       "reason": "The legacy migration orchestrator mutates many registered targets. Each target is inventoried, while exact-site flow attribution remains prerequisite work for the coordinator.",
       "sourceFile": "core/migrations.ts",
       "storeId": null
@@ -4844,7 +4724,7 @@
     {
       "exemptionId": "cross-store-legacy-migrations",
       "kind": "write-file",
-      "line": 3500,
+      "line": 3141,
       "reason": "The legacy migration orchestrator mutates many registered targets. Each target is inventoried, while exact-site flow attribution remains prerequisite work for the coordinator.",
       "sourceFile": "core/migrations.ts",
       "storeId": null
@@ -4852,7 +4732,151 @@
     {
       "exemptionId": "cross-store-legacy-migrations",
       "kind": "rename",
-      "line": 3505,
+      "line": 3142,
+      "reason": "The legacy migration orchestrator mutates many registered targets. Each target is inventoried, while exact-site flow attribution remains prerequisite work for the coordinator.",
+      "sourceFile": "core/migrations.ts",
+      "storeId": null
+    },
+    {
+      "exemptionId": "cross-store-legacy-migrations",
+      "kind": "write-file",
+      "line": 3193,
+      "reason": "The legacy migration orchestrator mutates many registered targets. Each target is inventoried, while exact-site flow attribution remains prerequisite work for the coordinator.",
+      "sourceFile": "core/migrations.ts",
+      "storeId": null
+    },
+    {
+      "exemptionId": "cross-store-legacy-migrations",
+      "kind": "rename",
+      "line": 3194,
+      "reason": "The legacy migration orchestrator mutates many registered targets. Each target is inventoried, while exact-site flow attribution remains prerequisite work for the coordinator.",
+      "sourceFile": "core/migrations.ts",
+      "storeId": null
+    },
+    {
+      "exemptionId": "cross-store-legacy-migrations",
+      "kind": "write-file",
+      "line": 3302,
+      "reason": "The legacy migration orchestrator mutates many registered targets. Each target is inventoried, while exact-site flow attribution remains prerequisite work for the coordinator.",
+      "sourceFile": "core/migrations.ts",
+      "storeId": null
+    },
+    {
+      "exemptionId": "cross-store-legacy-migrations",
+      "kind": "rename",
+      "line": 3307,
+      "reason": "The legacy migration orchestrator mutates many registered targets. Each target is inventoried, while exact-site flow attribution remains prerequisite work for the coordinator.",
+      "sourceFile": "core/migrations.ts",
+      "storeId": null
+    },
+    {
+      "exemptionId": "cross-store-legacy-migrations",
+      "kind": "write-file",
+      "line": 3316,
+      "reason": "The legacy migration orchestrator mutates many registered targets. Each target is inventoried, while exact-site flow attribution remains prerequisite work for the coordinator.",
+      "sourceFile": "core/migrations.ts",
+      "storeId": null
+    },
+    {
+      "exemptionId": "cross-store-legacy-migrations",
+      "kind": "rename",
+      "line": 3327,
+      "reason": "The legacy migration orchestrator mutates many registered targets. Each target is inventoried, while exact-site flow attribution remains prerequisite work for the coordinator.",
+      "sourceFile": "core/migrations.ts",
+      "storeId": null
+    },
+    {
+      "exemptionId": "cross-store-legacy-migrations",
+      "kind": "write-file",
+      "line": 3423,
+      "reason": "The legacy migration orchestrator mutates many registered targets. Each target is inventoried, while exact-site flow attribution remains prerequisite work for the coordinator.",
+      "sourceFile": "core/migrations.ts",
+      "storeId": null
+    },
+    {
+      "exemptionId": "cross-store-legacy-migrations",
+      "kind": "rename",
+      "line": 3424,
+      "reason": "The legacy migration orchestrator mutates many registered targets. Each target is inventoried, while exact-site flow attribution remains prerequisite work for the coordinator.",
+      "sourceFile": "core/migrations.ts",
+      "storeId": null
+    },
+    {
+      "exemptionId": "cross-store-legacy-migrations",
+      "kind": "write-file",
+      "line": 3442,
+      "reason": "The legacy migration orchestrator mutates many registered targets. Each target is inventoried, while exact-site flow attribution remains prerequisite work for the coordinator.",
+      "sourceFile": "core/migrations.ts",
+      "storeId": null
+    },
+    {
+      "exemptionId": "cross-store-legacy-migrations",
+      "kind": "atomic-write",
+      "line": 3492,
+      "reason": "The legacy migration orchestrator mutates many registered targets. Each target is inventoried, while exact-site flow attribution remains prerequisite work for the coordinator.",
+      "sourceFile": "core/migrations.ts",
+      "storeId": null
+    },
+    {
+      "exemptionId": "cross-store-legacy-migrations",
+      "kind": "write-file",
+      "line": 3506,
+      "reason": "The legacy migration orchestrator mutates many registered targets. Each target is inventoried, while exact-site flow attribution remains prerequisite work for the coordinator.",
+      "sourceFile": "core/migrations.ts",
+      "storeId": null
+    },
+    {
+      "exemptionId": "cross-store-legacy-migrations",
+      "kind": "write-file",
+      "line": 3547,
+      "reason": "The legacy migration orchestrator mutates many registered targets. Each target is inventoried, while exact-site flow attribution remains prerequisite work for the coordinator.",
+      "sourceFile": "core/migrations.ts",
+      "storeId": null
+    },
+    {
+      "exemptionId": "cross-store-legacy-migrations",
+      "kind": "rename",
+      "line": 3548,
+      "reason": "The legacy migration orchestrator mutates many registered targets. Each target is inventoried, while exact-site flow attribution remains prerequisite work for the coordinator.",
+      "sourceFile": "core/migrations.ts",
+      "storeId": null
+    },
+    {
+      "exemptionId": "cross-store-legacy-migrations",
+      "kind": "write-file",
+      "line": 3594,
+      "reason": "The legacy migration orchestrator mutates many registered targets. Each target is inventoried, while exact-site flow attribution remains prerequisite work for the coordinator.",
+      "sourceFile": "core/migrations.ts",
+      "storeId": null
+    },
+    {
+      "exemptionId": "cross-store-legacy-migrations",
+      "kind": "write-file",
+      "line": 3650,
+      "reason": "The legacy migration orchestrator mutates many registered targets. Each target is inventoried, while exact-site flow attribution remains prerequisite work for the coordinator.",
+      "sourceFile": "core/migrations.ts",
+      "storeId": null
+    },
+    {
+      "exemptionId": "cross-store-legacy-migrations",
+      "kind": "rename",
+      "line": 3661,
+      "reason": "The legacy migration orchestrator mutates many registered targets. Each target is inventoried, while exact-site flow attribution remains prerequisite work for the coordinator.",
+      "sourceFile": "core/migrations.ts",
+      "storeId": null
+    },
+    {
+      "exemptionId": "cross-store-legacy-migrations",
+      "kind": "write-file",
+      "line": 3692,
+      "reason": "The legacy migration orchestrator mutates many registered targets. Each target is inventoried, while exact-site flow attribution remains prerequisite work for the coordinator.",
+      "sourceFile": "core/migrations.ts",
+      "storeId": null
+    },
+    {
+      "exemptionId": "cross-store-legacy-migrations",
+      "kind": "rename",
+      "line": 3697,
       "reason": "The legacy migration orchestrator mutates many registered targets. Each target is inventoried, while exact-site flow attribution remains prerequisite work for the coordinator.",
       "sourceFile": "core/migrations.ts",
       "storeId": null
@@ -4860,7 +4884,7 @@
     {
       "exemptionId": "cross-store-legacy-migrations",
       "kind": "persistent-store-constructor",
-      "line": 3745,
+      "line": 3937,
       "reason": "The legacy migration orchestrator mutates many registered targets. Each target is inventoried, while exact-site flow attribution remains prerequisite work for the coordinator.",
       "sourceFile": "core/migrations.ts",
       "storeId": null
@@ -4868,7 +4892,7 @@
     {
       "exemptionId": "cross-store-legacy-migrations",
       "kind": "persistent-store-constructor",
-      "line": 3838,
+      "line": 4030,
       "reason": "The legacy migration orchestrator mutates many registered targets. Each target is inventoried, while exact-site flow attribution remains prerequisite work for the coordinator.",
       "sourceFile": "core/migrations.ts",
       "storeId": null
@@ -4876,7 +4900,7 @@
     {
       "exemptionId": "cross-store-legacy-migrations",
       "kind": "persistent-store-constructor",
-      "line": 3839,
+      "line": 4031,
       "reason": "The legacy migration orchestrator mutates many registered targets. Each target is inventoried, while exact-site flow attribution remains prerequisite work for the coordinator.",
       "sourceFile": "core/migrations.ts",
       "storeId": null
@@ -4884,7 +4908,7 @@
     {
       "exemptionId": "cross-store-legacy-migrations",
       "kind": "atomic-write",
-      "line": 3935,
+      "line": 4127,
       "reason": "The legacy migration orchestrator mutates many registered targets. Each target is inventoried, while exact-site flow attribution remains prerequisite work for the coordinator.",
       "sourceFile": "core/migrations.ts",
       "storeId": null
@@ -4892,7 +4916,7 @@
     {
       "exemptionId": "cross-store-legacy-migrations",
       "kind": "atomic-write",
-      "line": 3950,
+      "line": 4142,
       "reason": "The legacy migration orchestrator mutates many registered targets. Each target is inventoried, while exact-site flow attribution remains prerequisite work for the coordinator.",
       "sourceFile": "core/migrations.ts",
       "storeId": null
@@ -4900,7 +4924,7 @@
     {
       "exemptionId": "cross-store-legacy-migrations",
       "kind": "write-file",
-      "line": 3978,
+      "line": 4170,
       "reason": "The legacy migration orchestrator mutates many registered targets. Each target is inventoried, while exact-site flow attribution remains prerequisite work for the coordinator.",
       "sourceFile": "core/migrations.ts",
       "storeId": null
@@ -4908,7 +4932,7 @@
     {
       "exemptionId": "cross-store-legacy-migrations",
       "kind": "rename",
-      "line": 3979,
+      "line": 4171,
       "reason": "The legacy migration orchestrator mutates many registered targets. Each target is inventoried, while exact-site flow attribution remains prerequisite work for the coordinator.",
       "sourceFile": "core/migrations.ts",
       "storeId": null
@@ -4916,7 +4940,7 @@
     {
       "exemptionId": "cross-store-legacy-migrations",
       "kind": "write-file",
-      "line": 3996,
+      "line": 4188,
       "reason": "The legacy migration orchestrator mutates many registered targets. Each target is inventoried, while exact-site flow attribution remains prerequisite work for the coordinator.",
       "sourceFile": "core/migrations.ts",
       "storeId": null
@@ -4924,7 +4948,7 @@
     {
       "exemptionId": "cross-store-legacy-migrations",
       "kind": "rename",
-      "line": 3997,
+      "line": 4189,
       "reason": "The legacy migration orchestrator mutates many registered targets. Each target is inventoried, while exact-site flow attribution remains prerequisite work for the coordinator.",
       "sourceFile": "core/migrations.ts",
       "storeId": null
@@ -4932,7 +4956,7 @@
     {
       "exemptionId": "cross-store-legacy-migrations",
       "kind": "write-file",
-      "line": 4043,
+      "line": 4235,
       "reason": "The legacy migration orchestrator mutates many registered targets. Each target is inventoried, while exact-site flow attribution remains prerequisite work for the coordinator.",
       "sourceFile": "core/migrations.ts",
       "storeId": null
@@ -4940,7 +4964,7 @@
     {
       "exemptionId": "cross-store-legacy-migrations",
       "kind": "rename",
-      "line": 4044,
+      "line": 4236,
       "reason": "The legacy migration orchestrator mutates many registered targets. Each target is inventoried, while exact-site flow attribution remains prerequisite work for the coordinator.",
       "sourceFile": "core/migrations.ts",
       "storeId": null
@@ -4948,7 +4972,7 @@
     {
       "exemptionId": "cross-store-legacy-migrations",
       "kind": "write-file",
-      "line": 4067,
+      "line": 4259,
       "reason": "The legacy migration orchestrator mutates many registered targets. Each target is inventoried, while exact-site flow attribution remains prerequisite work for the coordinator.",
       "sourceFile": "core/migrations.ts",
       "storeId": null
@@ -4956,7 +4980,7 @@
     {
       "exemptionId": "cross-store-legacy-migrations",
       "kind": "rename",
-      "line": 4068,
+      "line": 4260,
       "reason": "The legacy migration orchestrator mutates many registered targets. Each target is inventoried, while exact-site flow attribution remains prerequisite work for the coordinator.",
       "sourceFile": "core/migrations.ts",
       "storeId": null
