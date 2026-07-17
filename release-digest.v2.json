@@ -3,6 +3,159 @@
   "entries": [
     {
       "schemaVersion": 1,
+      "tag": "v0.407.15",
+      "version": "0.407.15",
+      "previousTag": "v0.407.8",
+      "generatedAt": "2026-07-17T05:33:51.000Z",
+      "noUserFacingChanges": false,
+      "summary": {
+        "zh": "本版集中加固从 stable 升级到最新版的兼容性：会在接收新输入前刷新已变化的工具快照，保留历史会话引用的 Codex OAuth 模型，修复旧供应商模型元数据，并迁移钉钉旧版应用认证与项目技能发现策略；同时移除频道中已经失效的私信工具提示。",
+        "en": "This release hardens upgrades from stable: changed tool snapshots are refreshed before new input, Codex OAuth models referenced by existing data are preserved, legacy provider metadata is repaired, and older DingTalk application authentication and project skill-discovery policies are migrated. It also removes obsolete direct-message tool guidance from channels."
+      },
+      "counts": {
+        "feature": 0,
+        "fix": 2,
+        "improvement": 0,
+        "migration": 4
+      },
+      "source": {
+        "owner": "liliMozi",
+        "repo": "openhanako",
+        "commitRange": "v0.407.8..v0.407.15",
+        "releaseUrl": "https://github.com/liliMozi/openhanako/releases/tag/v0.407.15",
+        "releaseNotes": ""
+      },
+      "items": [
+        {
+          "id": "refresh-frozen-tool-snapshots",
+          "kind": "fix",
+          "importance": "high",
+          "title": {
+            "zh": "输入前刷新变化的工具快照",
+            "en": "Refresh changed tool snapshots before input"
+          },
+          "summary": {
+            "zh": "插件、MCP 或内置工具发生变化后，已有会话会在接收下一条输入前完成刷新，避免继续使用过期工具定义。",
+            "en": "Existing sessions now refresh changed plugin, MCP, and built-in tool snapshots before accepting the next input instead of continuing with stale definitions."
+          },
+          "details": [],
+          "sources": [
+            {
+              "type": "commit",
+              "ref": "ffff66f63",
+              "title": "fix(sessions): preflight frozen tool drift before input (#2156)"
+            }
+          ]
+        },
+        {
+          "id": "preserve-codex-oauth-model-references",
+          "kind": "migration",
+          "importance": "high",
+          "title": {
+            "zh": "保留历史数据引用的 Codex OAuth 模型",
+            "en": "Preserve Codex OAuth models referenced by existing data"
+          },
+          "summary": {
+            "zh": "升级时会扫描现有 Agent、会话、定时任务和频道配置，把仍被引用的官方 Codex OAuth 模型保留在可用列表中。",
+            "en": "Upgrades scan existing agents, sessions, scheduled tasks, and channel settings so referenced official Codex OAuth models remain available."
+          },
+          "details": [],
+          "sources": [
+            {
+              "type": "commit",
+              "ref": "c9c30a219",
+              "title": "fix(models): preserve referenced Codex OAuth models on upgrade"
+            }
+          ]
+        },
+        {
+          "id": "repair-provider-model-metadata",
+          "kind": "migration",
+          "importance": "high",
+          "title": {
+            "zh": "修复旧版供应商模型元数据",
+            "en": "Repair legacy provider model metadata"
+          },
+          "summary": {
+            "zh": "升级会先备份供应商目录，再修复不兼容的数字、API、推理和凭证字段；有效模型、排序与自定义信息保持不变。",
+            "en": "The provider catalog is backed up before incompatible numeric, API, reasoning, and credential fields are repaired, while valid models, ordering, and custom metadata stay intact."
+          },
+          "details": [],
+          "sources": [
+            {
+              "type": "commit",
+              "ref": "f1f356fbc",
+              "title": "fix(models): repair incompatible catalog metadata on upgrade"
+            }
+          ]
+        },
+        {
+          "id": "remove-obsolete-channel-dm-guidance",
+          "kind": "fix",
+          "importance": "medium",
+          "title": {
+            "zh": "移除频道中的失效私信提示",
+            "en": "Remove obsolete direct-message guidance from channels"
+          },
+          "summary": {
+            "zh": "频道不再引导 Agent 调用已经移除的私信工具，避免生成无法执行的操作。",
+            "en": "Channels no longer instruct agents to call a removed direct-message tool, preventing actions that cannot be executed."
+          },
+          "details": [],
+          "sources": [
+            {
+              "type": "commit",
+              "ref": "4abdf464f",
+              "title": "fix(channels): remove stale direct-message tool guidance"
+            }
+          ]
+        },
+        {
+          "id": "migrate-dingtalk-application-auth",
+          "kind": "migration",
+          "importance": "high",
+          "title": {
+            "zh": "迁移钉钉旧版应用认证",
+            "en": "Migrate legacy DingTalk application authentication"
+          },
+          "summary": {
+            "zh": "从 stable 升级后，既有钉钉应用凭证会明确标记为旧版认证并继续使用对应令牌与发送接口；补齐 corpId 后会自动切换到当前模式。",
+            "en": "Existing DingTalk application credentials are explicitly migrated to legacy authentication with matching token and send endpoints; adding a corpId switches them to the current mode."
+          },
+          "details": [],
+          "sources": [
+            {
+              "type": "commit",
+              "ref": "1fb072d9e",
+              "title": "fix(dingtalk): preserve stable application auth on upgrade"
+            }
+          ]
+        },
+        {
+          "id": "preserve-project-skill-discovery-policy",
+          "kind": "migration",
+          "importance": "medium",
+          "title": {
+            "zh": "保留旧 Agent 的项目技能发现行为",
+            "en": "Preserve project skill discovery for existing agents"
+          },
+          "summary": {
+            "zh": "旧 Agent 缺少显式设置时会继续发现兼容的项目技能；已经明确开启或关闭的设置保持原样，新建 Agent 的默认策略也不变。",
+            "en": "Existing agents without an explicit setting keep discovering compatible project skills; explicit choices and the default for newly created agents remain unchanged."
+          },
+          "details": [],
+          "sources": [
+            {
+              "type": "commit",
+              "ref": "50707271c",
+              "title": "fix(skills): preserve stable project discovery policy"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "schemaVersion": 1,
       "tag": "v0.407.8",
       "version": "0.407.8",
       "previousTag": "v0.407.3",

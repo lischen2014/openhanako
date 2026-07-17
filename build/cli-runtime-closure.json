@@ -1909,6 +1909,18 @@
       "reason": "Reached via esbuild source module graph, imported by core/llm-client.ts (import-statement)."
     },
     {
+      "path": "core/provider-model-metadata-migration.ts",
+      "inputType": "source-graph",
+      "provenance": [
+        {
+          "root": "server-bootstrap",
+          "from": "core/migrations.ts",
+          "kind": "import-statement"
+        }
+      ],
+      "reason": "Reached via esbuild source module graph, imported by core/migrations.ts (import-statement)."
+    },
+    {
       "path": "core/provider-prompt-patches.ts",
       "inputType": "source-graph",
       "provenance": [
@@ -3434,6 +3446,11 @@
       "provenance": [
         {
           "root": "server-bootstrap",
+          "from": "core/migrations.ts",
+          "kind": "import-statement"
+        },
+        {
+          "root": "server-bootstrap",
           "from": "lib/bridge/dingtalk-api.ts",
           "kind": "import-statement"
         },
@@ -3453,7 +3470,7 @@
           "kind": "import-statement"
         }
       ],
-      "reason": "Reached via esbuild source module graph, imported by lib/bridge/dingtalk-api.ts (import-statement); server/routes/bridge.ts (import-statement); lib/bridge/dingtalk-adapter.ts (import-statement); +1 more importer(s)."
+      "reason": "Reached via esbuild source module graph, imported by core/migrations.ts (import-statement); lib/bridge/dingtalk-api.ts (import-statement); server/routes/bridge.ts (import-statement); +2 more importer(s)."
     },
     {
       "path": "lib/bridge/feishu-adapter.ts",
@@ -111824,9 +111841,9 @@
     }
   ],
   "stats": {
-    "totalFiles": 9598,
+    "totalFiles": 9599,
     "byInputType": {
-      "source-graph": 619,
+      "source-graph": 620,
       "runtime-asset": 11,
       "nft-runtime-trace": 8968
     }

@@ -85,6 +85,7 @@
     "core/preferences-manager.ts",
     "core/provider-auth-migration.ts",
     "core/provider-catalog.ts",
+    "core/provider-model-metadata-migration.ts",
     "core/provider-compat.ts",
     "core/provider-compat/agnes.ts",
     "core/provider-compat/anthropic.ts",
