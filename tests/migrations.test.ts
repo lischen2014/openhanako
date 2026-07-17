@@ -14,7 +14,7 @@ import { validateProviderModels } from "../shared/provider-model-validation.ts";
 
 // ── 测试工具 ────────────────────────────────────────────────────────────────
 
-const LATEST_DATA_VERSION = 47;
+const LATEST_DATA_VERSION = 48;
 
 function makeTmpDir() {
   return fs.mkdtempSync(path.join(os.tmpdir(), "hana-migrations-"));
@@ -683,6 +683,7 @@ describe("migration #45: recover persisted Codex OAuth model references", () => 
         chat: { provider: "openai-codex-oauth", id: "agent-chat" },
         utility: "openai-codex/agent-utility",
       },
+      workspace_context: { discover_compatible_project_skills: false },
     });
 
     const sessionPaths = [
@@ -1117,7 +1118,10 @@ describe("migration #47: preserve stable DingTalk application authentication", (
       },
     };
     for (const [agentId, dingtalk] of Object.entries(fixtures)) {
-      writeAgentConfig(agentsDir, agentId, { bridge: { dingtalk } });
+      writeAgentConfig(agentsDir, agentId, {
+        bridge: { dingtalk },
+        workspace_context: { discover_compatible_project_skills: false },
+      });
     }
     const before = new Map(Object.keys(fixtures).map((agentId) => [
       agentId,
@@ -1169,6 +1173,7 @@ describe("migration #47: preserve stable DingTalk application authentication", (
           restBaseUrl: "not-an-absolute-url",
         },
       },
+      workspace_context: { discover_compatible_project_skills: false },
     });
     writeAgentConfig(agentsDir, "good", {
       bridge: {
@@ -1179,6 +1184,7 @@ describe("migration #47: preserve stable DingTalk application authentication", (
           restBaseUrl: "https://api.dingtalk.io/v1.0",
         },
       },
+      workspace_context: { discover_compatible_project_skills: false },
     });
     const badBytes = fs.readFileSync(path.join(agentsDir, "bad-url", "config.yaml"));
     const logs: string[] = [];
@@ -1252,6 +1258,157 @@ describe("migration #47: preserve stable DingTalk application authentication", (
       expect(fs.readFileSync(outsidePath).equals(outsideBytes)).toBe(true);
     } finally {
       fs.rmSync(externalDir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("migration #48: preserve stable compatible workspace skill discovery", () => {
+  let tmpDir, agentsDir, userDir;
+
+  beforeEach(() => {
+    tmpDir = makeTmpDir();
+    agentsDir = path.join(tmpDir, "agents");
+    userDir = path.join(tmpDir, "user");
+    fs.mkdirSync(agentsDir, { recursive: true });
+  });
+
+  afterEach(() => { fs.rmSync(tmpDir, { recursive: true, force: true }); });
+
+  function runFrom47(log: (line: any) => void = () => {}) {
+    const prefs = makePrefs(userDir);
+    prefs.savePreferences({ _dataVersion: 47 });
+    runMigrations({
+      hanakoHome: tmpDir,
+      agentsDir,
+      prefs,
+      providerRegistry: makeRegistry([]),
+      log,
+    });
+    return prefs;
+  }
+
+  it("enables compatible project skills only when the new policy field is missing", () => {
+    writeAgentConfig(agentsDir, "stable-no-context", {
+      agent: { name: "Stable" },
+      skills: { enabled: ["skill-creator"] },
+      desk: { heartbeat_enabled: false },
+    });
+    writeAgentConfig(agentsDir, "stable-partial-context", {
+      agent: { name: "Partial" },
+      workspace_context: {
+        inject_agents_md: true,
+        discover_project_skills: false,
+      },
+    });
+    writeAgentConfig(agentsDir, "explicit-false", {
+      workspace_context: { discover_compatible_project_skills: false },
+    });
+    writeAgentConfig(agentsDir, "explicit-true", {
+      workspace_context: { discover_compatible_project_skills: true },
+    });
+    const explicitBytes = new Map(["explicit-false", "explicit-true"].map((agentId) => [
+      agentId,
+      fs.readFileSync(path.join(agentsDir, agentId, "config.yaml")),
+    ]));
+
+    const prefs = runFrom47();
+
+    expect(readAgentConfig(agentsDir, "stable-no-context")).toEqual({
+      agent: { name: "Stable" },
+      skills: { enabled: ["skill-creator"] },
+      desk: { heartbeat_enabled: false },
+      workspace_context: { discover_compatible_project_skills: true },
+    });
+    expect(readAgentConfig(agentsDir, "stable-partial-context").workspace_context).toEqual({
+      inject_agents_md: true,
+      discover_project_skills: false,
+      discover_compatible_project_skills: true,
+    });
+    expect(readAgentConfig(agentsDir, "explicit-false").workspace_context.discover_compatible_project_skills).toBe(false);
+    expect(readAgentConfig(agentsDir, "explicit-true").workspace_context.discover_compatible_project_skills).toBe(true);
+    for (const [agentId, bytes] of explicitBytes) {
+      expect(fs.readFileSync(path.join(agentsDir, agentId, "config.yaml")).equals(bytes)).toBe(true);
+    }
+    expect(prefs.getPreferences()._dataVersion).toBe(LATEST_DATA_VERSION);
+
+    const migratedBytes = new Map(["stable-no-context", "stable-partial-context"].map((agentId) => [
+      agentId,
+      fs.readFileSync(path.join(agentsDir, agentId, "config.yaml")),
+    ]));
+    const rerunPrefs = prefs.getPreferences();
+    rerunPrefs._dataVersion = 47;
+    prefs.savePreferences(rerunPrefs);
+    runMigrations({
+      hanakoHome: tmpDir,
+      agentsDir,
+      prefs,
+      providerRegistry: makeRegistry([]),
+      log: () => {},
+    });
+    for (const [agentId, bytes] of migratedBytes) {
+      expect(fs.readFileSync(path.join(agentsDir, agentId, "config.yaml")).equals(bytes)).toBe(true);
+    }
+  });
+
+  it("isolates malformed workspace policy data without changing explicit source bytes", () => {
+    writeAgentConfig(agentsDir, "malformed", {
+      agent: { name: "Malformed" },
+      workspace_context: [],
+    });
+    writeAgentConfig(agentsDir, "good", { agent: { name: "Good" } });
+    const malformedPath = path.join(agentsDir, "malformed", "config.yaml");
+    const malformedBytes = fs.readFileSync(malformedPath);
+    const logs: string[] = [];
+
+    const prefs = runFrom47((line) => { logs.push(String(line)); });
+
+    expect(fs.readFileSync(malformedPath).equals(malformedBytes)).toBe(true);
+    expect(readAgentConfig(agentsDir, "good").workspace_context.discover_compatible_project_skills).toBe(true);
+    expect(prefs.getPreferences()._dataVersion).toBe(LATEST_DATA_VERSION);
+    expect(logs.join("\n")).toContain("stage=workspace_context");
+  });
+
+  it("keeps the policy migration retryable when a valid Agent config cannot be written", () => {
+    writeAgentConfig(agentsDir, "readonly", { agent: { name: "Readonly" } });
+    const configPath = path.join(agentsDir, "readonly", "config.yaml");
+    const originalBytes = fs.readFileSync(configPath);
+    const originalRenameSync = fs.renameSync;
+    const renameSpy = vi.spyOn(fs, "renameSync").mockImplementation((source, destination) => {
+      if (destination === configPath) {
+        throw Object.assign(new Error("private-content-must-not-leak"), { code: "EACCES" });
+      }
+      return originalRenameSync(source, destination);
+    });
+    const logs: string[] = [];
+
+    try {
+      const prefs = runFrom47((line) => { logs.push(String(line)); });
+      expect(prefs.getPreferences()._dataVersion).toBe(47);
+    } finally {
+      renameSpy.mockRestore();
+    }
+
+    expect(fs.readFileSync(configPath).equals(originalBytes)).toBe(true);
+    expect(logs.join("\n")).toContain("stage=write, code=EACCES");
+    expect(logs.join("\n")).not.toContain("private-content-must-not-leak");
+  });
+
+  it.runIf(process.platform !== "win32")("does not follow linked Agent directories or config files", () => {
+    const externalRoot = fs.mkdtempSync(path.join(os.tmpdir(), "hana-workspace-policy-external-"));
+    try {
+      writeAgentConfig(externalRoot, "outside", { agent: { name: "Outside" } });
+      const outsidePath = path.join(externalRoot, "outside", "config.yaml");
+      const outsideBytes = fs.readFileSync(outsidePath);
+      fs.symlinkSync(path.join(externalRoot, "outside"), path.join(agentsDir, "linked-agent"));
+      const linkedConfigDir = path.join(agentsDir, "linked-config");
+      fs.mkdirSync(linkedConfigDir, { recursive: true });
+      fs.symlinkSync(outsidePath, path.join(linkedConfigDir, "config.yaml"));
+
+      runFrom47();
+
+      expect(fs.readFileSync(outsidePath).equals(outsideBytes)).toBe(true);
+    } finally {
+      fs.rmSync(externalRoot, { recursive: true, force: true });
     }
   });
 });

@@ -159,6 +159,8 @@ const migrations = {
   46: repairLegacyProviderModelMetadata,
   // stable 钉钉配置使用旧应用 token 接口；显式标记后继续沿用旧契约
   47: migrateStableDingTalkCredentialsToLegacyAuthMode,
+  // stable 会加载项目内兼容技能目录；只为缺少新策略字段的旧 Agent 显式保留该行为
+  48: preserveStableCompatibleWorkspaceSkillDiscovery,
 };
 
 // ── Runner ──────────────────────────────────────────────────────────────────
@@ -1947,6 +1949,89 @@ function migrateStableDingTalkCredentialsToLegacyAuthMode(ctx) {
   }
 
   log?.(`[migrations] #47: DingTalk stable credentials migrated (configs=${migrated}, invalid=${invalid})`);
+}
+
+/**
+ * #48 — 为 stable Agent 保留项目内兼容技能发现
+ *
+ * stable 没有 workspace_context 策略字段，会加载 .claude/.codex/.openclaw
+ * 项目技能。新 Agent 模板已显式写 false；因此只补缺失值为 true，就能区分
+ * 升级用户与新建 Agent，并完整尊重用户已经保存的 true / false。
+ */
+function preserveStableCompatibleWorkspaceSkillDiscovery(ctx) {
+  const { agentsDir, log } = ctx;
+  let entries;
+  try {
+    if (!fs.lstatSync(agentsDir).isDirectory()) return;
+    entries = fs.readdirSync(agentsDir, { withFileTypes: true });
+  } catch {
+    log?.("[migrations] #48: no readable agent configs");
+    return;
+  }
+
+  let migrated = 0;
+  let invalid = 0;
+  for (const entry of entries) {
+    if (!entry.isDirectory()) continue;
+    const configPath = path.join(agentsDir, entry.name, "config.yaml");
+    try {
+      if (!fs.lstatSync(configPath).isFile()) continue;
+    } catch {
+      continue;
+    }
+
+    let config;
+    try {
+      config = YAML.load(fs.readFileSync(configPath, "utf-8"));
+    } catch {
+      invalid += 1;
+      log?.(`[migrations] #48 skipped invalid config for "${entry.name}" (stage=read_or_parse)`);
+      continue;
+    }
+    if (!config || typeof config !== "object" || Array.isArray(config)) {
+      invalid += 1;
+      log?.(`[migrations] #48 skipped invalid config for "${entry.name}" (stage=shape)`);
+      continue;
+    }
+
+    const workspaceContext = config.workspace_context;
+    if (workspaceContext !== undefined
+      && (!workspaceContext || typeof workspaceContext !== "object" || Array.isArray(workspaceContext))) {
+      invalid += 1;
+      log?.(`[migrations] #48 skipped invalid config for "${entry.name}" (stage=workspace_context)`);
+      continue;
+    }
+    if (workspaceContext
+      && Object.prototype.hasOwnProperty.call(workspaceContext, "discover_compatible_project_skills")) {
+      continue;
+    }
+
+    config.workspace_context = {
+      ...(workspaceContext || {}),
+      discover_compatible_project_skills: true,
+    };
+    try {
+      atomicWriteSync(
+        configPath,
+        YAML.dump(config, {
+          indent: 2,
+          lineWidth: -1,
+          sortKeys: false,
+          quotingType: "\"",
+        }),
+      );
+    } catch (error) {
+      const code = typeof error?.code === "string" && /^[A-Z0-9_]+$/.test(error.code)
+        ? error.code
+        : "WRITE_FAILED";
+      log?.(`[migrations] #48 could not persist config for "${entry.name}" (stage=write, code=${code})`);
+      throw new Error(`workspace skill policy migration write failed for "${entry.name}" (code=${code})`);
+    }
+    migrated += 1;
+    log?.(`[migrations] #48 preserved compatible project skill discovery for "${entry.name}"`);
+  }
+
+  log?.(`[migrations] #48: compatible project skill policy migrated (configs=${migrated}, invalid=${invalid})`);
 }
 
 function removeCodexImageSizeDefault(providerDefaults) {
