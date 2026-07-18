@@ -171,18 +171,47 @@ function blockIndexAtCoords(
   return next > 0 ? next - 1 : 0;
 }
 
+function renderedLineBounds(
+  view: EditorView,
+  lineNumber: number,
+): { top: number; bottom: number } | null {
+  const line = view.state.doc.line(lineNumber);
+  const { node } = view.domAtPos(line.from, 1);
+  let element = node.nodeType === 1 ? node as HTMLElement : node.parentElement;
+  while (element && element !== view.contentDOM) {
+    if (element.classList.contains('cm-line')) {
+      const rect = element.getBoundingClientRect();
+      if (element.offsetHeight > 0
+        && rect.height > 0
+        && Number.isFinite(rect.top)
+        && Number.isFinite(rect.bottom)) {
+        return { top: rect.top, bottom: rect.bottom };
+      }
+      return null;
+    }
+    element = element.parentElement;
+  }
+  return null;
+}
+
 function blockVerticalBounds(view: EditorView, block: MarkdownBlock): { top: number; bottom: number } {
   const endPosition = Math.max(block.from, block.to - 1);
+  const renderedStart = renderedLineBounds(view, block.startLine);
+  const renderedEnd = renderedLineBounds(view, block.endLine);
   const startCoordinates = view.coordsAtPos(block.from, 1);
   const endCoordinates = view.coordsAtPos(endPosition, -1);
   const startBlock = view.lineBlockAt(block.from);
   const endBlock = view.lineBlockAt(endPosition);
   return {
-    // A block widget immediately before a line (notably the top cover) can
-    // make lineBlockAt() report a compound block that starts at the widget.
-    // Visible caret coordinates belong to the rendered Markdown line itself.
-    top: startCoordinates?.top ?? view.documentTop + (startBlock.top * view.scaleY),
-    bottom: endCoordinates?.bottom ?? view.documentTop + (endBlock.bottom * view.scaleY),
+    // Measure the rendered line box first so large headings and wrapped lines
+    // receive their full visual height. A block widget immediately before a
+    // line (notably the top cover) can make lineBlockAt() include that widget.
+    top: renderedStart?.top
+      ?? startCoordinates?.top
+      ?? view.documentTop + (startBlock.top * view.scaleY),
+    bottom: renderedEnd?.bottom
+      ?? endCoordinates?.bottom
+      ?? view.documentTop + (endBlock.bottom * view.scaleY),
   };
 }
 

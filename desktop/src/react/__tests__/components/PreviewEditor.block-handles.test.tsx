@@ -574,7 +574,7 @@ describe('markdown block handle rail', () => {
     view.destroy();
   });
 
-  it('starts the first block selection at its rendered heading below a top cover', () => {
+  it('uses the full rendered heading bounds without extending into a top cover', () => {
     const doc = [
       '---',
       'cover:',
@@ -592,10 +592,27 @@ describe('markdown block handle rail', () => {
     lineBlockSpy.mockImplementation(function lineBlock(this: EditorView, pos: number) {
       const line = this.state.doc.lineAt(Math.min(pos, this.state.doc.length));
       if (line.number === 5) {
-        return { top: 0, bottom: 544, height: 544 } as ReturnType<EditorView['lineBlockAt']>;
+        return { top: 0, bottom: 584, height: 584 } as ReturnType<EditorView['lineBlockAt']>;
       }
       const top = line.number * 32;
       return { top, bottom: top + 24, height: 24 } as ReturnType<EditorView['lineBlockAt']>;
+    });
+    rectSpy.mockImplementation(function rect(this: HTMLElement) {
+      if (this.classList.contains('cm-line') && this.textContent?.includes('Dream')) {
+        return {
+          ...elementRect(),
+          top: 500,
+          bottom: 584,
+          height: 84,
+          left: 200,
+          right: 760,
+          width: 560,
+        } as DOMRect;
+      }
+      if (this.classList.contains('cm-line')) {
+        return { ...elementRect(), left: 200, right: 760, width: 560 } as DOMRect;
+      }
+      return elementRect();
     });
     const parent = document.createElement('div');
     document.body.appendChild(parent);
@@ -611,6 +628,10 @@ describe('markdown block handle rail', () => {
       }),
     });
     const heading = collectMarkdownBlocks(view.state)[0];
+    const headingLine = [...view.contentDOM.querySelectorAll<HTMLElement>('.cm-line')]
+      .find(line => line.textContent?.includes('Dream'));
+    if (!headingLine) throw new Error('Expected the rendered heading line.');
+    Object.defineProperty(headingLine, 'offsetHeight', { configurable: true, value: 84 });
 
     view.dispatch({
       effects: setMarkdownBlockSelection.of({ anchor: heading.from, head: heading.from }),
@@ -621,8 +642,8 @@ describe('markdown block handle rail', () => {
       '.cm-markdown-block-selection-surface:not([hidden])',
     );
     expect(heading.source).toBe('# Dream');
-    expect(surface?.style.top).toBe('520px');
-    expect(surface?.style.height).toBe('24px');
+    expect(surface?.style.top).toBe('500px');
+    expect(surface?.style.height).toBe('84px');
     view.destroy();
   });
 
