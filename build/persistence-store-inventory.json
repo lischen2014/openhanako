@@ -7984,7 +7984,7 @@
     },
     {
       "sourceFile": "server/index.ts",
-      "line": 1263,
+      "line": 1266,
       "kind": "remove-path",
       "excerpt": "fs.unlinkSync(path.join(hanakoHome, \"server-info.json\"))",
       "reason": "Writes or deletes live server discovery state.",

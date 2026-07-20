@@ -627,7 +627,7 @@
     ],
     "version": 2
   },
-  "payloadFingerprint": "sha256:e157d81fc2183b834af6a1569c02085942a4be38425cbe93372d3e5d13ed3952",
+  "payloadFingerprint": "sha256:f2066c13be7c86a38479b57956b645e4b58e49c54d4e75b4b18c3fdd19926663",
   "registry": [
     {
       "affectedByEpochMigration": true,
@@ -2878,8 +2878,8 @@
   ],
   "review": {
     "classification": "compatible",
-    "compatibilityReason": "Updates persistence site source locations after non-persistence desktop startup code was added; store ownership, schemas, and data epoch are unchanged.",
-    "payloadFingerprint": "sha256:e157d81fc2183b834af6a1569c02085942a4be38425cbe93372d3e5d13ed3952"
+    "compatibilityReason": "Defers Bridge startup after server readiness; persistent store ownership, schemas, paths, and data epoch are unchanged.",
+    "payloadFingerprint": "sha256:f2066c13be7c86a38479b57956b645e4b58e49c54d4e75b4b18c3fdd19926663"
   },
   "schemas": [
     {
@@ -3208,7 +3208,7 @@
       "contract": "server-info writer and desktop bootstrap reader",
       "kind": "runtime-contract",
       "module": "server/index.ts",
-      "sourceHash": "sha256:34e8202afafeae65562ba439a570fce18d7b7100e02a23f5c3158d6ec5991d4c",
+      "sourceHash": "sha256:cadb33786f3ebfe9d053111f5210d60c325ce8138febf0e545965be626696835",
       "storeId": "server-runtime-info"
     },
     {
@@ -8476,7 +8476,7 @@
     {
       "exemptionId": null,
       "kind": "remove-path",
-      "line": 1263,
+      "line": 1266,
       "reason": "Writes or deletes live server discovery state.",
       "sourceFile": "server/index.ts",
       "storeId": "server-runtime-info"

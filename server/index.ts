@@ -1192,8 +1192,11 @@ export async function startServer(root: CompositionRoot = {}): Promise<void> {
 
     // Bridge 平台依赖不属于 HTTP readiness 的前置条件。先让桌面端拿到
     // server-info，再在后台加载外部平台 adapter，避免 Windows 上依赖加载
-    // 或杀毒扫描拖垮主启动握手。
-    startBridgeManager({ autoStart: true });
+    // 或杀毒扫描拖垮主启动握手。单文件 ESM bundle 还必须等当前模块完成
+    // 求值后再触发动态 import，否则内联 namespace 可能仍处于 TDZ。
+    setImmediate(() => {
+      void startBridgeManager({ autoStart: true });
+    });
 
     // Legacy explicit attach mode. Normal headless server runs stay quiet.
     if (process.stdin.isTTY && (process.argv.includes("--cli") || process.argv.includes("--chat"))) {

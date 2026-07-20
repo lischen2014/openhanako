@@ -491,10 +491,17 @@ describe("server startup diagnostics contract", () => {
     expect(serverSource).toContain('await import("../lib/bridge/bridge-manager.ts")');
 
     const readyWriteIndex = serverSource.indexOf("fs.writeFileSync(serverInfoPath");
+    const bridgeDeferIndex = serverSource.indexOf("setImmediate(() => {");
     const bridgeStartIndex = serverSource.indexOf("startBridgeManager({ autoStart: true })");
+    const startupTryEndIndex = serverSource.indexOf("\n  } catch (err)", bridgeStartIndex);
     expect(readyWriteIndex).toBeGreaterThan(-1);
+    expect(bridgeDeferIndex).toBeGreaterThan(-1);
     expect(bridgeStartIndex).toBeGreaterThan(-1);
-    expect(readyWriteIndex).toBeLessThan(bridgeStartIndex);
+    expect(startupTryEndIndex).toBeGreaterThan(bridgeStartIndex);
+    expect(readyWriteIndex).toBeLessThan(bridgeDeferIndex);
+    expect(bridgeDeferIndex).toBeLessThan(bridgeStartIndex);
+    expect(serverSource).toMatch(/setImmediate\(\(\) => \{\s*void startBridgeManager\(\{ autoStart: true \}\);\s*\}\);/s);
+    expect(serverSource.slice(bridgeDeferIndex, startupTryEndIndex)).not.toMatch(/\bawait\b/);
 
     expect(bridgeRouteSource).not.toContain('import { getWechatQrcode, pollWechatQrcodeStatus } from "../../lib/bridge/wechat-login.ts";');
     expect(bridgeRouteSource).toContain('await import("../../lib/bridge/wechat-login.ts")');

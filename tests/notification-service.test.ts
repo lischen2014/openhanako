@@ -281,8 +281,9 @@ describe("NotificationService", () => {
   });
 
   it("reports explicit bridge owner delivery failure when the channel is unavailable", async () => {
+    const emitDesktop = vi.fn();
     const service = new NotificationService({
-      emitDesktop: vi.fn(),
+      emitDesktop,
       getBridgeManager: () => null,
     });
 
@@ -292,11 +293,36 @@ describe("NotificationService", () => {
     );
 
     expect(result.ok).toBe(false);
+    expect(emitDesktop).not.toHaveBeenCalled();
     expect(result.deliveries).toEqual([{
       channel: "bridge_owner",
       status: "failed",
       error: "bridge manager unavailable",
     }]);
+  });
+
+  it("treats explicit desktop and bridge channels as fan-out rather than ordered fallback", async () => {
+    const emitDesktop = vi.fn();
+    const service = new NotificationService({
+      emitDesktop,
+      getBridgeManager: () => null,
+    });
+
+    const result = await service.notify(
+      { title: "AI 日报", body: "正文", channels: ["bridge_owner", "desktop"] },
+      { agentId: "hana" },
+    );
+
+    expect(emitDesktop).toHaveBeenCalledOnce();
+    expect(result.ok).toBe(false);
+    expect(result.deliveries).toEqual([
+      {
+        channel: "bridge_owner",
+        status: "failed",
+        error: "bridge manager unavailable",
+      },
+      { channel: "desktop", status: "sent" },
+    ]);
   });
 
   it("fails unsupported explicit channels instead of falling back to desktop", async () => {
