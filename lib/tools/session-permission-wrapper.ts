@@ -89,12 +89,15 @@ function captureSessionBinding(ctx: any, deps: any = {}) {
     const resolvedSessionId = sessionPath && typeof deps.getSessionIdForPath === "function"
       ? nonEmptyText(deps.getSessionIdForPath(sessionPath))
       : null;
+    // SessionManager owns a runtime-native identifier (for example, a Pi JSONL
+    // ID), not Hana's SessionManifest identity. Freeze it independently so
+    // approval revalidation detects runtime drift without comparing namespaces.
+    const runtimeNativeSessionId = typeof sessionManager?.getSessionId === "function"
+      ? nonEmptyText(sessionManager.getSessionId())
+      : null;
     const identityCandidates = [
       nonEmptyText(ctx?.sessionRef?.sessionId),
       nonEmptyText(ctx?.sessionId),
-      typeof sessionManager?.getSessionId === "function"
-        ? nonEmptyText(sessionManager.getSessionId())
-        : null,
       resolvedSessionId,
     ].filter(Boolean);
     const uniqueSessionIds = new Set(identityCandidates);
@@ -109,6 +112,7 @@ function captureSessionBinding(ctx: any, deps: any = {}) {
       ok: true,
       value: Object.freeze({
         sessionId: identityCandidates[0] || null,
+        runtimeNativeSessionId,
         sessionPath,
         sessionCwd: typeof sessionManager?.getCwd === "function"
           ? normalizedSessionPath(sessionManager.getCwd())
@@ -130,7 +134,7 @@ function createBoundSessionManager(sessionManager: any, sessionBinding: any) {
   const forwardedMethods = new Map<PropertyKey, ManagerMethod>();
   const fixedMethods = new Map<PropertyKey, ManagerMethod>([
     ["getSessionFile", () => sessionBinding.sessionPath],
-    ["getSessionId", () => sessionBinding.sessionId],
+    ["getSessionId", () => sessionBinding.runtimeNativeSessionId],
     ["getCwd", () => sessionBinding.sessionCwd],
   ]);
   const facade = Object.create(Object.getPrototypeOf(sessionManager));

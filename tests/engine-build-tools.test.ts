@@ -3,6 +3,7 @@ import os from "os";
 import path from "path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { HanaEngine } from "../core/engine.ts";
+import { SessionExecutionRegistry } from "../lib/session-execution-registry.ts";
 
 function permissionTool(name, execute = vi.fn(), kind: "read" | "routine" | "review" = "routine") {
   return {
@@ -582,11 +583,13 @@ describe("HanaEngine.buildTools", () => {
     expect(Object.isFrozen(injectedCtx.sessionRef)).toBe(true);
   });
 
-  it("passes Pi SDK fifth-argument session ctx into plugin tools", async () => {
+  it("keeps Hana and Pi runtime-native identities separate across the full tool wrapper chain", async () => {
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "hana-build-tools-plugin-pi-ctx-"));
     const agentDir = path.join(tmpDir, "agents", "focus");
     const workspace = path.join(tmpDir, "workspace");
     const desktopSessionPath = path.join(agentDir, "sessions", "desktop.jsonl");
+    const hanaSessionId = "sess_desktop";
+    const piSessionId = "019f7dca-9ff4-7031-ba7f-cdcd5f7b3198";
     const execute = vi.fn(async () => ({ content: [{ type: "text", text: "ok" }] }));
     const agent = {
       id: "focus",
@@ -603,6 +606,10 @@ describe("HanaEngine.buildTools", () => {
       studioId: "studio_engine",
     };
     engine.getAgent = vi.fn(() => agent);
+    engine.getSessionIdForPath = vi.fn((candidatePath) => (
+      candidatePath === desktopSessionPath ? hanaSessionId : null
+    ));
+    engine._sessionExecutions = new SessionExecutionRegistry();
     engine._pluginManager = {
       getAllTools: () => [{
         name: "plugin_tool",
@@ -627,18 +634,30 @@ describe("HanaEngine.buildTools", () => {
     const onUpdate = vi.fn();
 
     await pluginTool.execute("call-1", { ok: true }, signal, onUpdate, {
-      sessionManager: { getSessionFile: () => desktopSessionPath },
+      sessionManager: {
+        getSessionFile: () => desktopSessionPath,
+        getSessionId: () => piSessionId,
+        getCwd: () => workspace,
+      },
     });
 
     expect(execute).toHaveBeenCalledWith(
       "call-1",
       { ok: true },
-      signal,
+      expect.objectContaining({ aborted: false }),
       onUpdate,
       expect.objectContaining({
+        sessionId: hanaSessionId,
         sessionPath: desktopSessionPath,
+        sessionRef: {
+          sessionId: hanaSessionId,
+          sessionPath: desktopSessionPath,
+        },
       }),
     );
+    const receivedCtx = (execute.mock.calls[0] as any)[4];
+    expect(receivedCtx.sessionManager.getSessionId()).toBe(piSessionId);
+    expect(engine._sessionExecutions.activeCount(hanaSessionId)).toBe(0);
   });
 
   it("registers files created or modified by write and edit tools in the active session", async () => {

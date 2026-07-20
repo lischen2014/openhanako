@@ -561,6 +561,121 @@ describe("session permission wrapper", () => {
     expect(result.details.errorCode).toBe("TOOL_INVOCATION_CHANGED_BEFORE_EXECUTION");
   });
 
+  it("keeps Hana and runtime-native session identities in separate namespaces", async () => {
+    const hanaSessionId = "sess-desktop";
+    const runtimeNativeSessionId = "019f7dca-9ff4-7031-ba7f-cdcd5f7b3198";
+    const sessionPath = "/tmp/desktop-session.jsonl";
+    let receivedCtx: any = null;
+    const tool = makeChannelDescriptorTool();
+    tool.execute = vi.fn(async (...toolArgs: any[]) => {
+      receivedCtx = toolArgs[4];
+      return {
+        content: [{ type: "text", text: "executed" }],
+        details: { executed: true },
+      };
+    });
+    const [wrapped] = wrapWithSessionPermission([tool], {
+      getPermissionMode: () => "auto",
+      getSessionIdForPath: (candidatePath) => (
+        candidatePath === sessionPath ? hanaSessionId : null
+      ),
+    });
+
+    const result = await wrapped.execute(
+      "call-distinct-session-identities",
+      { action: "list" },
+      null,
+      null,
+      {
+        sessionId: hanaSessionId,
+        sessionRef: { sessionId: hanaSessionId, sessionPath },
+        sessionManager: {
+          getSessionId: () => runtimeNativeSessionId,
+          getSessionFile: () => sessionPath,
+        },
+      },
+    );
+
+    expect(result.details.executed).toBe(true);
+    expect(receivedCtx).toMatchObject({
+      sessionId: hanaSessionId,
+      sessionRef: { sessionId: hanaSessionId, sessionPath },
+    });
+    expect(receivedCtx.sessionManager.getSessionId()).toBe(runtimeNativeSessionId);
+  });
+
+  it("fails closed when explicit Hana session identities conflict", async () => {
+    const sessionPath = "/tmp/conflicting-hana-session.jsonl";
+    const tool = makeChannelDescriptorTool();
+    const [wrapped] = wrapWithSessionPermission([tool], {
+      getPermissionMode: () => "auto",
+      getSessionIdForPath: () => "sess-from-manifest",
+    });
+
+    const result = await wrapped.execute(
+      "call-conflicting-hana-session",
+      { action: "list" },
+      null,
+      null,
+      {
+        sessionId: "sess-explicit",
+        sessionRef: { sessionId: "sess-explicit", sessionPath },
+        sessionManager: {
+          getSessionId: () => "019f7dca-9ff4-7031-ba7f-cdcd5f7b3198",
+          getSessionFile: () => sessionPath,
+        },
+      },
+    );
+
+    expect(tool.execute).not.toHaveBeenCalled();
+    expect(result.details).toMatchObject({
+      errorCode: "TOOL_SESSION_CONTEXT_INVALID",
+      sessionContextReason: "conflicting-session-identities",
+    });
+  });
+
+  it("fails closed when the runtime-native session identity changes during review", async () => {
+    const hanaSessionId = "sess-stable";
+    const sessionPath = "/tmp/runtime-native-drift.jsonl";
+    let runtimeNativeSessionId = "019f7dca-9ff4-7031-ba7f-cdcd5f7b3198";
+    const tool = makeChannelDescriptorTool();
+    const approvalGateway = {
+      review: vi.fn(async () => {
+        runtimeNativeSessionId = "019f7dca-b75c-7ffd-8071-44a8be0632c4";
+        return {
+          action: "allow",
+          reviewer: "small_tool_model",
+          reason: "approved stable Hana session",
+          risk: "low",
+        };
+      }),
+    };
+    const [wrapped] = wrapWithSessionPermission([tool], {
+      getPermissionMode: () => "auto",
+      getSessionIdForPath: () => hanaSessionId,
+      getApprovalGateway: () => approvalGateway,
+    });
+
+    const result = await wrapped.execute(
+      "call-runtime-native-drift",
+      { action: "post", channelId: "ch_team", content: "hello" },
+      null,
+      null,
+      {
+        sessionId: hanaSessionId,
+        sessionRef: { sessionId: hanaSessionId, sessionPath },
+        sessionManager: {
+          getSessionId: () => runtimeNativeSessionId,
+          getSessionFile: () => sessionPath,
+        },
+      },
+    );
+
+    expect(approvalGateway.review).toHaveBeenCalledOnce();
+    expect(tool.execute).not.toHaveBeenCalled();
+    expect(result.details.errorCode).toBe("TOOL_SESSION_CONTEXT_CHANGED_BEFORE_EXECUTION");
+  });
+
   it("fails closed when the Pi session context changes while approval review is pending", async () => {
     const sessions = {
       a: { sessionId: "sess-a", sessionPath: "/tmp/session-a.jsonl" },
@@ -668,11 +783,13 @@ describe("session permission wrapper", () => {
     const sessions = {
       a: {
         sessionId: "sess-a",
+        runtimeNativeSessionId: "pi-session-a",
         sessionPath: "/tmp/session-a.jsonl",
         cwd: "/tmp/workspace-a",
       },
       b: {
         sessionId: "sess-b",
+        runtimeNativeSessionId: "pi-session-b",
         sessionPath: "/tmp/session-b.jsonl",
         cwd: "/tmp/workspace-b",
       },
@@ -691,7 +808,7 @@ describe("session permission wrapper", () => {
         bridgeDeliveryTarget: { platform: "wechat", chatId: "owner-a" },
       },
       sessionManager: {
-        getSessionId: () => activeSession.sessionId,
+        getSessionId: () => activeSession.runtimeNativeSessionId,
         getSessionFile: () => activeSession.sessionPath,
         getCwd: () => activeSession.cwd,
         appendCustomEntry,
@@ -772,7 +889,7 @@ describe("session permission wrapper", () => {
         sessionId: sessions.a.sessionId,
         sessionPath: sessions.a.sessionPath,
       },
-      managerSessionId: sessions.a.sessionId,
+      managerSessionId: sessions.a.runtimeNativeSessionId,
       managerSessionPath: sessions.a.sessionPath,
       managerCwd: sessions.a.cwd,
       bridgeChatId: "owner-a",
