@@ -55,13 +55,18 @@ export function createHermeticMinGitSmokeEnv({ runtimeRoot, workRoot, env = proc
   };
 }
 
-function run(label, exe, args, opts = {}) {
+function run(label, exe, args, opts = {}, verifyOutput) {
   try {
     const out = execFileSync(exe, args, { encoding: "utf-8", timeout: 30000, ...opts });
+    verifyOutput?.(out);
     console.log(`PASS  ${label}: ${(out || "").trim().split(/\r?\n/)[0] || "(no output)"}`);
     return true;
   } catch (err) {
     console.error(`FAIL  ${label}: ${err.message}`);
+    for (const stream of ["stdout", "stderr"]) {
+      const detail = err?.[stream] == null ? "" : String(err[stream]).trimEnd();
+      if (detail) console.error(`${stream}:\n${detail}`);
+    }
     return false;
   }
 }
@@ -73,6 +78,142 @@ const IDENT = [
 ];
 
 const COREUTILS = "cat ls cp mv rm mkdir grep sed awk find sort uniq head tail wc cut tr xargs echo touch";
+
+function comparableWindowsPath(value) {
+  const normalized = path.win32.normalize(value);
+  const root = path.win32.parse(normalized).root;
+  const withoutTrailingSeparators = normalized === root
+    ? normalized
+    : normalized.replace(/[\\/]+$/, "");
+  return withoutTrailingSeparators.toLowerCase();
+}
+
+/**
+ * Convert the path dialects emitted by Git for Windows' `command -v` into an
+ * absolute native Windows path. POSIX virtual paths belong to the selected
+ * runtime; MSYS drive paths and native drive paths already identify a volume.
+ */
+export function minGitResolutionToWindowsPath(resolved, runtimeRoot) {
+  const value = String(resolved || "").trim();
+  const virtualMatch = value.match(/^\/(usr\/bin|mingw64\/bin)\/(.+)$/);
+  if (virtualMatch) {
+    return path.win32.normalize(path.win32.join(
+      path.win32.resolve(runtimeRoot),
+      ...virtualMatch[1].split("/"),
+      ...virtualMatch[2].split("/"),
+    ));
+  }
+
+  const msysDriveMatch = value.match(/^\/([a-zA-Z])(?:\/(.*))?$/);
+  if (msysDriveMatch) {
+    const suffix = msysDriveMatch[2]
+      ? msysDriveMatch[2].split("/").join("\\")
+      : "";
+    return path.win32.normalize(`${msysDriveMatch[1].toUpperCase()}:\\${suffix}`);
+  }
+
+  if (/^[a-zA-Z]:[\\/]/.test(value)) {
+    return path.win32.normalize(value);
+  }
+
+  return null;
+}
+
+/**
+ * Check one `command -v` result without trusting path prefixes. The
+ * canonicalizer is injectable so Windows short/long-path equivalence can be
+ * tested on every development platform; production uses the native realpath
+ * implementation.
+ */
+export function classifyMinGitCommandResolution({
+  command,
+  resolved,
+  runtimeRoot,
+  canonicalizeDirectory = fs.realpathSync.native,
+}) {
+  const value = String(resolved || "").trim();
+  const result = { command, resolved: value };
+
+  if (!value) return { ...result, ok: false, reason: "missing" };
+  if (command === "echo" && value === "echo") {
+    return { ...result, ok: true, source: "builtin" };
+  }
+
+  const windowsPath = minGitResolutionToWindowsPath(value, runtimeRoot);
+  if (!windowsPath) {
+    return { ...result, ok: false, reason: "non-path" };
+  }
+
+  const targetName = path.win32.basename(windowsPath).toLowerCase();
+  const expectedName = String(command).toLowerCase();
+  if (targetName !== expectedName && targetName !== `${expectedName}.exe`) {
+    return { ...result, ok: false, reason: "unexpected-target", windowsPath };
+  }
+
+  try {
+    const targetParent = comparableWindowsPath(canonicalizeDirectory(path.win32.dirname(windowsPath)));
+    const allowedParents = [
+      path.win32.join(path.win32.resolve(runtimeRoot), "usr", "bin"),
+      path.win32.join(path.win32.resolve(runtimeRoot), "mingw64", "bin"),
+    ].map((directory) => comparableWindowsPath(canonicalizeDirectory(directory)));
+
+    if (!allowedParents.includes(targetParent)) {
+      return {
+        ...result,
+        ok: false,
+        reason: "outside-runtime",
+        windowsPath,
+        targetParent,
+      };
+    }
+
+    return { ...result, ok: true, source: "runtime", windowsPath, targetParent };
+  } catch (error) {
+    return {
+      ...result,
+      ok: false,
+      reason: "unresolvable-path",
+      windowsPath,
+      detail: error instanceof Error ? error.message : String(error),
+    };
+  }
+}
+
+function formatMinGitCommandFailure(result) {
+  const resolved = result.resolved || "(empty)";
+  if (result.reason === "missing") {
+    return `MISSING: command=${result.command} resolved=${resolved}`;
+  }
+  const detail = result.detail ? ` detail=${result.detail}` : "";
+  return `EXTERNAL: command=${result.command} resolved=${resolved} reason=${result.reason}${detail}`;
+}
+
+export function verifyMinGitCommandResolutionOutput(
+  output,
+  runtimeRoot,
+  canonicalizeDirectory = fs.realpathSync.native,
+) {
+  const resolutions = new Map();
+  for (const line of String(output || "").split(/\r?\n/)) {
+    if (!line) continue;
+    const separator = line.indexOf("\t");
+    if (separator < 0) continue;
+    resolutions.set(line.slice(0, separator), line.slice(separator + 1));
+  }
+
+  const failures = COREUTILS.split(" ")
+    .map((command) => classifyMinGitCommandResolution({
+      command,
+      resolved: resolutions.get(command) || "",
+      runtimeRoot,
+      canonicalizeDirectory,
+    }))
+    .filter((result) => !result.ok);
+
+  if (failures.length > 0) {
+    throw new Error(`MinGit command provenance check failed:\n${failures.map(formatMinGitCommandFailure).join("\n")}`);
+  }
+}
 
 export function main(argv = process.argv.slice(2), env = process.env) {
   const root = path.resolve(argv[0] || path.join(process.cwd(), "vendor", "mingit"));
@@ -99,13 +240,13 @@ export function main(argv = process.argv.slice(2), env = process.env) {
       run("sh starts", sh, ["-c", "echo sh=ok"], runOptions),
       run("coreutils originate from archive", sh, [
         "-c",
-        `missing=""; external=""; for t in ${COREUTILS}; do `
-          + `resolved=$(command -v "$t" 2>/dev/null) || { missing="$missing $t"; continue; }; `
-          + `case "$t:$resolved" in echo:echo|*:/usr/bin/*|*:/mingw64/bin/*) ;; `
-          + `*) external="$external $t=$resolved" ;; esac; done; `
-          + `if [ -n "$missing" ]; then echo "MISSING:$missing"; exit 1; fi; `
-          + `if [ -n "$external" ]; then echo "EXTERNAL:$external"; exit 1; fi; echo "coreutils ok"`,
-      ], runOptions),
+        `for t in ${COREUTILS}; do `
+          + `resolved=$(command -v "$t" 2>/dev/null) || resolved=""; `
+          + `printf '%s\\t%s\\n' "$t" "$resolved"; done`,
+      ], {
+        ...runOptions,
+        encoding: "utf-8",
+      }, (out) => verifyMinGitCommandResolutionOutput(out, root)),
       run("sh pipeline", sh, [
         "-c",
         "printf 'a\\nb\\nc\\n' | grep b | sed 's/b/B/' | awk '{print $1}'",
