@@ -77,33 +77,39 @@ function assertExtractedLayout(layoutRoot) {
 
 export function standaloneRestrictedTokenSmokeSpec({ layoutRoot, workDir, hanaHome, env = process.env }) {
   const helperPath = path.win32.join(layoutRoot, "sandbox", "windows", "hana-win-sandbox.exe");
-  const shPath = path.win32.join(layoutRoot, "git", "usr", "bin", "sh.exe");
   const smokeEnv = createHermeticMinGitSmokeEnv({
     runtimeRoot: path.win32.join(layoutRoot, "git"),
     workRoot: hanaHome,
     env,
   });
   Object.assign(smokeEnv, {
+    // The sandbox grants write access to workDir only, so the child's temp
+    // dirs must live inside it. Production win32-exec follows the same
+    // contract by pointing TEMP at a directory it also grants.
+    TEMP: workDir,
+    TMP: workDir,
     HANA_HOME: hanaHome,
     HANA_ROOT: path.win32.join(layoutRoot, "server"),
     HANA_SERVER_ENTRY: path.win32.join(layoutRoot, "server", "bundle", "index.js"),
     HANA_WIN32_SANDBOX_HELPER: helperPath,
   });
   const markerFileName = "hana-restricted-token-smoke.txt";
-  const gitFileName = "hana-restricted-token-git.txt";
   const blockedDirName = "blocked";
   const deniedFileName = "hana-deny-write-smoke.txt";
-  const shellCommand = [
-    `printf '%s\\n' HANA_RESTRICTED_TOKEN_OK > ${markerFileName}`,
-    `cat ${markerFileName}`,
-    `git --version > ${gitFileName}`,
-    `if printf '%s\\n' SHOULD_NOT_WRITE > ${blockedDirName}/${deniedFileName} 2>/dev/null; `
-      + "then exit 73; else printf '%s\\n' HANA_DENY_WRITE_OK; fi",
-  ].join(" && ");
+  // The child must be a native PE binary: MSYS/Cygwin programs such as
+  // usr/bin/sh.exe fail to initialize (STATUS_DLL_INIT_FAILED) under a
+  // restricted token, so cmd.exe carries the writable-root and deny-write
+  // proof. Sandboxed Git startup is covered by the exec_command smoke below,
+  // which reaches it through the production exec chain.
+  const shellCommand =
+    `echo HANA_RESTRICTED_TOKEN_OK>${markerFileName}`
+    + ` && type ${markerFileName}`
+    + ` && (echo SHOULD_NOT_WRITE>${blockedDirName}\\${deniedFileName})`
+    + " && exit 73"
+    + " || echo HANA_DENY_WRITE_OK";
   return {
     helperPath,
     markerPath: path.win32.join(workDir, markerFileName),
-    gitVersionPath: path.win32.join(workDir, gitFileName),
     blockedDir: path.win32.join(workDir, blockedDirName),
     deniedMarkerPath: path.win32.join(workDir, blockedDirName, deniedFileName),
     env: smokeEnv,
@@ -113,8 +119,8 @@ export function standaloneRestrictedTokenSmokeSpec({ layoutRoot, workDir, hanaHo
       "--deny-write", path.win32.join(workDir, blockedDirName),
       "--timeout-ms", "30000",
       "--",
-      shPath,
-      "-c",
+      smokeEnv.ComSpec,
+      "/d", "/s", "/c",
       shellCommand,
     ],
   };
@@ -201,9 +207,6 @@ function smokeExtractedRuntime({ rootDir, layoutRoot }) {
       "HANA_RESTRICTED_TOKEN_OK",
       "restricted-token writable-root marker",
     );
-    if (!fs.readFileSync(spec.gitVersionPath, "utf8").trim().startsWith("git version ")) {
-      throw new Error("[verify-standalone] restricted-token sandbox could not run the packaged Git runtime");
-    }
     if (fs.existsSync(spec.deniedMarkerPath)) {
       throw new Error("[verify-standalone] restricted-token sandbox wrote inside an explicit deny-write path");
     }

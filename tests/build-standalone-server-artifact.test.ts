@@ -259,7 +259,7 @@ describe("Windows standalone server artifact", () => {
     }
   });
 
-  it("builds a restricted-token smoke spec from only the extracted HanaCore paths", () => {
+  it("builds a restricted-token smoke spec that proves write and deny-write through a native child", () => {
     const spec = standaloneRestrictedTokenSmokeSpec({
       layoutRoot: "C:\\downloads\\HanaCore",
       workDir: "C:\\Temp\\hana smoke",
@@ -274,8 +274,8 @@ describe("Windows standalone server artifact", () => {
       "--deny-write", "C:\\Temp\\hana smoke\\blocked",
       "--timeout-ms", "30000",
       "--",
-      "C:\\downloads\\HanaCore\\git\\usr\\bin\\sh.exe",
-      "-c",
+      "C:\\Windows\\System32\\cmd.exe",
+      "/d", "/s", "/c",
       expect.stringContaining("HANA_RESTRICTED_TOKEN_OK"),
     ]);
     expect(Object.keys(spec.env).filter((key) => key.toLowerCase() === "path")).toEqual(["Path"]);
@@ -285,7 +285,13 @@ describe("Windows standalone server artifact", () => {
       "C:\\downloads\\HanaCore\\git\\mingw64\\bin",
       "C:\\Windows\\System32",
     ].join(";"));
+    // MSYS/Cygwin binaries cannot initialize under a restricted token, so the
+    // child must stay a native PE binary (cmd.exe) and the temp dirs must sit
+    // inside the only writable root, matching the production sandbox contract.
     expect(spec.args.at(-1)).toContain("HANA_DENY_WRITE_OK");
+    expect(spec.args.at(-1)).toContain("exit 73");
+    expect(spec.env.TEMP).toBe("C:\\Temp\\hana smoke");
+    expect(spec.env.TMP).toBe("C:\\Temp\\hana smoke");
     expect(spec.deniedMarkerPath).toBe("C:\\Temp\\hana smoke\\blocked\\hana-deny-write-smoke.txt");
     expect(spec.env).toMatchObject({
       SystemRoot: "C:\\Windows",
