@@ -74,6 +74,25 @@ describe("Windows sandbox helper build script", () => {
     expect(source).toContain("desktop.qualifiedName.c_str()");
   });
 
+  it("keeps private desktops as the default and requires an explicit inherited-desktop opt-in", () => {
+    const source = fs.readFileSync(
+      path.resolve(__dirname, "../desktop/native/HanaWindowsSandboxHelper/main.cpp"),
+      "utf8"
+    );
+    const parseArgs = source.match(
+      /static Options parseArgs\([\s\S]*?\n\}/
+    )?.[0] || "";
+    const runSandboxed = source.match(
+      /static int runSandboxed\([\s\S]*?\n\}/
+    )?.[0] || "";
+
+    expect(parseArgs).toContain('--inherit-desktop');
+    expect(runSandboxed).toContain("const bool usesPrivateDesktop = !opts.inheritDesktop");
+    expect(runSandboxed).toContain("usesPrivateDesktop ? const_cast<LPWSTR>(desktop.qualifiedName.c_str()) : nullptr");
+    expect(runSandboxed).toContain('usesPrivateDesktop ? probeRestrictedDesktopAccess(restrictedToken, desktop) : L"inherited"');
+    expect(runSandboxed).toContain('if (usesPrivateDesktop && prelaunchDesktopProbe != L"ok")');
+  });
+
   it("uses system cryptographic randomness for each private desktop name", () => {
     const source = fs.readFileSync(
       path.resolve(__dirname, "../desktop/native/HanaWindowsSandboxHelper/main.cpp"),
@@ -266,8 +285,8 @@ describe("Windows sandbox helper build script", () => {
     )?.[0] || "";
 
     expect(source).toContain("emitPrelaunchDesktopProbeFailureDiagnostic");
-    expect(runSandboxed).toContain('if (prelaunchDesktopProbe != L"ok")');
-    expect(runSandboxed.indexOf('if (prelaunchDesktopProbe != L"ok")'))
+    expect(runSandboxed).toContain('if (usesPrivateDesktop && prelaunchDesktopProbe != L"ok")');
+    expect(runSandboxed.indexOf('if (usesPrivateDesktop && prelaunchDesktopProbe != L"ok")'))
       .toBeLessThan(runSandboxed.indexOf("CreateProcessAsUserW("));
     expect(runSandboxed).toContain('emitTerminalRecord(L"launch_failed"');
   });

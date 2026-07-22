@@ -121,23 +121,29 @@ export function resolveWin32SandboxHelper({
 export function buildWin32SandboxHelperArgs({
   cwd,
   timeoutMs = 0,
+  desktopMode = "private",
   grants = {},
   executable,
   args = [],
 }: {
   cwd?: string;
   timeoutMs?: number;
+  desktopMode?: "private" | "inherit";
   grants?: Record<string, any>;
   executable?: string;
   args?: string[];
 } = {}) {
   if (!cwd) throw new Error("win32 sandbox helper requires cwd");
   if (!executable) throw new Error("win32 sandbox helper requires executable");
+  if (desktopMode !== "private" && desktopMode !== "inherit") {
+    throw new Error('win32 sandbox helper desktopMode must be "private" or "inherit"');
+  }
   if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 0 || timeoutMs > WIN32_SANDBOX_MAX_TIMEOUT_MS) {
     throw new Error(`win32 sandbox helper timeoutMs must be an integer between 0 and ${WIN32_SANDBOX_MAX_TIMEOUT_MS}`);
   }
 
   const out = ["--cwd", cwd];
+  if (desktopMode === "inherit") out.push("--inherit-desktop");
   for (const p of grants.writePaths || []) out.push("--writable-root", p);
   for (const p of grants.optionalWritePaths || []) out.push("--writable-root-optional", p);
   for (const p of grants.denyWritePaths || []) out.push("--deny-write", p);

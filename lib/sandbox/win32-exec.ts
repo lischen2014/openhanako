@@ -1184,7 +1184,17 @@ function cleanupRootsForSandboxGrants(grants) {
   ];
 }
 
-async function spawnViaSandboxHelper({ sandbox, executable, args, cwd, env, onData, signal, timeout }) {
+async function spawnViaSandboxHelper({
+  sandbox,
+  executable,
+  args,
+  cwd,
+  env,
+  onData,
+  signal,
+  timeout,
+  desktopMode = "private",
+}) {
   const helper = sandbox.helperPath || resolveWin32SandboxHelper({ env });
   if (!helper) {
     throw new Error(
@@ -1200,6 +1210,7 @@ async function spawnViaSandboxHelper({ sandbox, executable, args, cwd, env, onDa
   const helperArgs = buildWin32SandboxHelperArgs({
     cwd,
     timeoutMs: nativeTimeoutMs,
+    desktopMode,
     grants,
     executable,
     args,
@@ -1400,6 +1411,11 @@ export function createWin32Exec({ sandbox = null } = {}) {
             onData: diagnosticOnData,
             signal,
             timeout,
+            // Windows PowerShell and pwsh can stall during runtime initialization
+            // on a newly created private USER32 desktop. This only changes their
+            // desktop attachment; the restricted token, file ACLs, and Job remain
+            // the authorization and process-lifetime boundaries.
+            desktopMode: "inherit",
           }),
         });
       }

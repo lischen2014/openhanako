@@ -440,6 +440,7 @@ describe("createWin32Exec", () => {
     expect(spawnAndStream).toHaveBeenCalledWith(
       helper,
       expect.arrayContaining([
+        "--inherit-desktop",
         "--",
         powerShellExe,
         "-NoLogo",
@@ -453,6 +454,8 @@ describe("createWin32Exec", () => {
       expect.objectContaining({ cwd: "C:\\work" }),
     );
     expect(spawnAndStream.mock.calls[0][1]).not.toContain(pwshExe);
+    expect(spawnAndStream.mock.calls[0][1].indexOf("--inherit-desktop"))
+      .toBeLessThan(spawnAndStream.mock.calls[0][1].indexOf("--"));
   });
 
   it("routes batch scripts through cmd call without bash", async () => {

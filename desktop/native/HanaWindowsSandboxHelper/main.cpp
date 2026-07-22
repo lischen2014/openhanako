@@ -49,6 +49,7 @@ struct Options {
     std::vector<std::wstring> legacyProfileCleanupNames;
     bool cleanupLegacyAcl = false;
     bool diagnoseToken = false;
+    bool inheritDesktop = false;
     std::wstring executable;
     std::vector<std::wstring> args;
 };
@@ -403,6 +404,11 @@ static Options parseArgs(int argc, wchar_t** argv) {
             opts.diagnoseToken = true;
             continue;
         }
+        if (arg == L"--inherit-desktop") {
+            if (opts.inheritDesktop) throw std::runtime_error("duplicate --inherit-desktop");
+            opts.inheritDesktop = true;
+            continue;
+        }
         if (arg == L"--network" || arg == L"--grant-read" || arg == L"--grant-read-optional" ||
             arg == L"--grant-write" || arg == L"--grant-write-optional" || arg == L"--deny-read") {
             throw std::runtime_error("legacy AppContainer helper argument is no longer supported");
@@ -416,7 +422,7 @@ static Options parseArgs(int argc, wchar_t** argv) {
         !opts.legacyProfileCleanupNames.empty() ||
         opts.cleanupLegacyAcl;
     if (maintenanceMode) {
-        if (!opts.cwd.empty() || !opts.executable.empty() || !opts.writableRoots.empty() || !opts.denyWritePaths.empty() || opts.diagnoseToken || opts.timeoutSpecified || opts.superviseServer || opts.parentPidSpecified) {
+        if (!opts.cwd.empty() || !opts.executable.empty() || !opts.writableRoots.empty() || !opts.denyWritePaths.empty() || opts.diagnoseToken || opts.inheritDesktop || opts.timeoutSpecified || opts.superviseServer || opts.parentPidSpecified) {
             throw std::runtime_error("maintenance arguments cannot be combined with sandbox execution arguments");
         }
         return opts;
@@ -425,7 +431,7 @@ static Options parseArgs(int argc, wchar_t** argv) {
         if (!opts.parentPidSpecified) throw std::runtime_error("missing --parent-pid");
         if (opts.cwd.empty()) throw std::runtime_error("missing --cwd");
         if (opts.executable.empty()) throw std::runtime_error("missing executable after --");
-        if (opts.timeoutSpecified || !opts.writableRoots.empty() || !opts.denyWritePaths.empty() || opts.diagnoseToken) {
+        if (opts.timeoutSpecified || !opts.writableRoots.empty() || !opts.denyWritePaths.empty() || opts.diagnoseToken || opts.inheritDesktop) {
             throw std::runtime_error("server guardian arguments cannot be combined with sandbox execution arguments");
         }
         return opts;
@@ -1615,7 +1621,8 @@ static int superviseServer(const Options& opts) {
 
 static int runSandboxed(const Options& opts, HANDLE restrictedToken) {
     SandboxDesktop desktop;
-    if (!createSandboxDesktop(desktop)) {
+    const bool usesPrivateDesktop = !opts.inheritDesktop;
+    if (usesPrivateDesktop && !createSandboxDesktop(desktop)) {
         DWORD errorCode = GetLastError();
         emitTerminalRecord(L"launch_failed", false, 0, opts.timeoutMs, errorCode);
         return HELPER_LAUNCH_FAILED_EXIT_CODE;
@@ -1627,7 +1634,7 @@ static int runSandboxed(const Options& opts, HANDLE restrictedToken) {
     startup.StartupInfo.hStdInput = GetStdHandle(STD_INPUT_HANDLE);
     startup.StartupInfo.hStdOutput = GetStdHandle(STD_OUTPUT_HANDLE);
     startup.StartupInfo.hStdError = GetStdHandle(STD_ERROR_HANDLE);
-    startup.StartupInfo.lpDesktop = const_cast<LPWSTR>(desktop.qualifiedName.c_str());
+    startup.StartupInfo.lpDesktop = usesPrivateDesktop ? const_cast<LPWSTR>(desktop.qualifiedName.c_str()) : nullptr;
 
     std::vector<HANDLE> inheritedHandles;
     pushUniqueHandle(inheritedHandles, startup.StartupInfo.hStdInput);
@@ -1652,9 +1659,10 @@ static int runSandboxed(const Options& opts, HANDLE restrictedToken) {
         flags |= EXTENDED_STARTUPINFO_PRESENT;
         inheritHandles = TRUE;
     }
-    const std::wstring prelaunchDesktopProbe = probeRestrictedDesktopAccess(restrictedToken, desktop);
+    const std::wstring prelaunchDesktopProbe =
+        usesPrivateDesktop ? probeRestrictedDesktopAccess(restrictedToken, desktop) : L"inherited";
     emitPrelaunchDesktopProbeDiagnostic(prelaunchDesktopProbe);
-    if (prelaunchDesktopProbe != L"ok") {
+    if (usesPrivateDesktop && prelaunchDesktopProbe != L"ok") {
         emitPrelaunchDesktopProbeFailureDiagnostic(prelaunchDesktopProbe);
         freeStartupAttributeList(inheritedAttributes);
         closeSandboxDesktop(desktop);
