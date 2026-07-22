@@ -1492,12 +1492,13 @@ static bool snapshotCurrentEnvironment(std::vector<wchar_t>& environment) {
         SetLastError(errorCode);
         return false;
     }
-    const wchar_t* end = rawEnvironment;
+    const wchar_t* begin = rawEnvironment;
+    const wchar_t* end = begin;
     while (*end != L'\0') {
         end += wcslen(end) + 1;
     }
     ++end;
-    environment.assign(rawEnvironment, end);
+    environment.assign(begin, end);
     FreeEnvironmentStringsW(rawEnvironment);
     return true;
 }
