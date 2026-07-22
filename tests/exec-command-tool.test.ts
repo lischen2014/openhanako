@@ -309,7 +309,7 @@ describe("exec_command tools", () => {
       platform: "win32",
     });
 
-    const invocation = execCommandTool.sessionPermission.resolveInvocation({
+    const invocation: any = execCommandTool.sessionPermission.resolveInvocation({
       cmd: "pnputil /enum-devices",
       sandbox_permissions: "require_escalated",
       justification: "Read display device inventory to debug color management?",
@@ -326,7 +326,7 @@ describe("exec_command tools", () => {
     });
 
     const overlong = "x".repeat(400);
-    const invocation = execCommandTool.sessionPermission.resolveInvocation({
+    const invocation: any = execCommandTool.sessionPermission.resolveInvocation({
       cmd: "pnputil /enum-devices",
       sandbox_permissions: "require_escalated",
       justification: overlong,
