@@ -1,6 +1,11 @@
 import { WIN32_DEFAULT_ONE_SHOT_SHELL } from "./shell.ts";
 
-export function execCommandDescription({ platform = process.platform }: { platform?: NodeJS.Platform } = {}) {
+export type Win32PowerShellFlavor = "pwsh" | "windows-powershell" | null;
+
+export function execCommandDescription({
+  platform = process.platform,
+  powershellFlavor = null,
+}: { platform?: NodeJS.Platform; powershellFlavor?: Win32PowerShellFlavor } = {}) {
   const common = [
     "Run a short, one-shot local command in the current session.",
     "When the OS sandbox is enabled, one-shot commands use its network-blocked path by default on macOS/Linux.",
@@ -17,6 +22,13 @@ export function execCommandDescription({ platform = process.platform }: { platfo
       "Use shell=\"bash\" only for explicit POSIX commands; the bundled runtime provides an sh-compatible shell (POSIX sh syntax, not full Bash). Bash-specific features require a system Git Bash install.",
       "Avoid POSIX heredocs on Windows; use python -c, PowerShell here-strings, or a temporary file instead.",
     );
+    if (powershellFlavor === "pwsh") {
+      common.push("PowerShell 7 (pwsh) is installed and preferred; modern PowerShell syntax is available.");
+    } else if (powershellFlavor === "windows-powershell") {
+      common.push(
+        "Only inbox Windows PowerShell 5.1 is available; avoid PowerShell 7-only syntax such as && and || chains, the ternary operator, and ForEach-Object -Parallel.",
+      );
+    }
   } else {
     common.push("On macOS/Linux the default shell is the existing POSIX shell runner.");
   }

@@ -36,11 +36,20 @@ export function createExecCommandTools({
   isOneShotSandboxEnforced,
   platform = process.platform,
   env = process.env,
+  // Called at most once, right here, when this tool-set is built for a
+  // session. The result is baked into `description` below as a plain string
+  // literal — not re-read later — so the description stays fixed for the
+  // rest of this session's lifetime even if the underlying machine state
+  // (e.g. pwsh getting installed or removed) changes afterward. See the
+  // rationale on detectWin32PowerShellFlavor in
+  // ../sandbox/win32-runtime-cache.ts for why that function itself must not
+  // cache across separate tool-set builds.
+  detectPowerShellFlavor,
 }: any = {}) {
   const execCommandTool = {
     name: "exec_command",
     label: "Exec Command",
-    description: execCommandDescription({ platform }),
+    description: execCommandDescription({ platform, powershellFlavor: detectPowerShellFlavor?.() ?? null }),
     sessionPermission: {
       sideEffect: { kind: "command", commandParam: "cmd" },
       describeSideEffect: (params: any = {}) => {

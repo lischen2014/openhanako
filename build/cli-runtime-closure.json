@@ -7935,9 +7935,14 @@
           "root": "server-bootstrap",
           "from": "lib/sandbox/win32-exec.ts",
           "kind": "import-statement"
+        },
+        {
+          "root": "server-bootstrap",
+          "from": "lib/sandbox/index.ts",
+          "kind": "import-statement"
         }
       ],
-      "reason": "Reached via esbuild source module graph, imported by lib/sandbox/win32-exec.ts (import-statement)."
+      "reason": "Reached via esbuild source module graph, imported by lib/sandbox/win32-exec.ts (import-statement); lib/sandbox/index.ts (import-statement)."
     },
     {
       "path": "lib/sandbox/win32-sandbox-helper.ts",

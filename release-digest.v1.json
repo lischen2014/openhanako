@@ -1,176 +1,46 @@
 {
   "schemaVersion": 1,
-  "tag": "v0.416.43",
-  "version": "0.416.43",
-  "previousTag": "v0.416.26",
-  "generatedAt": "2026-07-22T21:57:00.000Z",
+  "tag": "v0.416.44",
+  "version": "0.416.44",
+  "previousTag": "v0.416.43",
+  "generatedAt": "2026-07-23T06:45:00.000Z",
   "noUserFacingChanges": false,
   "summary": {
-    "zh": "Windows 沙箱恢复以 PowerShell 为默认一次性命令，审查通过后的提权可真正离开受限环境执行；并修复会话并发加载导致切换失败、带引号/多行命令，以及经验回忆工具装配等问题。",
-    "en": "Windows sandbox again defaults one-shot commands to PowerShell, and reviewed escalation can leave the restricted environment; also fixes session-switch failures from concurrent loads, quoted/multiline commands, and experience-recall tool assembly."
+    "zh": "Windows 上的命令执行说明会自动识别可用的 PowerShell 版本，并提示相应语法，减少因 PowerShell 版本差异导致的命令不兼容。",
+    "en": "On Windows, command guidance now detects the available PowerShell version and shows compatible syntax guidance, reducing version-specific command issues."
   },
   "counts": {
-    "feature": 2,
-    "fix": 3,
+    "feature": 0,
+    "fix": 0,
     "improvement": 1,
     "migration": 0
   },
   "source": {
     "owner": "liliMozi",
     "repo": "openhanako",
-    "commitRange": "v0.416.26..v0.416.43",
-    "releaseUrl": "https://github.com/liliMozi/openhanako/releases/tag/v0.416.43",
+    "commitRange": "v0.416.43..v0.416.44",
+    "releaseUrl": "https://github.com/liliMozi/openhanako/releases/tag/v0.416.44",
     "releaseNotes": ""
   },
   "items": [
     {
-      "id": "windows-powershell-sandbox-default",
-      "kind": "feature",
-      "importance": "high",
-      "title": {
-        "zh": "Windows 沙箱恢复 PowerShell 默认",
-        "en": "Windows sandbox restores PowerShell as default"
-      },
-      "summary": {
-        "zh": "一次性命令默认回到 PowerShell（优先 pwsh）；沙箱会把 TEMP 指到可写根并先做启动探测，通过后正常运行，探测失败则快速报错，不再静默改走 cmd。",
-        "en": "One-shot commands default to PowerShell again (pwsh preferred); the sandbox redirects TEMP into its write root and probes startup first—pass and run, fail fast if every PowerShell candidate fails, with no silent cmd fallback."
-      },
-      "details": [],
-      "sources": [
-        {
-          "type": "commit",
-          "ref": "bfc4311da",
-          "title": "feat(windows): restore PowerShell as the sandboxed one-shot default with a startup probe"
-        },
-        {
-          "type": "commit",
-          "ref": "9d52387b9",
-          "title": "fix(windows): redirect TEMP/TMP into the sandbox write root for every helper launch"
-        },
-        {
-          "type": "commit",
-          "ref": "b75e8ee0c",
-          "title": "fix(windows): promote the sandbox scratch root to a required writable-root for TEMP redirect"
-        }
-      ]
-    },
-    {
-      "id": "windows-escalation-outside-sandbox",
-      "kind": "feature",
-      "importance": "high",
-      "title": {
-        "zh": "审查通过的提权可真正离开沙箱",
-        "en": "Reviewed escalation can leave the sandbox"
-      },
-      "summary": {
-        "zh": "require_escalated 在 Windows 上经审查后会在受限令牌外执行；同时必须附上一句理由。破坏性命令模式在任何模式下仍被拦住。",
-        "en": "On Windows, reviewed require_escalated runs outside the restricted token, and a one-sentence justification is required. Destructive command patterns stay blocked in every mode."
-      },
-      "details": [],
-      "sources": [
-        {
-          "type": "commit",
-          "ref": "1a3e37fac",
-          "title": "feat(windows): make require_escalated run outside the restricted-token sandbox after review"
-        },
-        {
-          "type": "commit",
-          "ref": "ce7bac5ef",
-          "title": "feat(exec): require a one-sentence justification for require_escalated"
-        }
-      ]
-    },
-    {
-      "id": "windows-quoted-multiline-commands",
-      "kind": "fix",
-      "importance": "medium",
-      "title": {
-        "zh": "带引号与多行命令不再误伤",
-        "en": "Quoted and multiline commands no longer break"
-      },
-      "summary": {
-        "zh": "含双引号的 cmd 命令会原样到达；多行命令的权限描述也能正常通过校验。",
-        "en": "cmd payloads with embedded quotes reach cmd.exe intact, and multiline side-effect descriptors pass permission validation."
-      },
-      "details": [],
-      "sources": [
-        {
-          "type": "commit",
-          "ref": "83440cdf3",
-          "title": "fix(windows): pass cmd payloads verbatim through both spawn paths"
-        },
-        {
-          "type": "commit",
-          "ref": "ebad1959a",
-          "title": "fix(permission): accept bounded whitespace in invocation sideEffect strings"
-        }
-      ]
-    },
-    {
-      "id": "session-concurrent-load-dedupe",
-      "kind": "fix",
-      "importance": "medium",
-      "title": {
-        "zh": "会话并发加载不再导致切换失败",
-        "en": "Concurrent session loads no longer break switching"
-      },
-      "summary": {
-        "zh": "同一会话被同时加载时只建一份实例，避免孤儿写入破坏历史，切换时也不再因此 HTTP 500。",
-        "en": "Concurrent loads of the same session share one in-flight create path, so orphaned writers no longer corrupt history and session switches stop failing with HTTP 500."
-      },
-      "details": [],
-      "sources": [
-        {
-          "type": "commit",
-          "ref": "2e006323f",
-          "title": "fix(session): dedupe concurrent ensureSessionLoaded calls for the same session path"
-        }
-      ]
-    },
-    {
-      "id": "recall-experience-permission",
-      "kind": "fix",
-      "importance": "medium",
-      "title": {
-        "zh": "经验回忆工具可正常装配",
-        "en": "Experience recall tools assemble correctly"
-      },
-      "summary": {
-        "zh": "开启经验能力时，recall_experience 已声明只读权限，会话工具装配不再因此中断。",
-        "en": "With experience enabled, recall_experience declares read permission so session tool assembly no longer throws."
-      },
-      "details": [],
-      "sources": [
-        {
-          "type": "commit",
-          "ref": "2f60b4e79",
-          "title": "fix(tools): declare read permission for recall_experience and add built-in coverage regression"
-        }
-      ]
-    },
-    {
-      "id": "escalation-guidance-i18n",
+      "id": "windows-powershell-flavor-guidance",
       "kind": "improvement",
-      "importance": "low",
+      "importance": "medium",
       "title": {
-        "zh": "提权提示文案更清楚",
-        "en": "Clearer escalation guidance copy"
+        "zh": "Windows PowerShell 语法提示更准确",
+        "en": "More accurate Windows PowerShell guidance"
       },
       "summary": {
-        "zh": "模型侧与错误提示统一说明：沙箱拦住且任务需要时，可带理由重试提权；日文/韩文文案也已补齐。",
-        "en": "Model guidance and error text now share one escalation contract—retry with justification when the sandbox blocks something needed—and Japanese/Korean copy is filled in."
+        "zh": "Hana 会在构建命令工具时识别系统是否安装 PowerShell 7；可用时提示现代语法，只有 Windows PowerShell 5.1 时会提醒避免不兼容的语法。",
+        "en": "When command tools are built, Hana detects whether PowerShell 7 is installed; it highlights modern syntax when available and warns about incompatible syntax when only Windows PowerShell 5.1 is present."
       },
       "details": [],
       "sources": [
         {
           "type": "commit",
-          "ref": "192ccf13a",
-          "title": "fix(exec): rewrite escalation guidance to match Codex on_request phrasing"
-        },
-        {
-          "type": "commit",
-          "ref": "28e2b957b",
-          "title": "fix(i18n): add the escalation-hint locale key to ja and ko too"
+          "ref": "v0.416.43..v0.416.44",
+          "title": "feat(exec-command): bake detected PowerShell flavor into win32 tool description"
         }
       ]
     }

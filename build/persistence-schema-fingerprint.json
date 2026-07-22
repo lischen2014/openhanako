@@ -627,7 +627,7 @@
     ],
     "version": 2
   },
-  "payloadFingerprint": "sha256:a09fbc3aeb6c606a702d2b6ce814258c4abf8a8e97bcf4cfa30e14548c678fdd",
+  "payloadFingerprint": "sha256:a4fc5762d633d60b729f68268650a9b73e52d275279e650bf5c9897a991c69f2",
   "registry": [
     {
       "affectedByEpochMigration": true,
@@ -2878,8 +2878,8 @@
   ],
   "review": {
     "classification": "compatible",
-    "compatibilityReason": "line-number drift only: session-coordinator gained an in-memory in-flight dedup map for concurrent session loads; no persistent store, schema, or site was added, removed, or reshaped",
-    "payloadFingerprint": "sha256:a09fbc3aeb6c606a702d2b6ce814258c4abf8a8e97bcf4cfa30e14548c678fdd"
+    "compatibilityReason": "Added a non-caching PowerShell-flavor detector and its explanatory comments above the existing runtime-cache helpers in lib/sandbox/win32-runtime-cache.ts; this shifts scanned excerpt line numbers only, no store schema, site kind, or protocol module changed.",
+    "payloadFingerprint": "sha256:a4fc5762d633d60b729f68268650a9b73e52d275279e650bf5c9897a991c69f2"
   },
   "schemas": [
     {
@@ -7692,7 +7692,7 @@
     {
       "exemptionId": null,
       "kind": "mkdir",
-      "line": 98,
+      "line": 99,
       "reason": "Populates a Hana-owned regenerable runtime cache.",
       "sourceFile": "lib/sandbox/win32-runtime-cache.ts",
       "storeId": "managed-runtime-caches"
@@ -7700,7 +7700,7 @@
     {
       "exemptionId": null,
       "kind": "remove-path",
-      "line": 101,
+      "line": 102,
       "reason": "Populates a Hana-owned regenerable runtime cache.",
       "sourceFile": "lib/sandbox/win32-runtime-cache.ts",
       "storeId": "managed-runtime-caches"
@@ -7708,7 +7708,7 @@
     {
       "exemptionId": null,
       "kind": "copy-file",
-      "line": 103,
+      "line": 104,
       "reason": "Populates a Hana-owned regenerable runtime cache.",
       "sourceFile": "lib/sandbox/win32-runtime-cache.ts",
       "storeId": "managed-runtime-caches"
@@ -7716,14 +7716,6 @@
     {
       "exemptionId": null,
       "kind": "write-file",
-      "line": 108,
-      "reason": "Populates a Hana-owned regenerable runtime cache.",
-      "sourceFile": "lib/sandbox/win32-runtime-cache.ts",
-      "storeId": "managed-runtime-caches"
-    },
-    {
-      "exemptionId": null,
-      "kind": "remove-path",
       "line": 109,
       "reason": "Populates a Hana-owned regenerable runtime cache.",
       "sourceFile": "lib/sandbox/win32-runtime-cache.ts",
@@ -7731,7 +7723,7 @@
     },
     {
       "exemptionId": null,
-      "kind": "rename",
+      "kind": "remove-path",
       "line": 110,
       "reason": "Populates a Hana-owned regenerable runtime cache.",
       "sourceFile": "lib/sandbox/win32-runtime-cache.ts",
@@ -7739,8 +7731,16 @@
     },
     {
       "exemptionId": null,
+      "kind": "rename",
+      "line": 111,
+      "reason": "Populates a Hana-owned regenerable runtime cache.",
+      "sourceFile": "lib/sandbox/win32-runtime-cache.ts",
+      "storeId": "managed-runtime-caches"
+    },
+    {
+      "exemptionId": null,
       "kind": "remove-path",
-      "line": 112,
+      "line": 113,
       "reason": "Populates a Hana-owned regenerable runtime cache.",
       "sourceFile": "lib/sandbox/win32-runtime-cache.ts",
       "storeId": "managed-runtime-caches"

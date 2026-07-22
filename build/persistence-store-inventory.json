@@ -7102,7 +7102,7 @@
     },
     {
       "sourceFile": "lib/sandbox/win32-runtime-cache.ts",
-      "line": 98,
+      "line": 99,
       "kind": "mkdir",
       "excerpt": "fs.mkdirSync(parent, { recursive: true })",
       "reason": "Populates a Hana-owned regenerable runtime cache.",
@@ -7111,7 +7111,7 @@
     },
     {
       "sourceFile": "lib/sandbox/win32-runtime-cache.ts",
-      "line": 101,
+      "line": 102,
       "kind": "remove-path",
       "excerpt": "fs.rmSync(tmpRoot, { recursive: true, force: true })",
       "reason": "Populates a Hana-owned regenerable runtime cache.",
@@ -7120,7 +7120,7 @@
     },
     {
       "sourceFile": "lib/sandbox/win32-runtime-cache.ts",
-      "line": 103,
+      "line": 104,
       "kind": "copy-file",
       "excerpt": "fs.cpSync(sourceRoot, tmpRoot, { recursive: true, force: true, dereference: true, })",
       "reason": "Populates a Hana-owned regenerable runtime cache.",
@@ -7129,7 +7129,7 @@
     },
     {
       "sourceFile": "lib/sandbox/win32-runtime-cache.ts",
-      "line": 108,
+      "line": 109,
       "kind": "write-file",
       "excerpt": "fs.writeFileSync(ops.join(tmpRoot, MARKER_FILE), `${JSON.stringify(manifest, null, 2)}\\n`, \"utf-8\")",
       "reason": "Populates a Hana-owned regenerable runtime cache.",
@@ -7138,7 +7138,7 @@
     },
     {
       "sourceFile": "lib/sandbox/win32-runtime-cache.ts",
-      "line": 109,
+      "line": 110,
       "kind": "remove-path",
       "excerpt": "fs.rmSync(targetRoot, { recursive: true, force: true })",
       "reason": "Populates a Hana-owned regenerable runtime cache.",
@@ -7147,7 +7147,7 @@
     },
     {
       "sourceFile": "lib/sandbox/win32-runtime-cache.ts",
-      "line": 110,
+      "line": 111,
       "kind": "rename",
       "excerpt": "fs.renameSync(tmpRoot, targetRoot)",
       "reason": "Populates a Hana-owned regenerable runtime cache.",
@@ -7156,7 +7156,7 @@
     },
     {
       "sourceFile": "lib/sandbox/win32-runtime-cache.ts",
-      "line": 112,
+      "line": 113,
       "kind": "remove-path",
       "excerpt": "fs.rmSync(tmpRoot, { recursive: true, force: true })",
       "reason": "Populates a Hana-owned regenerable runtime cache.",

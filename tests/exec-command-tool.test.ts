@@ -363,4 +363,83 @@ describe("exec_command tools", () => {
       "only when the command genuinely needs reviewed network-capable execution",
     );
   });
+
+  it("execCommandDescription adds pwsh guidance when powershellFlavor is pwsh", () => {
+    const description = execCommandDescription({ platform: "win32", powershellFlavor: "pwsh" });
+    expect(description).toContain(
+      "PowerShell 7 (pwsh) is installed and preferred; modern PowerShell syntax is available.",
+    );
+  });
+
+  it("execCommandDescription adds 5.1-only guidance when powershellFlavor is windows-powershell", () => {
+    const description = execCommandDescription({ platform: "win32", powershellFlavor: "windows-powershell" });
+    expect(description).toContain(
+      "Only inbox Windows PowerShell 5.1 is available; avoid PowerShell 7-only syntax such as "
+      + "&& and || chains, the ternary operator, and ForEach-Object -Parallel.",
+    );
+    expect(description).not.toContain("modern PowerShell syntax is available");
+  });
+
+  it("execCommandDescription is unchanged when powershellFlavor is omitted or null (regression anchor)", () => {
+    const withoutArg = execCommandDescription({ platform: "win32" });
+    const withNull = execCommandDescription({ platform: "win32", powershellFlavor: null });
+    expect(withoutArg).toBe(withNull);
+    expect(withoutArg).not.toContain("PowerShell 7 (pwsh)");
+    expect(withoutArg).not.toContain("Only inbox Windows PowerShell 5.1");
+  });
+
+  it("bakes a pwsh flavor probe result into the win32 tool description at build time", () => {
+    const [execCommandTool] = createExecCommandTools({
+      bashTool: { execute: vi.fn() },
+      getCwd: () => DEFAULT_TEST_CWD,
+      platform: "win32",
+      detectPowerShellFlavor: () => "pwsh",
+    });
+
+    expect(execCommandTool.description).toContain("modern PowerShell syntax is available");
+  });
+
+  it("bakes a windows-powershell-only flavor probe result into the win32 tool description", () => {
+    const [execCommandTool] = createExecCommandTools({
+      bashTool: { execute: vi.fn() },
+      getCwd: () => DEFAULT_TEST_CWD,
+      platform: "win32",
+      detectPowerShellFlavor: () => "windows-powershell",
+    });
+
+    expect(execCommandTool.description).toContain("avoid PowerShell 7-only syntax");
+    expect(execCommandTool.description).not.toContain("modern PowerShell syntax is available");
+  });
+
+  it("leaves the win32 tool description unchanged with no flavor probe supplied (regression anchor)", () => {
+    const [withoutProbe] = createExecCommandTools({
+      bashTool: { execute: vi.fn() },
+      getCwd: () => DEFAULT_TEST_CWD,
+      platform: "win32",
+    });
+
+    expect(withoutProbe.description).toBe(execCommandDescription({ platform: "win32" }));
+    expect(withoutProbe.description).not.toContain("modern PowerShell syntax is available");
+    expect(withoutProbe.description).not.toContain("avoid PowerShell 7-only syntax");
+  });
+
+  it("freezes the description at build time: a later flip of the probe's return value never leaks into the already-built tool (cache-prefix stability)", () => {
+    let flavor: "pwsh" | "windows-powershell" = "pwsh";
+    const detectPowerShellFlavor = vi.fn(() => flavor);
+    const [execCommandTool] = createExecCommandTools({
+      bashTool: { execute: vi.fn() },
+      getCwd: () => DEFAULT_TEST_CWD,
+      platform: "win32",
+      detectPowerShellFlavor,
+    });
+    const builtDescription = execCommandTool.description;
+    expect(builtDescription).toContain("modern PowerShell syntax is available");
+
+    // Simulate pwsh disappearing mid-process (e.g. uninstalled). A later tool
+    // build would see this, but the already-built tool object must not.
+    flavor = "windows-powershell";
+
+    expect(execCommandTool.description).toBe(builtDescription);
+    expect(detectPowerShellFlavor).toHaveBeenCalledTimes(1);
+  });
 });

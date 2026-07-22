@@ -3,6 +3,54 @@
   "entries": [
     {
       "schemaVersion": 1,
+      "tag": "v0.416.44",
+      "version": "0.416.44",
+      "previousTag": "v0.416.43",
+      "generatedAt": "2026-07-23T06:45:00.000Z",
+      "noUserFacingChanges": false,
+      "summary": {
+        "zh": "Windows 上的命令执行说明会自动识别可用的 PowerShell 版本，并提示相应语法，减少因 PowerShell 版本差异导致的命令不兼容。",
+        "en": "On Windows, command guidance now detects the available PowerShell version and shows compatible syntax guidance, reducing version-specific command issues."
+      },
+      "counts": {
+        "feature": 0,
+        "fix": 0,
+        "improvement": 1,
+        "migration": 0
+      },
+      "source": {
+        "owner": "liliMozi",
+        "repo": "openhanako",
+        "commitRange": "v0.416.43..v0.416.44",
+        "releaseUrl": "https://github.com/liliMozi/openhanako/releases/tag/v0.416.44",
+        "releaseNotes": ""
+      },
+      "items": [
+        {
+          "id": "windows-powershell-flavor-guidance",
+          "kind": "improvement",
+          "importance": "medium",
+          "title": {
+            "zh": "Windows PowerShell 语法提示更准确",
+            "en": "More accurate Windows PowerShell guidance"
+          },
+          "summary": {
+            "zh": "Hana 会在构建命令工具时识别系统是否安装 PowerShell 7；可用时提示现代语法，只有 Windows PowerShell 5.1 时会提醒避免不兼容的语法。",
+            "en": "When command tools are built, Hana detects whether PowerShell 7 is installed; it highlights modern syntax when available and warns about incompatible syntax when only Windows PowerShell 5.1 is present."
+          },
+          "details": [],
+          "sources": [
+            {
+              "type": "commit",
+              "ref": "v0.416.43..v0.416.44",
+              "title": "feat(exec-command): bake detected PowerShell flavor into win32 tool description"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "schemaVersion": 1,
       "tag": "v0.416.43",
       "version": "0.416.43",
       "previousTag": "v0.416.26",

@@ -34,6 +34,7 @@ import { wrapResourceIoFileTools } from "../resource-io/agent-tools.ts";
 import { createResourceIoToolOperations } from "../resource-io/pi-tool-operations.ts";
 import { createSandboxResourceIO } from "../resource-io/sandbox-resource-io.ts";
 import { createExecCommandTools } from "../exec-command/tool.ts";
+import { detectWin32PowerShellFlavor } from "./win32-runtime-cache.ts";
 import {
   resolveHanaPiSdkManagedBinDir,
   resolveLegacyPiSdkManagedBinDir,
@@ -243,6 +244,7 @@ export function createSandboxedTools(cwd, customTools, {
     getCwd: () => cwd,
     isOneShotSandboxEnforced,
     platform: process.platform,
+    detectPowerShellFlavor: isWin32 ? detectWin32PowerShellFlavor : undefined,
   });
 
   // ── Windows: PathGuard 包装 + restricted-token exec，关闭沙盒时走 direct fallback ──
