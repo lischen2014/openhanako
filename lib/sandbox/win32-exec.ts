@@ -879,6 +879,10 @@ function restrictedPowerShellCmdProxy(powerShellInfo, env) {
   return {
     executable,
     args: cmdArgsForCommand(command),
+    // Let the native helper quote an ordinary command string as one /c
+    // argument. Only preserve the final argument verbatim when the PowerShell
+    // executable itself needs the nested cmd quote boundary above.
+    verbatimLastArg: powerShellExecutable !== powerShellInfo.executable,
   };
 }
 
@@ -1460,9 +1464,10 @@ export function createWin32Exec({ sandbox = null } = {}) {
             timeout,
             desktopMode: "private",
             // cmd.exe consumes the command after /c from its raw command line.
-            // Preserve that final argument so the quoted PowerShell executable
-            // is not rewritten into literal backslash-quote sequences.
-            verbatimLastArg: true,
+            // Ordinary command strings need the helper's outer argument quotes;
+            // configured executable paths with spaces already carry the nested
+            // cmd boundary and must remain verbatim.
+            verbatimLastArg: cmdProxy.verbatimLastArg,
           }),
         });
       }

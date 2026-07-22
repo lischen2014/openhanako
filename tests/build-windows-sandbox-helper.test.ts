@@ -428,6 +428,10 @@ describe("Windows sandbox helper build script", () => {
     expect(source).toContain("TerminateJobObject");
     expect(source).toContain("waitForJobEmpty");
     expect(source).toContain("JobObjectBasicAccountingInformation");
+    expect(source).toContain("JobObjectBasicProcessIdList");
+    expect(source).toContain("QueryFullProcessImageNameW");
+    expect(source).toContain("timeout-processes-v1");
+    expect(source).toContain("emitTimeoutProcessSnapshot(job)");
     expect(source).toContain("terminal-v1");
     expect(source).toContain('L"timed_out"');
     expect(source).toContain('L"termination_failed"');

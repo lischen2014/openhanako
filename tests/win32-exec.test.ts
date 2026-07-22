@@ -440,7 +440,6 @@ describe("createWin32Exec", () => {
     expect(spawnAndStream).toHaveBeenCalledWith(
       helper,
       expect.arrayContaining([
-        "--verbatim-last-arg",
         "--",
         systemCmdExe,
         "/d",
@@ -456,6 +455,7 @@ describe("createWin32Exec", () => {
       "utf16le",
     ).toString("base64");
     expect(helperArgs).not.toContain("--current-desktop");
+    expect(helperArgs).not.toContain("--verbatim-last-arg");
     expect(cmdCommand).toContain(powerShellExe);
     expect(cmdCommand).not.toContain(`"${powerShellExe}"`);
     expect(cmdCommand).toContain(`-EncodedCommand ${encoded}`);
@@ -487,7 +487,9 @@ describe("createWin32Exec", () => {
       },
     });
 
-    const cmdCommand = spawnAndStream.mock.calls[0][1].at(-1);
+    const helperArgs = spawnAndStream.mock.calls[0][1];
+    const cmdCommand = helperArgs.at(-1);
+    expect(helperArgs).toContain("--verbatim-last-arg");
     expect(cmdCommand).toMatch(/& ""C:\\Program Files\\PowerShell\\7\\pwsh\.exe" /);
     expect(cmdCommand).toMatch(/-EncodedCommand [A-Za-z0-9+/=]+"$/);
   });

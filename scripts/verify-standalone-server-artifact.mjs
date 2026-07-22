@@ -198,6 +198,8 @@ export function standaloneRestrictedTokenSmokeSpec({
   const powerShellViaCmd = quotedPowerShellPath === powerShellPath
     ? powerShellCommandBody
     : `"${powerShellCommandBody}"`;
+  const powerShellSmokeCommand =
+    `echo HANA_RESTRICTED_POWERSHELL_PROXY_ENTERED && ${powerShellViaCmd}`;
   return {
     helperPath,
     markerPath: path.win32.join(workDir, markerFileName),
@@ -217,13 +219,12 @@ export function standaloneRestrictedTokenSmokeSpec({
     ],
     powerShellArgs: [
       "--cwd", workDir,
-      "--verbatim-last-arg",
       "--writable-root", workDir,
       "--timeout-ms", "15000",
       "--",
       smokeEnv.ComSpec,
       "/d", "/s", "/c",
-      powerShellViaCmd,
+      powerShellSmokeCommand,
     ],
   };
 }
@@ -297,6 +298,9 @@ export function runRestrictedTokenHelperSmoke({
   }
   const powerShellStdout = String(powerShellResult.stdout || "");
   const powerShellStderr = String(powerShellResult.stderr || "");
+  if (!powerShellStdout.includes("HANA_RESTRICTED_POWERSHELL_PROXY_ENTERED")) {
+    throw new Error("[verify-standalone] restricted-token PowerShell proxy did not start its command string");
+  }
   if (!powerShellStdout.includes("HANA_RESTRICTED_POWERSHELL_OK")) {
     throw new Error("[verify-standalone] restricted-token PowerShell smoke did not emit its success marker");
   }

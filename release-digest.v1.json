@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
-  "tag": "v0.416.20",
-  "version": "0.416.20",
+  "tag": "v0.416.21",
+  "version": "0.416.21",
   "previousTag": "v0.416.4",
-  "generatedAt": "2026-07-22T07:45:44.000Z",
+  "generatedAt": "2026-07-22T08:13:27.000Z",
   "noUserFacingChanges": false,
   "summary": {
     "zh": "修复 Windows 受限执行环境无法启动命令的问题，并加强真实 Windows 发布校验，减少安装包发布后才发现沙箱不可用的风险。",
@@ -18,8 +18,8 @@
   "source": {
     "owner": "liliMozi",
     "repo": "openhanako",
-    "commitRange": "v0.416.4..v0.416.20",
-    "releaseUrl": "https://github.com/liliMozi/openhanako/releases/tag/v0.416.20",
+    "commitRange": "v0.416.4..v0.416.21",
+    "releaseUrl": "https://github.com/liliMozi/openhanako/releases/tag/v0.416.21",
     "releaseNotes": ""
   },
   "items": [

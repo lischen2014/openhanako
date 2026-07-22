@@ -1328,6 +1328,67 @@ static void emitPostCreateEarlyExitDiagnostic(
         << std::endl;
 }
 
+static std::wstring processImageBasename(DWORD processId) {
+    HANDLE process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, processId);
+    if (!process) return L"unavailable:" + std::to_wstring(GetLastError());
+
+    std::vector<wchar_t> image(32768, L'\0');
+    DWORD length = static_cast<DWORD>(image.size());
+    if (!QueryFullProcessImageNameW(process, 0, image.data(), &length)) {
+        const DWORD errorCode = GetLastError();
+        CloseHandle(process);
+        return L"unavailable:" + std::to_wstring(errorCode);
+    }
+    CloseHandle(process);
+
+    std::wstring fullPath(image.data(), length);
+    const size_t separator = fullPath.find_last_of(L"\\/");
+    return separator == std::wstring::npos ? fullPath : fullPath.substr(separator + 1);
+}
+
+static void emitTimeoutProcessSnapshot(HANDLE job) {
+    constexpr size_t MAX_REPORTED_PROCESSES = 128;
+    const DWORD bufferSize = static_cast<DWORD>(
+        sizeof(JOBOBJECT_BASIC_PROCESS_ID_LIST) +
+        (MAX_REPORTED_PROCESSES - 1) * sizeof(ULONG_PTR)
+    );
+    std::vector<BYTE> buffer(bufferSize, 0);
+    auto* processes = reinterpret_cast<JOBOBJECT_BASIC_PROCESS_ID_LIST*>(buffer.data());
+    if (!QueryInformationJobObject(
+        job,
+        JobObjectBasicProcessIdList,
+        processes,
+        bufferSize,
+        nullptr
+    )) {
+        const DWORD errorCode = GetLastError();
+        std::wcerr
+            << L"hana-win-sandbox: timeout-processes-v1"
+            << L" queryError=\"" << errorCode << L"\""
+            << std::endl;
+        return;
+    }
+
+    std::wstring summary;
+    const ULONG_PTR count = std::min<ULONG_PTR>(
+        processes->NumberOfProcessIdsInList,
+        MAX_REPORTED_PROCESSES
+    );
+    for (ULONG_PTR i = 0; i < count; i++) {
+        if (!summary.empty()) summary += L",";
+        const DWORD processId = static_cast<DWORD>(processes->ProcessIdList[i]);
+        summary += std::to_wstring(processId);
+        summary += L":";
+        summary += processImageBasename(processId);
+    }
+    std::wcerr
+        << L"hana-win-sandbox: timeout-processes-v1"
+        << L" assigned=\"" << processes->NumberOfAssignedProcesses << L"\""
+        << L" listed=\"" << processes->NumberOfProcessIdsInList << L"\""
+        << L" processes=\"" << escapeDiagnosticValue(summary) << L"\""
+        << std::endl;
+}
+
 static bool isValidInheritableCandidate(HANDLE handle) {
     return handle && handle != INVALID_HANDLE_VALUE;
 }
@@ -1810,6 +1871,7 @@ static int runSandboxed(const Options& opts, HANDLE restrictedToken) {
     }
 
     if (waitResult == WAIT_TIMEOUT) {
+        emitTimeoutProcessSnapshot(job);
         if (!TerminateJobObject(job, TIMEOUT_PROCESS_EXIT_CODE)) {
             DWORD errorCode = GetLastError();
             fail(L"TerminateJobObject failed: " + win32Message(errorCode));
