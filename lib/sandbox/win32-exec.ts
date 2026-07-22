@@ -1178,6 +1178,34 @@ function cleanupRootsForSandboxGrants(grants) {
   ];
 }
 
+const WIN32_SANDBOX_TEMP_DIR_NAME = "hana-tmp";
+
+// A write-restricted token can only write inside the paths the sandbox
+// explicitly granted. The user's normal %TEMP% is not one of those paths, so
+// anything that writes there during startup fails. PowerShell is the clearest
+// case: it writes a small policy-probe script file to %TEMP% while starting
+// up to figure out whether an AppLocker-style script restriction applies, and
+// when that write is denied it falls back to Constrained Language Mode, which
+// breaks most one-shot commands. Other child processes (cmd builtins,
+// python's own temp files, …) hit the same wall for the same reason. Pointing
+// TEMP/TMP at a subdirectory inside the sandbox's own write root sidesteps
+// this for every process the helper launches, not just PowerShell.
+function sandboxTempDir(grants) {
+  const root = grants?.writePaths?.[0];
+  if (!root) return null;
+  return joinRuntimePath(root, WIN32_SANDBOX_TEMP_DIR_NAME);
+}
+
+function withSandboxTempEnv(env, grants) {
+  const tempDir = sandboxTempDir(grants);
+  // No write root granted means the sandbox has nowhere to write at all; that
+  // is an existing, intentional restriction, not something this redirect
+  // should paper over, so leave env untouched rather than inventing a path.
+  if (!tempDir) return env;
+  mkdirSync(tempDir, { recursive: true });
+  return { ...env, TEMP: tempDir, TMP: tempDir };
+}
+
 async function spawnViaSandboxHelper({
   sandbox,
   executable,
@@ -1199,6 +1227,7 @@ async function spawnViaSandboxHelper({
   }
   assertSandboxNetworkSupported(sandbox);
   const grants = grantsForSandbox(sandbox, cwd);
+  const spawnEnv = withSandboxTempEnv(env, grants);
   const nativeTimeoutMs = timeout == null || timeout <= 0
     ? 0
     : Math.min(Math.ceil(timeout * 1000), 0xFFFFFFFE);
@@ -1223,7 +1252,7 @@ async function spawnViaSandboxHelper({
     try {
       result = await spawnAndStream(helper, helperArgs, {
         cwd,
-        env,
+        env: spawnEnv,
         onData,
         onStdout: onData,
         onStderr: (data) => stderrFilter.push(data),

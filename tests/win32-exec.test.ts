@@ -221,6 +221,61 @@ describe("createWin32Exec", () => {
     );
   });
 
+  it("redirects TEMP/TMP under the sandbox write root for every sandbox-helper launch", async () => {
+    classifyWin32Command.mockReturnValue({ runner: "cmd", reason: "windows-native-utility" });
+    const helper = "C:\\Hanako\\resources\\sandbox\\windows\\hana-win-sandbox.exe";
+    existsSync.mockImplementation((p) => p === helper);
+    const createWin32Exec = await loadExecFactory();
+    const exec = createWin32Exec({
+      sandbox: {
+        helperPath: helper,
+        grants: {
+          readPaths: [],
+          writePaths: ["C:\\work", "C:\\other"],
+        },
+      },
+    });
+
+    await exec("dir", "C:\\work", {
+      onData: () => {},
+      signal: undefined,
+      timeout: 5,
+      env: { PATH: "C:\\Windows\\System32" },
+    });
+
+    const expectedTempDir = "C:\\work\\hana-tmp";
+    expect(mkdirSync).toHaveBeenCalledWith(expectedTempDir, { recursive: true });
+    const spawnOptions = spawnAndStream.mock.calls[0][2];
+    expect(spawnOptions.env).toEqual(expect.objectContaining({
+      TEMP: expectedTempDir,
+      TMP: expectedTempDir,
+    }));
+  });
+
+  it("leaves TEMP/TMP untouched when the sandbox has no write root granted", async () => {
+    classifyWin32Command.mockReturnValue({ runner: "cmd", reason: "windows-native-utility" });
+    const helper = "C:\\Hanako\\resources\\sandbox\\windows\\hana-win-sandbox.exe";
+    existsSync.mockImplementation((p) => p === helper);
+    const createWin32Exec = await loadExecFactory();
+    const exec = createWin32Exec({
+      sandbox: {
+        helperPath: helper,
+        grants: { readPaths: [], writePaths: [] },
+      },
+    });
+
+    await exec("dir", "C:\\work", {
+      onData: () => {},
+      signal: undefined,
+      timeout: 5,
+      env: { PATH: "C:\\Windows\\System32", TEMP: "C:\\Users\\Hana\\AppData\\Local\\Temp" },
+    });
+
+    const spawnOptions = spawnAndStream.mock.calls[0][2];
+    expect(spawnOptions.env.TEMP).toBe("C:\\Users\\Hana\\AppData\\Local\\Temp");
+    expect(mkdirSync).not.toHaveBeenCalledWith(expect.stringMatching(/hana-tmp/), expect.anything());
+  });
+
   it("spawns direct cmd with windowsVerbatimArguments", async () => {
     classifyWin32Command.mockReturnValue({ runner: "cmd", reason: "cmd-builtin" });
     const createWin32Exec = await loadExecFactory();
@@ -607,20 +662,26 @@ describe("createWin32Exec", () => {
     });
 
     const envRoot = "C:\\Users\\Hana\\.hanako\\.ephemeral\\win32-sandbox-env";
-    const tempDir = `${envRoot}\\Temp`;
+    // TEMP/TMP land in the sandbox helper's write root (see the "redirects
+    // TEMP/TMP under the sandbox write root" test): that redirect runs later,
+    // inside spawnViaSandboxHelper, and takes precedence for every sandboxed
+    // launch so PowerShell's startup probe writes succeed too. LOCALAPPDATA /
+    // APPDATA / npm / pip caches are untouched by that redirect and still land
+    // in the hanakoHome-scoped scratch area set up earlier in the pipeline.
     const localAppDataDir = `${envRoot}\\LocalAppData`;
     const appDataDir = `${envRoot}\\AppData\\Roaming`;
     const npmCacheDir = `${envRoot}\\npm-cache`;
     const pipCacheDir = `${envRoot}\\pip-cache`;
+    const sandboxTempDir = "C:\\work\\hana-tmp";
     const spawnOptions = spawnAndStream.mock.calls[0][2];
 
-    for (const dir of [tempDir, localAppDataDir, appDataDir, npmCacheDir, pipCacheDir]) {
+    for (const dir of [`${envRoot}\\Temp`, localAppDataDir, appDataDir, npmCacheDir, pipCacheDir, sandboxTempDir]) {
       expect(mkdirSync).toHaveBeenCalledWith(dir, { recursive: true });
     }
     expect(spawnOptions.env).toEqual(expect.objectContaining({
       USERPROFILE: "C:\\Users\\Hana",
-      TEMP: tempDir,
-      TMP: tempDir,
+      TEMP: sandboxTempDir,
+      TMP: sandboxTempDir,
       LOCALAPPDATA: localAppDataDir,
       APPDATA: appDataDir,
       npm_config_cache: npmCacheDir,
