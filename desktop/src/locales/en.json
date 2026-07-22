@@ -3173,6 +3173,7 @@
   },
   "sandbox": {
     "blocked": "[Security] {reason}\n\nThis operation was blocked by HanaAgent's sandbox security policy. This means the command crossed a path or permission boundary. Check the current workspace, the exact path syntax, and whether the target file belongs in an allowed workspace or session path. Explain the blocked path and reason to the user; discuss changing sandbox settings only if the user explicitly decides to do that.",
+    "blockedNeedsEscalation": "[Security] {reason}\n\nThis command was blocked in sandboxed mode. If it matters for the current task and is a read-only query, rerun it with sandbox_permissions=\"require_escalated\" and a one-sentence justification; the user will review it before it runs.",
     "noSudo": "sudo is not allowed",
     "noSu": "su user switching is not allowed",
     "noChmod": "Changing file permissions is not allowed",

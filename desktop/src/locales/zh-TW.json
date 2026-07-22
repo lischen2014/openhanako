@@ -3054,6 +3054,7 @@
   },
   "sandbox": {
     "blocked": "[安全策略] {reason}\n\n此操作被 HanaAgent 的沙盒安全策略阻止，表示命令越過了路徑或權限邊界。先檢查目前工作台、具體路徑寫法，以及目標檔案是否本來就應該放在允許的工作台或 session 路徑內。請向使用者說明被攔截的路徑和原因；只有使用者明確決定時，再討論是否修改沙盒設定。",
+    "blockedNeedsEscalation": "[安全策略] {reason}\n\n此命令在沙盒模式下被攔截。如果它對目前任務重要且為唯讀查詢，請帶一句話 justification 用 sandbox_permissions=\"require_escalated\" 重新執行，等待使用者審批。",
     "noSudo": "禁止使用 sudo",
     "noSu": "禁止使用 su 切換使用者",
     "noChmod": "禁止修改檔案權限",

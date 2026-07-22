@@ -267,6 +267,21 @@ export function createSandboxedTools(cwd, customTools, {
       ...bashWrapOpts,
       fallbackExec: directWin32Exec,
     });
+    // require_escalated 槽位：直接跑 directWin32Exec（无 restricted-token 沙盒），
+    // 不复用 sandboxedWin32Exec/wrappedBashTool——那两个实例仍套着 restricted-token
+    // 沙盒，PowerShell 在其中本就不可用，escalated 存在的意义就是绕开这层沙盒。
+    // 仍然经过 wrapCommandExec/wrapBashTool 的 PathGuard 与 preflight（escalated:
+    // true 只放开 SANDBOX_ONLY 分级如 wmic，HARD 分级命令任何模式都拦）。
+    const wrappedEscalatedWin32Exec = wrapCommandExec(directWin32Exec, guard, cwd, {
+      ...bashWrapOpts,
+      escalated: true,
+    });
+    const wrappedEscalatedBashTool = wrapBashTool(
+      createBashTool(cwd, { operations: { exec: directWin32Exec as any } }),
+      guard,
+      cwd,
+      { ...bashWrapOpts, escalated: true },
+    );
     return {
       tools: buildResourceIoFileTools([
         readTool,
@@ -275,8 +290,8 @@ export function createSandboxedTools(cwd, customTools, {
         ...createExecToolsForBash(
           wrappedBashTool,
           wrappedWin32Exec,
-          wrappedBashTool,
-          wrappedWin32Exec,
+          wrappedEscalatedBashTool,
+          wrappedEscalatedWin32Exec,
         ),
         createGrepTool(cwd, { ...searchToolPaths, operations: resourceOps.grep }),
         createFindTool(cwd, { ...searchToolPaths, operations: resourceOps.find }),

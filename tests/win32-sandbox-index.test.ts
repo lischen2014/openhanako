@@ -43,6 +43,23 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
+async function buildWin32Tools(overrides: any = {}) {
+  Object.defineProperty(process, "platform", { value: "win32" });
+  const { createSandboxedTools } = await import("../lib/sandbox/index.ts");
+  const { tools } = createSandboxedTools("C:\\work", [], {
+    agentDir: "C:\\hana\\agents\\hana",
+    workspace: "C:\\work",
+    workspaceFolders: [],
+    hanakoHome: "C:\\hana",
+    getSandboxEnabled: () => true,
+    getSandboxNetworkEnabled: () => true,
+    getExternalReadPaths: () => [],
+    ...overrides,
+  } as any);
+  const execCommandTool = tools.find((tool) => tool.name === "exec_command");
+  return { tools, execCommandTool };
+}
+
 describe("createSandboxedTools on Windows", () => {
   it("constructs a sandboxed restricted-token exec plus an unsandboxed fallback exec", async () => {
     Object.defineProperty(process, "platform", { value: "win32" });
@@ -98,5 +115,39 @@ describe("createSandboxedTools on Windows", () => {
         getSandboxNetworkEnabled,
       }),
     }));
+  });
+
+  it("gives require_escalated a distinct unsandboxed runner on win32", async () => {
+    const { execCommandTool } = await buildWin32Tools();
+
+    // directWin32Exec is constructed once at wiring time; every default
+    // (non-escalated) execution builds a fresh sandboxed exec via
+    // createWin32Exec({ sandbox }). The escalated runner must reuse the
+    // single directWin32Exec instance instead of constructing a new
+    // sandboxed exec, so createWin32Exec's call count must not grow when
+    // an escalated command runs.
+    await execCommandTool.execute("call-default", { cmd: "echo ok" }, null, null, {});
+    const callsAfterDefault = createWin32Exec.mock.calls.length;
+    expect(callsAfterDefault).toBeGreaterThan(0);
+
+    await execCommandTool.execute("call-escalated", {
+      cmd: "powershell -NoProfile -NonInteractive -Command \"[Console]::Out.Write('ok')\"",
+      sandbox_permissions: "require_escalated",
+      justification: "Run a PowerShell probe to confirm the sandbox no longer blocks it?",
+    }, null, null, {});
+
+    expect(createWin32Exec.mock.calls.length).toBe(callsAfterDefault);
+  });
+
+  it("keeps escalated exec_command invocations in review kind on win32", async () => {
+    const { execCommandTool } = await buildWin32Tools();
+
+    const invocation = execCommandTool.sessionPermission.resolveInvocation({
+      cmd: "wmic path Win32_VideoController get Name",
+      sandbox_permissions: "require_escalated",
+      justification: "Read GPU inventory?",
+    });
+
+    expect(invocation.kind).toBe("review");
   });
 });
