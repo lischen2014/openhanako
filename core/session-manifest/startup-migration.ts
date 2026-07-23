@@ -22,6 +22,10 @@ export function ensureLegacySessionManifestMigration(opts: any = {}) {
   const key = opts.stateKey || LEGACY_SESSION_MANIFEST_MIGRATION_KEY;
   const existing = typeof opts.store.getState === "function" ? opts.store.getState(key) : null;
   if (existing?.completedAt) {
+    // rescan 分支：completedAt 之后每次启动仍无条件调用 migrate（语义保留，不改）。
+    // rescan 的整读风险由 legacy-migration.ts 的 stat 签名账本（createMetaSourceGate）控制——
+    // 已判定超大或损坏的 meta 源文件在签名未变时不会被再次 readFileSync；健康文件体积小，
+    // 每次照常重读（保证迟到会话行总能拿到 legacy 属性），因此这里可以放心地每次都调用。
     try {
       const scannedAt = opts.scannedAt || new Date().toISOString();
       const migrate = opts.migrate || migrateLegacySessions;

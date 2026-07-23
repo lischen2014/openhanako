@@ -16,12 +16,146 @@ import { normalizeSessionLocatorPath, sessionLocatorKey } from "./path-normalize
 const MAX_SKIPPED_DETAILS = 20;
 const LOCATOR_REQUIRED_LIFECYCLES = new Set(["active", "archived", "promoted"]);
 
+// 迁移输入允许比运行时 1MB 索引闸门（session-coordinator.ts）胖：老版本没 compact 过的合法胖文件
+// 也可能超过 1MB。超过这里的 64MB 上限的，必然是运行时隔离出的快照堆积病文件（session-meta.oversized.*.json），
+// 跳过后会话行仍能从 JSONL 文件发现，只是丢失 legacy 属性候选。
+export const LEGACY_META_SOURCE_MAX_BYTES = 64 * 1024 * 1024;
+export const LEGACY_META_SCAN_LEDGER_KEY = "legacy-meta-scan-ledger-v1";
+
 function readJsonFile(filePath, fallback = {}) {
   try {
     return JSON.parse(fs.readFileSync(filePath, "utf-8"));
   } catch {
     return fallback;
   }
+}
+
+// 只校验顶层形状（必须是普通对象、不是数组）。单条记录内部字段畸形不在这里处理——
+// 那种畸形会在下面的签名比较里被当成"跟已记录的不一样"，从而安全地触发重读。这是有意的
+// 隐式防御：与其在这里再写一遍字段校验，不如让签名比较本身兜底,少一处判断就少一处判断错的可能。
+function normalizeLedger(raw) {
+  return raw && typeof raw === "object" && !Array.isArray(raw) ? { ...raw } : {};
+}
+
+// 迁移路径的 stat 签名账本：按 (size, mtimeMs) 判断源文件自上次扫描以来是否变化。
+// 账本持久化在 manifest store 的 state 表里（key 见 LEGACY_META_SCAN_LEDGER_KEY）。
+//
+// 覆盖范围：只管 session-meta.json 及其隔离备份（session-meta.oversized.*.json /
+// session-meta.json.pre-v*.bak）与 session-titles.json 这几类文件。其它 legacy 索引
+// （bridge-sessions.json、activities.json、subagent-runs.json 等）体积天然很小，
+// 不走这个闸门，继续用普通的 readJsonFile。
+//
+// 跳过语义：账本只对"判了死刑"的文件（too_large / parse_error）做跳过记忆——这类文件
+// 内容不会自愈，重复整读是纯粹的浪费，值得用账本省下来。健康文件（consumed）运行时早被
+// 1MB compact 闸门收窄过，每次重读是毫秒级开销；如果对 consumed 也做"签名不变就不读"，
+// 会导致一个真实场景失效：同一目录下多个会话行共享同一份 session-meta.json，其中一行
+// 因为跟 meta 内容毫无关系的瞬时原因（比如 createForPath 抛错）第一轮建档失败、下一轮
+// rescan 才补上——这时候 meta 文件签名没变，如果按"消费过就不读"处理，这一行就会永久
+// 拿不到 pinnedAt / capability / executor / permission 等 legacy 属性，而且完全静默、
+// 没有任何 skippedMetaSources 记录能提示这件事。rescan 机制存在的意义就是兜住这类迟到的
+// 行，所以 consumed 状态一律照常重读并返回数据，不做跳过。
+//
+// 并发假设：这个 gate 假设单一顺序调用者（一次 migrateLegacySessions / auditLegacySessionManifests
+// 调用内部顺序遍历），内存里的 ledger 副本只在 flush() 时整体写回一次。不支持多个调用者
+// 并发读写同一个账本 key——如果未来出现并发扫描的需求，需要重新设计账本的读改写协议。
+export function createMetaSourceGate(opts: any = {}) {
+  const store = opts.store || null;
+  const maxBytes = Number.isFinite(opts.maxBytes) ? opts.maxBytes : LEGACY_META_SOURCE_MAX_BYTES;
+  const now = typeof opts.now === "function" ? opts.now : () => new Date().toISOString();
+
+  let ledger: any = {};
+  if (store && typeof store.getState === "function") {
+    let raw = null;
+    try {
+      raw = store.getState(LEGACY_META_SCAN_LEDGER_KEY);
+    } catch {
+      raw = null;
+    }
+    ledger = normalizeLedger(raw);
+  }
+
+  let dirty = false;
+  const skippedEntries: any[] = [];
+
+  function recordEntry(filePath, size, mtimeMs, status) {
+    ledger[filePath] = { size, mtimeMs, status, recordedAt: now() };
+    dirty = true;
+  }
+
+  return {
+    readGatedJsonFile(filePath) {
+      let stat;
+      try {
+        stat = fs.statSync(filePath);
+      } catch {
+        // stat 失败（ENOENT 等）按"文件不存在"处理：不记新账。如果账本里还留着这个路径的
+        // 旧记录（文件后来被删掉或改名了），把这条尸位记录清掉，账本不留无效路径。
+        if (Object.prototype.hasOwnProperty.call(ledger, filePath)) {
+          delete ledger[filePath];
+          dirty = true;
+        }
+        return { skipped: { reason: "not_found" } };
+      }
+      const { size, mtimeMs } = stat;
+      const prior = ledger[filePath];
+      if (prior && prior.size === size && prior.mtimeMs === mtimeMs && prior.status !== "consumed") {
+        // 签名未变且上次判了死刑：内容不会自愈，跳过。
+        return { skipped: { reason: prior.status } };
+      }
+      if (size > maxBytes) {
+        recordEntry(filePath, size, mtimeMs, "too_large");
+        skippedEntries.push({ path: filePath, reason: "too_large", size });
+        return { skipped: { reason: "too_large" } };
+      }
+      try {
+        const data = JSON.parse(fs.readFileSync(filePath, "utf-8"));
+        recordEntry(filePath, size, mtimeMs, "consumed");
+        return { data };
+      } catch {
+        recordEntry(filePath, size, mtimeMs, "parse_error");
+        skippedEntries.push({ path: filePath, reason: "parse_error", size });
+        return { skipped: { reason: "parse_error" } };
+      }
+    },
+    flush() {
+      if (!dirty) return;
+      if (store && typeof store.setState === "function") {
+        store.setState(LEGACY_META_SCAN_LEDGER_KEY, ledger);
+      }
+      dirty = false;
+    },
+    skippedThisRun() {
+      return [...skippedEntries];
+    },
+  };
+}
+
+// 从账本里读出当前全部被判死刑（too_large / parse_error）的文件，供 UI /诊断消费全量视图。
+// migrateLegacySessions 返回的 result.skippedMetaSources 只含"本轮新观察到"的跳过事件——
+// 稳态下（签名没再变化）它是空数组，驱动不了"有文件待恢复"这类持续提示；这个函数读的是
+// 账本里的全集，不管是不是本轮新记的。store 没有 getState 或账本损坏时返回空数组，不 throw。
+export function listSkippedMetaSources(store) {
+  if (!store || typeof store.getState !== "function") return [];
+  let raw = null;
+  try {
+    raw = store.getState(LEGACY_META_SCAN_LEDGER_KEY);
+  } catch {
+    return [];
+  }
+  const ledger = normalizeLedger(raw);
+  const entries: any[] = [];
+  for (const [filePath, value] of Object.entries(ledger)) {
+    const entry: any = value;
+    if (!entry || typeof entry !== "object" || Array.isArray(entry)) continue;
+    if (entry.status !== "too_large" && entry.status !== "parse_error") continue;
+    entries.push({
+      path: filePath,
+      reason: entry.status,
+      size: entry.size,
+      recordedAt: entry.recordedAt,
+    });
+  }
+  return entries;
 }
 
 function hydrateSessionMetaPayloads(sessionDir, metaPath, data) {
@@ -61,11 +195,17 @@ function isSessionMetaBackupName(name) {
     || /^session-meta\.json\.pre-v\d+\.bak$/.test(name);
 }
 
-function readSessionMetaSources(sessionDir) {
+function readGatedJsonRecord(gate, filePath) {
+  const result = gate.readGatedJsonFile(filePath);
+  const data = result && Object.prototype.hasOwnProperty.call(result, "data") ? result.data : null;
+  return data && typeof data === "object" && !Array.isArray(data) ? data : null;
+}
+
+function readSessionMetaSources(sessionDir, gate) {
   const sources: any[] = [];
   const currentPath = path.join(sessionDir, "session-meta.json");
-  const current = readJsonFile(currentPath, null);
-  if (current && typeof current === "object" && !Array.isArray(current)) {
+  const current = readGatedJsonRecord(gate, currentPath);
+  if (current) {
     sources.push({
       source: "legacy_session_meta",
       sourcePath: currentPath,
@@ -81,8 +221,8 @@ function readSessionMetaSources(sessionDir) {
   }
   for (const name of names) {
     const sourcePath = path.join(sessionDir, name);
-    const data = readJsonFile(sourcePath, null);
-    if (!data || typeof data !== "object" || Array.isArray(data)) continue;
+    const data = readGatedJsonRecord(gate, sourcePath);
+    if (!data) continue;
     sources.push({
       source: "legacy_session_meta_backup",
       sourcePath,
@@ -792,7 +932,7 @@ function repairExistingLocatorIfNeeded(store, existing, sessionPath) {
   return store.updateLocator(existing.sessionId, sessionPath, "legacy_scan_repair");
 }
 
-function createLegacyRowReader() {
+function createLegacyRowReader(gate) {
   const metaSourcesByDir = new Map();
   const titlesByDir = new Map();
   return {
@@ -800,7 +940,7 @@ function createLegacyRowReader() {
       let candidates: any[] = [];
       if (row.metaSessionDir) {
         if (!metaSourcesByDir.has(row.metaSessionDir)) {
-          metaSourcesByDir.set(row.metaSessionDir, readSessionMetaSources(row.metaSessionDir));
+          metaSourcesByDir.set(row.metaSessionDir, readSessionMetaSources(row.metaSessionDir, gate));
         }
         candidates = sessionMetaCandidates(metaSourcesByDir.get(row.metaSessionDir), row.sessionPath);
       }
@@ -812,7 +952,7 @@ function createLegacyRowReader() {
         const titlesPath = path.join(row.titleSessionDir, "session-titles.json");
         titlesByDir.set(row.titleSessionDir, {
           titlesPath,
-          titles: readJsonFile(titlesPath, {}),
+          titles: readGatedJsonRecord(gate, titlesPath) || {},
         });
       }
       return titlesByDir.get(row.titleSessionDir);
@@ -834,7 +974,11 @@ export function auditLegacySessionManifests(opts: any = {}) {
   if (!opts.store) throw new Error("auditLegacySessionManifests requires store");
 
   const discovery = discoverLegacySessions(opts);
-  const reader = createLegacyRowReader();
+  const auditGate = createMetaSourceGate({
+    store: opts.store,
+    maxBytes: Number.isFinite(opts.metaSourceMaxBytes) ? opts.metaSourceMaxBytes : undefined,
+  });
+  const reader = createLegacyRowReader(auditGate);
   const details: any = {
     missing: [],
     missingLocators: [],
@@ -930,6 +1074,8 @@ export function auditLegacySessionManifests(opts: any = {}) {
     });
   }
 
+  auditGate.flush();
+
   return {
     discovered: discovery.sessions.length,
     manifested,
@@ -953,7 +1099,11 @@ export function migrateLegacySessions(opts: any = {}) {
     hanaHome,
     ...(opts.agentsDir ? { agentsDir: opts.agentsDir } : {}),
   });
-  const reader = createLegacyRowReader();
+  const gate = createMetaSourceGate({
+    store: opts.store,
+    maxBytes: Number.isFinite(opts.metaSourceMaxBytes) ? opts.metaSourceMaxBytes : undefined,
+  });
+  const reader = createLegacyRowReader(gate);
 
   for (const row of discovery.sessions) {
     result.scanned += 1;
@@ -1029,6 +1179,19 @@ export function migrateLegacySessions(opts: any = {}) {
         });
       }
     }
+  }
+
+  gate.flush();
+  // 本字段只含本轮新观察到的跳过事件（too_large / parse_error）；稳态下（签名没再变化）
+  // 它是空数组，不能拿来驱动"有文件待恢复"之类的持续提示。要读账本里的全集用 listSkippedMetaSources。
+  const skippedMetaSources = gate.skippedThisRun();
+  result.skippedMetaSources = skippedMetaSources;
+  for (const item of skippedMetaSources) {
+    result.skippedDetails.push({
+      type: "meta_source_skipped",
+      sourcePath: item.path,
+      reason: item.reason,
+    });
   }
 
   return result;

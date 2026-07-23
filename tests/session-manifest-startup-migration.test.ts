@@ -52,7 +52,7 @@ describe("session manifest startup migration", () => {
     });
 
     expect(first.status).toBe("completed");
-    expect(first.result).toEqual({ scanned: 1, created: 1, existing: 0, skipped: 0, skippedDetails: [] });
+    expect(first.result).toEqual({ scanned: 1, created: 1, existing: 0, skipped: 0, skippedDetails: [], skippedMetaSources: [] });
     expect(store.resolveByLocatorPath(sessionPath)?.sessionId).toBe("sess_startup_0001");
     expect(fs.existsSync(path.join(first.checkpoint.directory, "checkpoint.json"))).toBe(true);
     expect(store.getState(LEGACY_SESSION_MANIFEST_MIGRATION_KEY)).toMatchObject({
