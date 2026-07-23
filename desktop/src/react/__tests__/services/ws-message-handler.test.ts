@@ -501,6 +501,52 @@ describe('ws-message-handler session-scoped desktop events', () => {
     ]);
   });
 
+  it('session_branch_reset 带 sessionFiles 时，通过 applyBranchResetSessionFiles 整表替换 registry（#2188）', () => {
+    useStore.getState().appendItem('/session/a.jsonl', {
+      type: 'message',
+      data: { id: 'u1', role: 'user', text: 'old' },
+    });
+    useStore.getState().setSessionRegistryFiles('/session/a.jsonl', [{ fileId: 'old-file', filePath: '/tmp/old.txt' }]);
+    const spy = vi.spyOn(useStore.getState(), 'applyBranchResetSessionFiles');
+
+    handleServerMessage({
+      type: 'session_branch_reset',
+      sessionPath: '/session/a.jsonl',
+      messageId: 'u1',
+      todos: [],
+      sessionFiles: [{ fileId: 'kept-file', filePath: '/tmp/kept.txt' }],
+    });
+
+    expect(spy).toHaveBeenCalledWith('/session/a.jsonl', [{ fileId: 'kept-file', filePath: '/tmp/kept.txt' }]);
+    expect(useStore.getState().sessionRegistryFilesByPath['/session/a.jsonl']).toEqual([
+      { fileId: 'kept-file', filePath: '/tmp/kept.txt' },
+    ]);
+    spy.mockRestore();
+  });
+
+  it('session_branch_reset 不带 sessionFiles 时，仍调用 applyBranchResetSessionFiles(path, null) 而不是跳过', () => {
+    useStore.getState().appendItem('/session/a.jsonl', {
+      type: 'message',
+      data: { id: 'u1', role: 'user', text: 'old' },
+    });
+    useStore.getState().setSessionRegistryFiles('/session/a.jsonl', [{ fileId: 'old-file', filePath: '/tmp/old.txt' }]);
+    const spy = vi.spyOn(useStore.getState(), 'applyBranchResetSessionFiles');
+
+    handleServerMessage({
+      type: 'session_branch_reset',
+      sessionPath: '/session/a.jsonl',
+      messageId: 'u1',
+      todos: [],
+    });
+
+    expect(spy).toHaveBeenCalledWith('/session/a.jsonl', null);
+    // registry 未被清空／覆盖：applyBranchResetSessionFiles(path, null) 只标记 resetSeen，不动 registry
+    expect(useStore.getState().sessionRegistryFilesByPath['/session/a.jsonl']).toEqual([
+      { fileId: 'old-file', filePath: '/tmp/old.txt' },
+    ]);
+    spy.mockRestore();
+  });
+
   it('session_branch_reset 在 live client id 失配时回退到历史 sourceEntryId', () => {
     useStore.getState().appendItem('/session/a.jsonl', {
       type: 'message',

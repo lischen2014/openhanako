@@ -343,6 +343,10 @@ export async function loadMessages(forPath?: string): Promise<void> {
   // messages 维度的竞态护栏：rapid switch 或并发 load 时，只有最新一次调用
   // 的响应允许 apply initSession，stale 响应直接丢弃。
   const myVersion = useStore.getState().bumpLoadMessagesVersion(targetPath);
+  // SessionFile flight 记录（issue #2188）：hydrate 期间到达的 upsert / branch
+  // reset 会被下面的 HTTP 快照整表覆盖。开一条 flight 记录桥接两者，hydrate
+  // 通过后按 flight 结果决定是丢弃快照还是应用快照 + 重放 flight 期间的 upsert。
+  useStore.getState().beginSessionFilesFlight(targetPath, myVersion);
   try {
     const res = await hanaFetch(sessionMessagesUrl(targetPath));
     const data = await res.json();
@@ -352,6 +356,24 @@ export async function loadMessages(forPath?: string): Promise<void> {
       // 已经有更新的 loadMessages 在途，stale 响应不应覆盖新状态。
       // todos 与 messages 必须作为同一份 hydrate 快照一起生效或一起丢弃。
       return;
+    }
+    // SessionFile hydrate（issue #2188）：必须放在 stale 检查之后、
+    // messages/todos 的 live-version 早退检查之前——文件 registry 不受这两个
+    // 护栏保护范围约束，否则 mid-flight 收到 live message/todo 更新时整次
+    // hydrate 被放弃，registry 就会像 bugfix 前那样永远写不进去。
+    // 只有 flight 期间没出现过 branch reset 才应用 HTTP 快照——reset 是全量权威
+    // 替换，出现过就说明 registry 已经是权威状态（含 reset 后的 upsert），旧
+    // 快照绝不能覆盖它。没有 reset 时应用快照后，重放 flight 期间记录的 upsert
+    // （upsert 是逐文件权威最新，必须后写生效，恢复被整表快照覆盖掉的增量）。
+    const flight = useStore.getState().consumeSessionFilesFlight(targetPath, myVersion);
+    if (!flight || !flight.resetSeen) {
+      useStore.getState().setSessionRegistryFiles(
+        targetPath,
+        Array.isArray(data.sessionFiles) ? data.sessionFiles : [],
+      );
+      for (const f of flight?.upserts ?? []) {
+        useStore.getState().upsertSessionRegistryFile(targetPath, f);
+      }
     }
     const messageLiveVersionNow = readMessageLiveVersion(targetPath);
     if (messageLiveVersionNow !== messageLiveVersionBefore) {
@@ -376,10 +398,6 @@ export async function loadMessages(forPath?: string): Promise<void> {
     const items = buildItemsFromHistory(data);
     // 修订点 stamp：记录本次快照对应的磁盘修订点，后续 reconcile 与列表投影对比。
     const revision = typeof data.revision === 'string' ? data.revision : null;
-    useStore.getState().setSessionRegistryFiles(
-      targetPath,
-      Array.isArray(data.sessionFiles) ? data.sessionFiles : [],
-    );
     useStore.getState().setSessionTodosForPath(targetPath, migratedTodos);
     if (items.length > 0) {
       useStore.getState().initSession(targetPath, items, data.hasMore ?? false, revision);
@@ -400,7 +418,12 @@ export async function loadMessages(forPath?: string): Promise<void> {
         data: buildInflightAssistantMessage(snapshot),
       });
     }
-  } catch (err) { console.error('[loadMessages] error:', err); }
+  } catch (err) {
+    console.error('[loadMessages] error:', err);
+    // fetch 失败也要清理本次 flight 记录，避免残留记录被后续 load 误判 version 冲突
+    // （不消费返回值：失败路径不需要重放任何东西）。
+    useStore.getState().consumeSessionFilesFlight(targetPath, myVersion);
+  }
 }
 
 export async function completeSessionTodos(sessionPath: string): Promise<boolean> {

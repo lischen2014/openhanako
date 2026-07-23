@@ -36,6 +36,7 @@ const initialStateFactory = (): MockState => ({
   sessionRegistryFilesByPath: {} as Record<string, unknown>,
   sessionModelsByPath: {} as Record<string, unknown>,
   _loadMessagesVersion: {} as Record<string, number>,
+  _sessionFilesFlightByPath: {} as Record<string, { version: number; resetSeen: boolean; upserts: Record<string, unknown>[] }>,
   scrollPositions: {} as Record<string, number>,
   todosLiveVersionBySession: {} as Record<string, number>,
   todosBySession: {} as Record<string, unknown>,
@@ -201,6 +202,7 @@ function installStoreMethods() {
     delete (mockState.sessionModelsByPath as Record<string, unknown>)[path];
     delete (mockState._loadMessagesVersion as Record<string, number>)[path];
     delete (mockState.scrollPositions as Record<string, number>)[path];
+    delete (mockState._sessionFilesFlightByPath as Record<string, unknown>)[path];
   });
   s.setSessionRegistryFiles = vi.fn((path: string, files: unknown[]) => {
     const bySession = mockState.sessionRegistryFilesByPath as Record<string, unknown>;
@@ -210,6 +212,29 @@ function installStoreMethods() {
     const bySession = mockState.sessionRegistryFilesByPath as Record<string, Record<string, unknown>[]>;
     const files = bySession[path] || [];
     bySession[path] = [...files, file];
+    const flightByPath = mockState._sessionFilesFlightByPath as Record<string, { version: number; resetSeen: boolean; upserts: Record<string, unknown>[] }>;
+    const flight = flightByPath[path];
+    if (flight) flight.upserts = [...flight.upserts, file];
+  });
+  s.beginSessionFilesFlight = vi.fn((path: string, version: number) => {
+    const flightByPath = mockState._sessionFilesFlightByPath as Record<string, { version: number; resetSeen: boolean; upserts: Record<string, unknown>[] }>;
+    flightByPath[path] = { version, resetSeen: false, upserts: [] };
+  });
+  s.consumeSessionFilesFlight = vi.fn((path: string, version: number) => {
+    const flightByPath = mockState._sessionFilesFlightByPath as Record<string, { version: number; resetSeen: boolean; upserts: Record<string, unknown>[] }>;
+    const flight = flightByPath[path];
+    if (!flight || flight.version !== version) return null;
+    delete flightByPath[path];
+    return { resetSeen: flight.resetSeen, upserts: flight.upserts };
+  });
+  s.applyBranchResetSessionFiles = vi.fn((path: string, files: unknown[] | null) => {
+    if (Array.isArray(files)) {
+      const bySession = mockState.sessionRegistryFilesByPath as Record<string, unknown>;
+      bySession[path] = files;
+    }
+    const flightByPath = mockState._sessionFilesFlightByPath as Record<string, { version: number; resetSeen: boolean; upserts: Record<string, unknown>[] }>;
+    const flight = flightByPath[path];
+    if (flight) flight.resetSeen = true;
   });
   s.setSessionTodosForPath = vi.fn((path: string, todos: unknown[]) => {
     const bySession = mockState.todosBySession as Record<string, unknown>;
@@ -1105,14 +1130,20 @@ function mockPermissionDefault(mode = 'ask') {
       const firstPromise = new Promise<Response>(r => { resolveFirst = r; });
       mockFetch.mockImplementationOnce(() => firstPromise);
       mockFetch.mockImplementationOnce(async () =>
-        jsonResponse({ messages: [{ text: 'new' }], blocks: [], todos: [], hasMore: false }),
+        jsonResponse({
+          messages: [{ text: 'new' }], blocks: [], todos: [], hasMore: false,
+          sessionFiles: [{ fileId: 'sf_new', filePath: '/tmp/new.md' }],
+        }),
       );
 
       const p1 = loadMessages('/a');
       const p2 = loadMessages('/a');
       await p2;
       // v1 的响应后到；此时 _loadMessagesVersion['/a'] === 2，应被判为 stale
-      resolveFirst(jsonResponse({ messages: [{ text: 'stale' }], blocks: [], todos: [], hasMore: false }));
+      resolveFirst(jsonResponse({
+        messages: [{ text: 'stale' }], blocks: [], todos: [], hasMore: false,
+        sessionFiles: [{ fileId: 'sf_stale', filePath: '/tmp/stale.md' }],
+      }));
       await p1;
 
       const chat = mockState.chatSessions as Record<string, { items: Array<{ data: { text: string } }> }>;
@@ -1120,6 +1151,10 @@ function mockPermissionDefault(mode = 'ask') {
       // 最新的 v2 结果取胜
       expect(chat['/a'].items).toHaveLength(1);
       expect(chat['/a'].items[0].data.text).toBe('new');
+      // v1（stale）不应写入 SessionFile registry；v2 的结果保留
+      expect((mockState.sessionRegistryFilesByPath as Record<string, unknown>)['/a']).toEqual([
+        { fileId: 'sf_new', filePath: '/tmp/new.md' },
+      ]);
     });
 
     it('正常单次调用写入 initSession', async () => {
@@ -1137,7 +1172,7 @@ function mockPermissionDefault(mode = 'ask') {
         .toEqual([{ fileId: 'sf_write', filePath: '/workspace/draft.md' }]);
     });
 
-    it('mid-flight 收到 live message 更新时，跳过 messages hydrate', async () => {
+    it('主 bug 回归（#2188）：mid-flight 收到 live message 更新时，跳过 messages hydrate 但仍写入 SessionFile registry', async () => {
       let resolveFetch!: (r: Response) => void;
       const pending = new Promise<Response>((resolve) => { resolveFetch = resolve; });
       mockFetch.mockImplementationOnce(() => pending);
@@ -1146,11 +1181,54 @@ function mockPermissionDefault(mode = 'ask') {
       bumpMessageLiveVersion('/a');
       resolveFetch(jsonResponse({
         messages: [{ text: 'stale' }], blocks: [], todos: [], hasMore: false,
+        sessionFiles: [{ fileId: 'sf_live', filePath: '/tmp/live.md' }],
       }));
       await task;
 
       const initSession = (mockState as unknown as { initSession: ReturnType<typeof vi.fn> }).initSession;
       expect(initSession).not.toHaveBeenCalled();
+      // messages/todos hydrate 被放弃，但 SessionFile registry 必须仍然写入
+      // （否则远程 WebUI 的文件面板永远空 — #2188 根因）。
+      expect((mockState.sessionRegistryFilesByPath as Record<string, unknown>)['/a']).toEqual([
+        { fileId: 'sf_live', filePath: '/tmp/live.md' },
+      ]);
+    });
+
+    it('mid-flight 期间收到 upsert：hydrate 后 registry 为快照与重放增量合并（重放后写胜）', async () => {
+      mockFetch.mockResolvedValueOnce(jsonResponse({
+        messages: [{ text: 'hello' }], blocks: [], todos: [], hasMore: false,
+        sessionFiles: [{ fileId: 'sf_snapshot', filePath: '/tmp/snapshot.md' }],
+      }));
+
+      const task = loadMessages('/a');
+      // mid-flight：真实链路里这是 WS tool_end / content_block file 触发的 upsert
+      (mockState as unknown as { upsertSessionRegistryFile: (path: string, f: Record<string, unknown>) => void })
+        .upsertSessionRegistryFile('/a', { fileId: 'sf_live', filePath: '/tmp/live.md' });
+      await task;
+
+      expect((mockState.sessionRegistryFilesByPath as Record<string, unknown>)['/a']).toEqual([
+        { fileId: 'sf_snapshot', filePath: '/tmp/snapshot.md' },
+        { fileId: 'sf_live', filePath: '/tmp/live.md' },
+      ]);
+    });
+
+    it('mid-flight 期间收到 branch reset：hydrate 放弃旧快照，不覆盖 reset 后的权威 registry', async () => {
+      mockFetch.mockResolvedValueOnce(jsonResponse({
+        messages: [{ text: 'hello' }], blocks: [], todos: [], hasMore: false,
+        sessionFiles: [{ fileId: 'sf_snapshot', filePath: '/tmp/snapshot.md' }],
+      }));
+
+      const task = loadMessages('/a');
+      // mid-flight：真实链路里这是 WS session_branch_reset 触发的 applyBranchResetSessionFiles
+      (mockState as unknown as { applyBranchResetSessionFiles: (path: string, files: unknown[] | null) => void })
+        .applyBranchResetSessionFiles('/a', [{ fileId: 'sf_post_reset', filePath: '/tmp/post.md' }]);
+      await task;
+
+      const setSessionRegistryFiles = (mockState as unknown as { setSessionRegistryFiles: ReturnType<typeof vi.fn> }).setSessionRegistryFiles;
+      expect(setSessionRegistryFiles).not.toHaveBeenCalled();
+      expect((mockState.sessionRegistryFilesByPath as Record<string, unknown>)['/a']).toEqual([
+        { fileId: 'sf_post_reset', filePath: '/tmp/post.md' },
+      ]);
     });
 
     it('stale 响应不会先把 todos 回滚到旧快照', async () => {

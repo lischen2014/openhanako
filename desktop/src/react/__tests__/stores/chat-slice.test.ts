@@ -330,6 +330,62 @@ describe('chat-slice', () => {
     });
   });
 
+  describe('SessionFile flight barrier（#2188）', () => {
+    it('beginSessionFilesFlight 之后用相同 version consume：返回记录并删除', () => {
+      slice.beginSessionFilesFlight('/a', 1);
+      const result = slice.consumeSessionFilesFlight('/a', 1);
+      expect(result).toEqual({ resetSeen: false, upserts: [] });
+      // 删除后再次 consume 应返回 null
+      expect(slice.consumeSessionFilesFlight('/a', 1)).toBeNull();
+    });
+
+    it('version 不匹配：返回 null 且不删除记录', () => {
+      slice.beginSessionFilesFlight('/a', 1);
+      expect(slice.consumeSessionFilesFlight('/a', 2)).toBeNull();
+      // 记录未被删除：用正确 version 仍能 consume 到
+      expect(slice.consumeSessionFilesFlight('/a', 1)).toEqual({ resetSeen: false, upserts: [] });
+    });
+
+    it('upsertSessionRegistryFile 在 flight 活跃时把文件记进 upserts', () => {
+      slice.beginSessionFilesFlight('/a', 1);
+      slice.upsertSessionRegistryFile('/a', { fileId: 'sf_1', filePath: '/tmp/a.md' });
+      slice.upsertSessionRegistryFile('/a', { fileId: 'sf_2', filePath: '/tmp/b.md' });
+      const flight = slice.consumeSessionFilesFlight('/a', 1);
+      expect(flight?.upserts.map((f) => f.fileId)).toEqual(['sf_1', 'sf_2']);
+    });
+
+    it('upsertSessionRegistryFile 在 flight 不活跃时不记录（registry 正常写入）', () => {
+      slice.upsertSessionRegistryFile('/a', { fileId: 'sf_1', filePath: '/tmp/a.md' });
+      expect(slice.sessionRegistryFilesByPath['/a']).toEqual([{ fileId: 'sf_1', filePath: '/tmp/a.md' }]);
+      // 没有 flight 记录可 consume
+      expect(slice.consumeSessionFilesFlight('/a', 1)).toBeNull();
+    });
+
+    it('applyBranchResetSessionFiles(path, null) 只标记 resetSeen，不动 registry', () => {
+      slice.setSessionRegistryFiles('/a', [{ fileId: 'old', filePath: '/tmp/old.md' }]);
+      slice.beginSessionFilesFlight('/a', 1);
+      slice.applyBranchResetSessionFiles('/a', null);
+      expect(slice.sessionRegistryFilesByPath['/a']).toEqual([{ fileId: 'old', filePath: '/tmp/old.md' }]);
+      const flight = slice.consumeSessionFilesFlight('/a', 1);
+      expect(flight?.resetSeen).toBe(true);
+    });
+
+    it('applyBranchResetSessionFiles(path, files) 整表替换并标记 resetSeen', () => {
+      slice.setSessionRegistryFiles('/a', [{ fileId: 'old', filePath: '/tmp/old.md' }]);
+      slice.beginSessionFilesFlight('/a', 1);
+      slice.applyBranchResetSessionFiles('/a', [{ fileId: 'new', filePath: '/tmp/new.md' }]);
+      expect(slice.sessionRegistryFilesByPath['/a']).toEqual([{ fileId: 'new', filePath: '/tmp/new.md' }]);
+      const flight = slice.consumeSessionFilesFlight('/a', 1);
+      expect(flight?.resetSeen).toBe(true);
+    });
+
+    it('clearSession 清掉该 path 的 flight 记录', () => {
+      slice.beginSessionFilesFlight('/a', 1);
+      slice.clearSession('/a');
+      expect(slice.consumeSessionFilesFlight('/a', 1)).toBeNull();
+    });
+  });
+
   describe('resolveBlockByTaskId', () => {
     it('按 sessionPath + taskId 替换任意 assistant 消息里的媒体生成占位', () => {
       slice.initSession('/a', [

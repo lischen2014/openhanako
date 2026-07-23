@@ -603,9 +603,10 @@ export function handleServerMessage(msg: any): void {
         useStore.getState().setSessionTodosForPath(sp, msg.todos);
         useStore.getState().bumpTodosLiveVersion(sp);
       }
-      if (Array.isArray(msg.sessionFiles)) {
-        useStore.getState().setSessionRegistryFiles(sp, msg.sessionFiles);
-      }
+      useStore.getState().applyBranchResetSessionFiles(
+        sp,
+        Array.isArray(msg.sessionFiles) ? msg.sessionFiles : null,
+      );
       break;
     }
 
